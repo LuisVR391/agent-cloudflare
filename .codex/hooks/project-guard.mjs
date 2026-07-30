@@ -114,6 +114,21 @@ function hasExplicitJustification(text, label) {
   return expression.test(text);
 }
 
+function isGitPush(command) {
+  return /(^|[;&|]\s*|\s)git\s+push\b/i.test(command);
+}
+
+function hasPushConfirmation(command, policy) {
+  const variable = policy.pushConfirmation?.environmentVariable;
+  const value = policy.pushConfirmation?.value;
+  if (!variable || !value) return false;
+  const expression = new RegExp(
+    `(^|[;&|]\\s*|\\s)(?:env\\s+)?${variable}=${value}\\s+git\\s+push\\b`,
+    "i",
+  );
+  return expression.test(command);
+}
+
 function extractPatchOperations(patch) {
   const operations = [];
   const regex = /^\*\*\* (Add|Update|Delete) File: (.+)$/gm;
@@ -249,6 +264,14 @@ function handlePreToolUse(input, policy, runtime = {}) {
     if (new RegExp(rule.pattern, "i").test(command)) {
       return denyPreToolUse(rule.message);
     }
+  }
+
+  if (isGitPush(command) && !hasPushConfirmation(command, policy)) {
+    const variable = policy.pushConfirmation.environmentVariable;
+    const value = policy.pushConfirmation.value;
+    return denyPreToolUse(
+      `Bloqueado: git push requiere confirmación explícita del usuario. Después de recibirla, ejecuta \`${variable}=${value} git push\` en el mismo comando.`,
+    );
   }
 
   if (!/\b(git\s+commit|git\s+push|gh\s+pr\s+create)\b/i.test(command)) {

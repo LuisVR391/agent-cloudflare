@@ -65,10 +65,22 @@ exhaustivo; un secreto expuesto debe rotarse.
 - despliegues que no sean `--dry-run`;
 - ejecución remota de D1 y eliminación de recursos Cloudflare;
 - `git reset --hard`, `git clean` forzado y force push;
+- cualquier `git push` sin confirmación explícita del usuario;
 - publicación de `.env`, `.dev.vars`, llaves privadas y archivos equivalentes;
 - edición o eliminación de migraciones existentes.
 
-Crear una migración nueva sí está permitido. Antes de commit, push o creación
+Los agentes pueden crear commits locales atómicos sin una aprobación adicional.
+Antes de publicar, deben mostrar la rama, los commits y las validaciones,
+solicitar confirmación y esperar la respuesta. Una vez confirmada la publicación
+de ese estado concreto, el comando debe usar:
+
+```bash
+AGENT_PUSH_CONFIRMED=1 git push
+```
+
+La marca solo habilita un push normal en ese comando; no representa una
+autorización persistente ni evita el bloqueo de force push. Crear una migración
+nueva sí está permitido. Antes de commit, push o creación
 de PR, el hook audita el diff disponible. Un cambio arquitectónico requiere un
 ADR o la declaración `ADR: no aplica — <motivo concreto>`; un cambio de
 entregable requiere actualizar el roadmap o declarar

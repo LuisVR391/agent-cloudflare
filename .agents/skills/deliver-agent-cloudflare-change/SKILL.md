@@ -81,6 +81,14 @@ activo hasta que la persona usuaria lo haya revisado y confiado mediante
 ## 5. Publicar con trazabilidad
 
 - Usa commits atómicos y coherentes por responsabilidad.
+- Puedes crear commits locales sin autorización adicional cuando forman parte
+  del cambio solicitado.
+- Nunca ejecutes `git push` por inferencia ni como continuación automática.
+  Solicita confirmación explícita después de mostrar rama, commits y
+  validaciones pendientes de publicar.
+- Después de recibir esa confirmación en la conversación actual, ejecuta el
+  push con `AGENT_PUSH_CONFIRMED=1 git push`. No reutilices una autorización de
+  otra sesión, rama o conjunto de commits.
 - Vincula el PR al issue con `Closes #<número>` cuando corresponda.
 - Incluye alcance, riesgos, operaciones externas pendientes y las cuatro
   declaraciones de impacto.

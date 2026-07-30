@@ -65,6 +65,14 @@ if (!metadata.includes("$deliver-agent-cloudflare-change")) {
 
 const policy = readJson(".codex/agent-policy.json");
 if (policy.version !== 1) fail(".codex/agent-policy.json: versión no soportada");
+if (
+  policy.pushConfirmation?.environmentVariable !== "AGENT_PUSH_CONFIRMED" ||
+  policy.pushConfirmation?.value !== "1"
+) {
+  fail(
+    ".codex/agent-policy.json: pushConfirmation debe exigir AGENT_PUSH_CONFIRMED=1",
+  );
+}
 for (const path of policy.sourcesOfTruth || []) requireFile(path);
 for (const key of [
   "implementationPrefixes",

@@ -132,6 +132,12 @@ Además, debe declarar explícitamente el impacto en `Documentación`, `ADR`,
 `Roadmap` y `Validación`; si una categoría no aplica, incluye un motivo
 concreto.
 
+Los agentes pueden crear commits locales atómicos como parte de un cambio
+solicitado, pero nunca ejecutan `git push` sin confirmación explícita del
+usuario para la rama y los commits actuales. Después de recibirla, el comando
+usa `AGENT_PUSH_CONFIRMED=1 git push`; una autorización anterior no se
+reutiliza. El force push permanece prohibido.
+
 ## Documentación y ADRs
 
 - La guía rectora conserva la visión; el roadmap conserva el estado aceptado.

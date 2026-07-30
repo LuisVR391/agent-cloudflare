@@ -55,6 +55,10 @@
     "\\bsk-[A-Za-z0-9_-]{20,}\\b",
     "\\bgh[pousr]_[A-Za-z0-9]{20,}\\b"
   ],
+  "pushConfirmation": {
+    "environmentVariable": "AGENT_PUSH_CONFIRMED",
+    "value": "1"
+  },
   "blockedCommandPatterns": [
     {
       "id": "git-reset-hard",

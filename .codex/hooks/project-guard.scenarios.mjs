@@ -61,6 +61,31 @@ test("un comando seguro no se altera", () => {
   assert.equal(preTool("npx wrangler deploy --dry-run"), null);
 });
 
+test("git push requiere confirmación explícita y conserva el bloqueo de force push", () => {
+  const withoutConfirmation = preTool("git push origin feature");
+  assert.equal(denied(withoutConfirmation), true);
+  assert.match(
+    withoutConfirmation.hookSpecificOutput.permissionDecisionReason,
+    /confirmación explícita/i,
+  );
+
+  const confirmed = preTool(
+    "AGENT_PUSH_CONFIRMED=1 git push origin feature",
+    {},
+    staged(""),
+  );
+  assert.equal(confirmed, null);
+
+  const confirmedForcePush = preTool(
+    "AGENT_PUSH_CONFIRMED=1 git push --force-with-lease origin feature",
+  );
+  assert.equal(denied(confirmedForcePush), true);
+  assert.match(
+    confirmedForcePush.hookSpecificOutput.permissionDecisionReason,
+    /force push/i,
+  );
+});
+
 test("bloquea despliegues, D1 remoto, borrados y force push", () => {
   const commands = [
     "npx wrangler deploy",
