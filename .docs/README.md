@@ -46,9 +46,10 @@ secciones.
 | `product/vision.md` | Pendiente | Audiencia, problema, alcance del MVP y criterios de éxito |
 | `product/roadmap.md` | Pendiente | Entregables, dependencias y criterios de salida por fase |
 | `architecture/overview.md` | Pendiente | Componentes, límites y flujo general |
-| `architecture/data-ownership.md` | Pendiente | Fuentes de verdad y ciclo de vida de los datos |
+| [Modelo de dominio](./architecture/domain-model.md) | Vigente | Lenguaje, entidades, relaciones e invariantes multiempresa |
+| [Propiedad de datos](./architecture/data-ownership.md) | Vigente | Fuentes de verdad y ciclo de vida de los datos |
 | `architecture/security-model.md` | Pendiente | Autenticación, autorización, aislamiento y auditoría |
-| `architecture/contracts.md` | Pendiente | Contratos compartidos, identificadores e idempotencia |
+| [Contratos transversales](./architecture/contracts.md) | Vigente | Contratos compartidos, identificadores e idempotencia |
 | `operations/environments.md` | Pendiente | Local, staging, producción, bindings y secretos |
 | `decisions/ADR-0001-cloudflare-native.md` | Pendiente | Adopción de la arquitectura Cloudflare-native |
 | `decisions/ADR-0002-d1-source-of-truth.md` | Pendiente | D1 como fuente relacional empresarial |
