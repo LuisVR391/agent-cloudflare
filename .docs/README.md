@@ -13,8 +13,9 @@ de implementación.
 
 La guía describe el sistema objetivo. Una capacidad solo se considera
 implementada cuando existe evidencia en código, configuración, migraciones y
-pruebas. El [README principal](../README.md) mantiene el resumen verificable
-del estado actual.
+pruebas. El [roadmap de producto](./product/roadmap.md) mantiene el estado
+aceptado, sus dependencias y la evidencia de ejecución. El
+[README principal](../README.md) conserva el resumen del estado actual.
 
 ## Estados documentales
 
@@ -35,6 +36,7 @@ secciones.
 | Documento | Estado | Fase | Propósito |
 | --- | --- | --- | --- |
 | [Guía de arquitectura y producto](./guia-arquitectura-producto.md) | Vigente | 0 | Visión, principios, arquitectura objetivo, alcance y fases |
+| [Roadmap de producto](./product/roadmap.md) | Vigente | 0 | Estado verificable, dependencias, criterios de salida y evidencia |
 | [README del repositorio](../README.md) | Vigente | 0 | Entrada al proyecto y estado real de implementación |
 | [Seguridad](../SECURITY.md) | Vigente | 0 | Reglas mínimas para secretos, webhooks, datos y procesamiento |
 | [Contribución](../CONTRIBUTING.md) | Vigente | 0 | Flujo local y convenciones actuales |
@@ -44,7 +46,6 @@ secciones.
 | Documento planificado | Estado | Contenido |
 | --- | --- | --- |
 | `product/vision.md` | Pendiente | Audiencia, problema, alcance del MVP y criterios de éxito |
-| `product/roadmap.md` | Pendiente | Entregables, dependencias y criterios de salida por fase |
 | `architecture/overview.md` | Pendiente | Componentes, límites y flujo general |
 | [Modelo de dominio](./architecture/domain-model.md) | Vigente | Lenguaje, entidades, relaciones e invariantes multiempresa |
 | [Propiedad de datos](./architecture/data-ownership.md) | Vigente | Fuentes de verdad y ciclo de vida de los datos |
