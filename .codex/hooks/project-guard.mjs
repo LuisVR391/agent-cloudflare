@@ -79,14 +79,16 @@ function parseNameStatus(output) {
     });
 }
 
-function collectAuditChanges(cwd, command) {
+function collectAuditChanges(cwd, command, gitRunner = runGit) {
   const outputs = [];
   if (/\bgit\s+commit\b/i.test(command)) {
-    outputs.push(runGit(["diff", "--cached", "--name-status"], cwd));
+    outputs.push(gitRunner(["diff", "--cached", "--name-status"], cwd));
   } else {
-    outputs.push(runGit(["diff", "--name-status"], cwd));
-    outputs.push(runGit(["diff", "--cached", "--name-status"], cwd));
-    outputs.push(runGit(["diff", "--name-status", "origin/main...HEAD"], cwd));
+    outputs.push(gitRunner(["diff", "--name-status"], cwd));
+    outputs.push(gitRunner(["diff", "--cached", "--name-status"], cwd));
+    outputs.push(
+      gitRunner(["diff", "--name-status", "origin/main...HEAD"], cwd),
+    );
   }
 
   const unique = new Map();
@@ -96,8 +98,11 @@ function collectAuditChanges(cwd, command) {
   return [...unique.values()];
 }
 
-function auditText(cwd, command) {
-  const messages = runGit(["log", "--format=%B", "origin/main..HEAD"], cwd);
+function auditText(cwd, command, gitRunner = runGit) {
+  const messages = gitRunner(
+    ["log", "--format=%B", "origin/main..HEAD"],
+    cwd,
+  );
   return `${command}\n${messages}`;
 }
 
@@ -121,14 +126,24 @@ function extractPatchOperations(patch) {
   return operations;
 }
 
-function isTracked(path, cwd) {
-  return Boolean(runGit(["ls-files", "--error-unmatch", "--", path], cwd));
+function isTracked(path, cwd, gitRunner = runGit) {
+  return Boolean(
+    gitRunner(["ls-files", "--error-unmatch", "--", path], cwd),
+  );
 }
 
-function migrationViolationFromPatch(patch, cwd, policy) {
+function migrationViolationFromPatch(
+  patch,
+  cwd,
+  policy,
+  gitRunner = runGit,
+) {
   for (const operation of extractPatchOperations(patch)) {
     if (!isUnder(operation.path, policy.migrationPrefixes)) continue;
-    if (operation.action !== "Add" && isTracked(operation.path, cwd)) {
+    if (
+      operation.action !== "Add" &&
+      isTracked(operation.path, cwd, gitRunner)
+    ) {
       return operation.path;
     }
   }
@@ -209,13 +224,19 @@ function handleUserPromptSubmit(input, policy) {
   return null;
 }
 
-function handlePreToolUse(input, policy) {
+function handlePreToolUse(input, policy, runtime = {}) {
   const cwd = input.cwd || repositoryRoot;
   const toolName = input.tool_name || "";
   const command = String(input.tool_input?.command || "");
+  const gitRunner = runtime.runGit || runGit;
 
   if (toolName === "apply_patch") {
-    const migration = migrationViolationFromPatch(command, cwd, policy);
+    const migration = migrationViolationFromPatch(
+      command,
+      cwd,
+      policy,
+      gitRunner,
+    );
     if (migration) {
       return denyPreToolUse(
         `Bloqueado: ${migration} es una migración existente. Crea una migración nueva.`,
@@ -234,7 +255,7 @@ function handlePreToolUse(input, policy) {
     return null;
   }
 
-  const changes = collectAuditChanges(cwd, command);
+  const changes = collectAuditChanges(cwd, command, gitRunner);
   const allPaths = changes.flatMap((change) => change.paths);
   const sensitive = allPaths.find((path) => isSensitivePath(path, policy));
   if (sensitive) {
@@ -250,7 +271,7 @@ function handlePreToolUse(input, policy) {
     );
   }
 
-  const evidence = auditText(cwd, command);
+  const evidence = auditText(cwd, command, gitRunner);
   const architectureChanged = allPaths.some((path) =>
     isUnder(path, policy.architecturePrefixes),
   );
@@ -324,7 +345,7 @@ function handleStop(input) {
   };
 }
 
-export function handleHook(input, policy = loadPolicy()) {
+export function handleHook(input, policy = loadPolicy(), runtime = {}) {
   switch (input.hook_event_name) {
     case "SessionStart":
       return handleSessionStart(input, policy);
@@ -333,7 +354,7 @@ export function handleHook(input, policy = loadPolicy()) {
     case "UserPromptSubmit":
       return handleUserPromptSubmit(input, policy);
     case "PreToolUse":
-      return handlePreToolUse(input, policy);
+      return handlePreToolUse(input, policy, runtime);
     case "PostToolUse":
       return handlePostToolUse(input, policy);
     case "Stop":
