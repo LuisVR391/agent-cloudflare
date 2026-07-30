@@ -1,5 +1,9 @@
 # Contribuir
 
+Antes de modificar arquitectura, persistencia o integraciones, consulta las
+[reglas compartidas del repositorio](./AGENTS.md). Este documento resume el
+flujo local; `AGENTS.md` mantiene los principios y restricciones transversales.
+
 ## Flujo local
 
 1. Usa Node.js 22 (`nvm use`).
