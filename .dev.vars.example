@@ -1,0 +1,6 @@
+# Copia este archivo como .dev.vars para desarrollo local.
+# Nunca confirmes .dev.vars en Git.
+WHATSAPP_VERIFY_TOKEN=replace-me
+WHATSAPP_APP_SECRET=replace-me
+WHATSAPP_ACCESS_TOKEN=replace-me
+WHATSAPP_PHONE_NUMBER_ID=replace-me
