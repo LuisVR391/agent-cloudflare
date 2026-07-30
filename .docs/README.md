@@ -27,7 +27,8 @@ aceptado, sus dependencias y la evidencia de ejecución. El
 
 Cuando una decisión arquitectónica cambie, se registrará mediante un ADR. Los
 documentos especializados enlazarán a la guía en vez de duplicar grandes
-secciones.
+secciones. El [índice de decisiones](./decisions/README.md) define sus estados,
+estructura y proceso de sustitución.
 
 ## Mapa documental
 
@@ -37,6 +38,8 @@ secciones.
 | --- | --- | --- | --- |
 | [Guía de arquitectura y producto](./guia-arquitectura-producto.md) | Vigente | 0 | Visión, principios, arquitectura objetivo, alcance y fases |
 | [Roadmap de producto](./product/roadmap.md) | Vigente | 0 | Estado verificable, dependencias, criterios de salida y evidencia |
+| [Reglas compartidas](../AGENTS.md) | Vigente | 0 | Principios, restricciones, validaciones y flujo de contribución |
+| [Decisiones arquitectónicas](./decisions/README.md) | Vigente | 0 | Índice y ciclo de vida de los ADRs |
 | [README del repositorio](../README.md) | Vigente | 0 | Entrada al proyecto y estado real de implementación |
 | [Seguridad](../SECURITY.md) | Vigente | 0 | Reglas mínimas para secretos, webhooks, datos y procesamiento |
 | [Contribución](../CONTRIBUTING.md) | Vigente | 0 | Flujo local y convenciones actuales |
@@ -52,10 +55,10 @@ secciones.
 | `architecture/security-model.md` | Pendiente | Autenticación, autorización, aislamiento y auditoría |
 | [Contratos transversales](./architecture/contracts.md) | Vigente | Contratos compartidos, identificadores e idempotencia |
 | `operations/environments.md` | Pendiente | Local, staging, producción, bindings y secretos |
-| `decisions/ADR-0001-cloudflare-native.md` | Pendiente | Adopción de la arquitectura Cloudflare-native |
-| `decisions/ADR-0002-d1-source-of-truth.md` | Pendiente | D1 como fuente relacional empresarial |
-| `decisions/ADR-0003-conversation-agent.md` | Pendiente | Runtime durable por conversación |
-| `decisions/ADR-0004-human-approval.md` | Pendiente | Aprobación humana y rollback para mejoras |
+| [ADR-0001: Arquitectura Cloudflare-native](./decisions/ADR-0001-cloudflare-native.md) | Vigente | Servicios Cloudflare mediante bindings y responsabilidades separadas |
+| [ADR-0002: D1 como fuente de verdad](./decisions/ADR-0002-d1-source-of-truth.md) | Vigente | Autoridad empresarial y relacional, migraciones y proyecciones |
+| [ADR-0003: Runtime durable por conversación](./decisions/ADR-0003-conversation-agent.md) | Vigente | Coordinación viva y aislada mediante Durable Objects |
+| [ADR-0004: Aprobación humana](./decisions/ADR-0004-human-approval.md) | Vigente | Evaluación, autorización, publicación versionada y rollback |
 
 ### Fase 1 — WhatsApp funcional
 
