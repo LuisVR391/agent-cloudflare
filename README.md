@@ -127,17 +127,18 @@ agentes, fine-tuning automático ni el soporte simultáneo para múltiples giros
 
 | Fase | Resultado esperado |
 | --- | --- |
-| 0. Fundamentos | Dominio, D1, autenticación, roles, contratos, ADRs, entornos y staging |
-| 1. WhatsApp funcional | Webhook seguro, deduplicación, colas, conversación durable, buffer, inbox y handoff |
-| 2. CRM | Contactos, conversaciones, equipos, pipelines, tareas, citas y métricas iniciales |
-| 3. Agentes | Configuración, versiones, RAG, tools, routing, memoria, supervisión y failover |
-| 4. Automatización | Seguimientos, confirmaciones, campañas, reactivación y recordatorios |
-| 5. Mejora continua | Supervisor, evaluaciones, propuestas, aprobación, publicación y rollback |
-| 6. Expansión | Nuevos canales, paquetes empresariales y evolución multiempresa |
+| [0. Fundamentos](./.docs/product/roadmap.md#fase-0--fundamentos) | Dominio, D1, autenticación, roles, contratos, ADRs, entornos y staging |
+| [1. WhatsApp funcional](./.docs/product/roadmap.md#fase-1--whatsapp-funcional) | Webhook seguro, deduplicación, colas, conversación durable, buffer, inbox y handoff |
+| [2. CRM](./.docs/product/roadmap.md#fase-2--crm) | Contactos, conversaciones, equipos, pipelines, tareas, citas y métricas iniciales |
+| [3. Agentes](./.docs/product/roadmap.md#fase-3--agentes) | Configuración, versiones, RAG, tools, routing, memoria, supervisión y failover |
+| [4. Automatización](./.docs/product/roadmap.md#fase-4--automatización) | Seguimientos, confirmaciones, campañas, reactivación y recordatorios |
+| [5. Mejora continua](./.docs/product/roadmap.md#fase-5--mejora-continua) | Supervisor, evaluaciones, propuestas, aprobación, publicación y rollback |
+| [6. Expansión](./.docs/product/roadmap.md#fase-6--expansión) | Nuevos canales, paquetes empresariales y evolución multiempresa |
 
 La descomposición técnica y el estado de cada documento se mantienen en el
+[roadmap de producto](./.docs/product/roadmap.md) y el
 [índice de documentación](./.docs/README.md). La visión y las decisiones
-arquitectónicas completas están en la
+arquitectónicas completas permanecen en la
 [guía de arquitectura y producto](./.docs/guia-arquitectura-producto.md).
 
 ## Requisitos
