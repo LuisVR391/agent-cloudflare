@@ -7,8 +7,18 @@ import { handleHook } from "./project-guard.mjs";
 
 const repositoryRoot = join(import.meta.dirname, "..", "..");
 const policy = JSON.parse(
-  readFileSync(join(repositoryRoot, ".codex", "agent-policy.json"), "utf8"),
+  readFileSync(join(repositoryRoot, ".agents", "guard", "policy.json"), "utf8"),
 );
+
+// Simula el seguimiento en git de una migración ya versionada.
+const trackedMigration = {
+  runGit(args) {
+    if (args.includes("ls-files") && args.at(-1) === "migrations/0001.sql") {
+      return "migrations/0001.sql";
+    }
+    return "";
+  },
+};
 
 function preTool(command, overrides = {}, runtime = {}) {
   return handleHook(
@@ -111,15 +121,7 @@ test("bloquea secretos de alta confianza sin repetirlos", () => {
   assert.doesNotMatch(JSON.stringify(output), new RegExp(secret));
 });
 
-test("permite crear una migración y bloquea editar una existente", () => {
-  const runtime = {
-    runGit(args) {
-      if (args.includes("ls-files") && args.at(-1) === "migrations/0001.sql") {
-        return "migrations/0001.sql";
-      }
-      return "";
-    },
-  };
+test("apply_patch permite crear una migración y bloquea editar una existente", () => {
   const added = handleHook(
     {
       hook_event_name: "PreToolUse",
@@ -131,7 +133,7 @@ test("permite crear una migración y bloquea editar una existente", () => {
       },
     },
     policy,
-    runtime,
+    trackedMigration,
   );
   assert.equal(added, null);
 
@@ -146,9 +148,61 @@ test("permite crear una migración y bloquea editar una existente", () => {
       },
     },
     policy,
-    runtime,
+    trackedMigration,
   );
   assert.equal(denied(updated), true);
+});
+
+test("Edit y Write aplican la misma regla de migraciones con rutas absolutas", () => {
+  const editExisting = handleHook(
+    {
+      hook_event_name: "PreToolUse",
+      tool_name: "Edit",
+      cwd: repositoryRoot,
+      tool_input: {
+        file_path: join(repositoryRoot, "migrations/0001.sql"),
+        old_string: "SELECT 1;",
+        new_string: "SELECT 2;",
+      },
+    },
+    policy,
+    trackedMigration,
+  );
+  assert.equal(denied(editExisting), true);
+  assert.match(
+    editExisting.hookSpecificOutput.permissionDecisionReason,
+    /migrations\/0001\.sql/,
+  );
+
+  const writeNew = handleHook(
+    {
+      hook_event_name: "PreToolUse",
+      tool_name: "Write",
+      cwd: repositoryRoot,
+      tool_input: {
+        file_path: join(repositoryRoot, "migrations/0002.sql"),
+        content: "SELECT 2;\n",
+      },
+    },
+    policy,
+    trackedMigration,
+  );
+  assert.equal(writeNew, null);
+
+  const writeSource = handleHook(
+    {
+      hook_event_name: "PreToolUse",
+      tool_name: "Write",
+      cwd: repositoryRoot,
+      tool_input: {
+        file_path: join(repositoryRoot, "src/worker/index.ts"),
+        content: "export default {};\n",
+      },
+    },
+    policy,
+    trackedMigration,
+  );
+  assert.equal(writeSource, null);
 });
 
 test("bloquea un archivo sensible antes de commit", () => {
@@ -197,6 +251,48 @@ test("PostToolUse recuerda documentación una sola vez por turno", () => {
   const second = handleHook(input, policy);
   assert.match(first.hookSpecificOutput.additionalContext, /documentación/i);
   assert.equal(second, null);
+});
+
+test("PostToolUse resuelve rutas absolutas y deduplica por agente", () => {
+  const input = {
+    hook_event_name: "PostToolUse",
+    tool_name: "Edit",
+    session_id: `test-${Date.now()}`,
+    prompt_id: "claude-docs",
+    cwd: repositoryRoot,
+    tool_input: { file_path: join(repositoryRoot, "src/worker/index.ts") },
+  };
+  const first = handleHook(input, policy, { agent: "claude" });
+  const repeated = handleHook(input, policy, { agent: "claude" });
+  const otherAgent = handleHook(input, policy, { agent: "codex" });
+
+  assert.match(first.hookSpecificOutput.additionalContext, /documentación/i);
+  assert.equal(repeated, null);
+  assert.match(
+    otherAgent.hookSpecificOutput.additionalContext,
+    /documentación/i,
+  );
+});
+
+test("SessionStart usa la invocación del skill propia de cada agente", () => {
+  const claude = handleHook(
+    { hook_event_name: "SessionStart", source: "startup" },
+    policy,
+    { skillCommand: "/deliver-agent-cloudflare-change" },
+  );
+  const codex = handleHook(
+    { hook_event_name: "SessionStart", source: "startup" },
+    policy,
+    { skillCommand: "$deliver-agent-cloudflare-change" },
+  );
+  assert.match(
+    claude.hookSpecificOutput.additionalContext,
+    /\/deliver-agent-cloudflare-change/,
+  );
+  assert.match(
+    codex.hookSpecificOutput.additionalContext,
+    /\$deliver-agent-cloudflare-change/,
+  );
 });
 
 test("Stop exige el cierre una vez y acepta las cuatro secciones", () => {

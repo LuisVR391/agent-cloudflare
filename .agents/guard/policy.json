@@ -14,11 +14,13 @@
     "package.json",
     "wrangler.jsonc",
     ".agents/",
-    ".codex/"
+    ".codex/",
+    ".claude/"
   ],
   "documentationPrefixes": [
     ".docs/",
     "AGENTS.md",
+    "CLAUDE.md",
     "CONTRIBUTING.md",
     "README.md",
     "SECURITY.md"
@@ -31,6 +33,7 @@
   ],
   "deliverablePrefixes": [
     ".agents/",
+    ".claude/",
     ".codex/",
     "migrations/",
     "src/",
@@ -117,14 +120,22 @@
       "prefix": ".agents/",
       "documents": [
         "AGENTS.md",
-        ".docs/operations/codex-agent-workflow.md"
+        ".docs/operations/agent-continuity.md"
       ]
     },
     {
       "prefix": ".codex/",
       "documents": [
         "AGENTS.md",
-        ".docs/operations/codex-agent-workflow.md"
+        ".docs/operations/agent-continuity.md"
+      ]
+    },
+    {
+      "prefix": ".claude/",
+      "documents": [
+        "AGENTS.md",
+        "CLAUDE.md",
+        ".docs/operations/agent-continuity.md"
       ]
     }
   ]

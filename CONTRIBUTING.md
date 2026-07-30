@@ -12,8 +12,8 @@ flujo local; `AGENTS.md` mantiene los principios y restricciones transversales.
 4. Inicia el entorno con `npm run dev`.
 5. Antes de enviar cambios, ejecuta `npm run check`.
 
-Si trabajas con Codex, revisa la
-[guía de continuidad de agentes](./.docs/operations/codex-agent-workflow.md).
+Si trabajas con Codex o Claude Code, revisa la
+[guía de continuidad de agentes](./.docs/operations/agent-continuity.md).
 El skill se descubre desde el repositorio, pero los hooks requieren revisión y
 confianza explícita mediante `/hooks` cada vez que cambie su definición.
 
