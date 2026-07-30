@@ -43,6 +43,7 @@ estructura y proceso de sustitución.
 | [README del repositorio](../README.md) | Vigente | 0 | Entrada al proyecto y estado real de implementación |
 | [Seguridad](../SECURITY.md) | Vigente | 0 | Reglas mínimas para secretos, webhooks, datos y procesamiento |
 | [Contribución](../CONTRIBUTING.md) | Vigente | 0 | Flujo local y convenciones actuales |
+| [Continuidad de agentes con Codex](./operations/codex-agent-workflow.md) | Vigente | 0 | Skill, hooks, confianza, guardrails y validación repo-local |
 
 ### Fase 0 — Fundamentos
 

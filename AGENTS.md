@@ -3,6 +3,9 @@
 Estas instrucciones aplican a todo el repositorio y son la fuente única de
 reglas para desarrolladores y agentes de codificación. Los archivos de
 integración de herramientas deben remitir aquí en vez de copiar estas reglas.
+La [guía de continuidad con Codex](./.docs/operations/codex-agent-workflow.md)
+explica el skill y los hooks repo-locales que ayudan a aplicar estas reglas sin
+sustituirlas.
 
 ## Antes de modificar
 
@@ -125,6 +128,9 @@ vigente.
 
 Los commits deben ser coherentes por responsabilidad. Un PR debe explicar
 alcance, impacto, validación, riesgos y cualquier operación externa pendiente.
+Además, debe declarar explícitamente el impacto en `Documentación`, `ADR`,
+`Roadmap` y `Validación`; si una categoría no aplica, incluye un motivo
+concreto.
 
 ## Documentación y ADRs
 
