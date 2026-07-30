@@ -2,6 +2,7 @@ node_modules/
 dist/
 .wrangler/
 worker-configuration.d.ts
+*.tsbuildinfo
 
 .dev.vars
 .dev.vars.*
@@ -13,3 +14,10 @@ worker-configuration.d.ts
 *.log
 .DS_Store
 coverage/
+
+.vscode/
+.idea/
+*.iml
+*.swp
+*.swo
+*~
