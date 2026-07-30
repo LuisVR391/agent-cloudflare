@@ -43,15 +43,15 @@ aislamiento multiempresa.
 | Propiedad de datos | Completado | Modelo de dominio | [Issue #1](https://github.com/LuisVR391/agent-cloudflare/issues/1) y [PR #2](https://github.com/LuisVR391/agent-cloudflare/pull/2) |
 | Contratos transversales | Completado | Modelo de dominio y propiedad de datos | [Issue #1](https://github.com/LuisVR391/agent-cloudflare/issues/1) y [PR #2](https://github.com/LuisVR391/agent-cloudflare/pull/2) |
 | Roadmap verificable | Completado | Fundamentos documentales iniciales | [Issue #3](https://github.com/LuisVR391/agent-cloudflare/issues/3) y [PR #8](https://github.com/LuisVR391/agent-cloudflare/pull/8) |
-| Reglas de desarrollo y ADRs | Planificado | Roadmap | [Issue #4](https://github.com/LuisVR391/agent-cloudflare/issues/4) |
+| Reglas de desarrollo y ADRs | Completado | Roadmap | [Issue #4](https://github.com/LuisVR391/agent-cloudflare/issues/4) y [PR #9](https://github.com/LuisVR391/agent-cloudflare/pull/9) |
 | D1, migraciones y pruebas locales multiempresa | Planificado | Reglas y ADRs de #4 | [Issue #5](https://github.com/LuisVR391/agent-cloudflare/issues/5) |
 | Autenticación, roles y aislamiento multiempresa | Planificado | D1 y migraciones de #5 | [Issue #6](https://github.com/LuisVR391/agent-cloudflare/issues/6) |
 | Entornos y staging | Planificado | Fundamentos anteriores (#4, #5 y #6) | [Issue #7](https://github.com/LuisVR391/agent-cloudflare/issues/7) |
 | Visión especializada de producto | Planificado | Guía rectora | Issue aún no creado |
 | Overview de arquitectura | Planificado | Guía rectora y ADRs | Issue aún no creado |
 
-El estado completado del roadmap entra en vigor al fusionarse el PR de este
-cambio en `main`.
+El estado completado de cada entregable entra en vigor al fusionarse en `main`
+el PR enlazado como evidencia.
 
 **Criterio de salida:** la visión y el overview especializados están vigentes;
 las decisiones fundamentales están aceptadas; D1 y sus migraciones funcionan en

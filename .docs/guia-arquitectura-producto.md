@@ -1507,7 +1507,7 @@ El agente debe:
 ├── decisions/
 │   ├── ADR-0001-cloudflare-native.md
 │   ├── ADR-0002-d1-source-of-truth.md
-│   ├── ADR-0003-conversation-do.md
+│   ├── ADR-0003-conversation-agent.md
 │   └── ADR-0004-human-approval.md
 │
 └── operations/
