@@ -26,6 +26,7 @@ const skillPath =
 const metadataPath =
   ".agents/skills/deliver-agent-cloudflare-change/agents/openai.yaml";
 const hookScriptPath = ".codex/hooks/project-guard.mjs";
+const scenariosPath = ".codex/hooks/project-guard.scenarios.mjs";
 
 for (const path of [
   skillPath,
@@ -33,6 +34,7 @@ for (const path of [
   ".codex/agent-policy.json",
   ".codex/hooks.json",
   hookScriptPath,
+  scenariosPath,
 ]) {
   requireFile(path);
 }
