@@ -1,6 +1,9 @@
 import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
-import { MissingOrganizationScopeError } from "../../src/worker/domain/errors";
+import {
+  ContactNotInOrganizationError,
+  MissingOrganizationScopeError,
+} from "../../src/worker/domain/errors";
 import type { Organization } from "../../src/worker/domain/types";
 import { createRepositories } from "../../src/worker/repositories";
 
@@ -114,6 +117,60 @@ describe("identidades externas", () => {
       .all<{ id: string }>();
 
     expect(results).toHaveLength(1);
+  });
+
+  it("no vincula una identidad a un contacto de otra organización", async () => {
+    const ajeno = await contacts.create(barberia.id, { displayName: "Luis" });
+
+    await expect(
+      contacts.linkIdentity(salon.id, {
+        contactId: ajeno.id,
+        provider: "whatsapp",
+        externalId: "5215550005555",
+      }),
+    ).rejects.toBeInstanceOf(ContactNotInOrganizationError);
+
+    const { results } = await env.DB.prepare(
+      `SELECT id FROM contact_identities WHERE organization_id = ?`,
+    )
+      .bind(salon.id)
+      .all<{ id: string }>();
+
+    expect(results).toHaveLength(0);
+  });
+
+  it("no vincula una identidad a un contacto inexistente", async () => {
+    await expect(
+      contacts.linkIdentity(salon.id, {
+        contactId: crypto.randomUUID(),
+        provider: "whatsapp",
+        externalId: "5215550007777",
+      }),
+    ).rejects.toBeInstanceOf(ContactNotInOrganizationError);
+  });
+
+  it("deja libre el identificador externo tras un intento cruzado", async () => {
+    const ajeno = await contacts.create(barberia.id, { displayName: "Luis" });
+    const propio = await contacts.create(salon.id, { displayName: "Ana" });
+
+    await expect(
+      contacts.linkIdentity(salon.id, {
+        contactId: ajeno.id,
+        provider: "whatsapp",
+        externalId: "5215550006666",
+      }),
+    ).rejects.toBeInstanceOf(ContactNotInOrganizationError);
+
+    // El intento fallido no debe ocupar el slot único de la organización.
+    await contacts.linkIdentity(salon.id, {
+      contactId: propio.id,
+      provider: "whatsapp",
+      externalId: "5215550006666",
+    });
+
+    await expect(
+      contacts.findByExternalIdentity(salon.id, "whatsapp", "5215550006666"),
+    ).resolves.toMatchObject({ id: propio.id });
   });
 
   it("no reasigna una identidad ya vinculada a otro contacto", async () => {

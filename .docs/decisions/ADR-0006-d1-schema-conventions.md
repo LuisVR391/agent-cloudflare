@@ -79,6 +79,12 @@ Toda tabla de D1 en este repositorio sigue estas convenciones.
   o está vacío, la operación falla de forma cerrada antes de consultar D1.
 - Las sentencias usan siempre parámetros vinculados; no se interpola valor
   alguno en el texto SQL.
+- Una fila que referencia a otra entidad empresarial verifica que esa entidad
+  pertenece a la organización activa. Dos claves foráneas independientes hacia
+  `organizations` y hacia la tabla referenciada no lo garantizan: cada una es
+  válida por separado mientras la combinación cruza el límite de aislamiento.
+  La verificación forma parte de la misma sentencia que escribe, para no dejar
+  ventana entre comprobar e insertar.
 
 ### Secretos
 
@@ -110,6 +116,11 @@ datos](../architecture/data-ownership.md).
   para correcciones menores.
 - Los repositorios crecen en superficie: cada consulta nueva necesita un método
   en vez de SQL puntual en el handler.
+- Mientras el esquema exprese la pertenencia con claves foráneas
+  independientes, la invariante depende del repositorio. Una clave foránea
+  compuesta hacia `(organization_id, id)` la trasladaría al motor, a costa de
+  recrear tablas en SQLite; se evaluará cuando una capacidad posterior toque
+  esas tablas.
 - Estas convenciones aplican al esquema de D1. El almacenamiento SQLite interno
   de un Durable Object se rige por [ADR-0003](./ADR-0003-conversation-agent.md).
 

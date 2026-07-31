@@ -13,6 +13,21 @@ export class MissingOrganizationScopeError extends Error {
 }
 
 /**
+ * El contacto referenciado no pertenece a la organización activa. Impide crear
+ * filas que crucen el límite de aislamiento aunque cada clave foránea sea
+ * válida por separado.
+ */
+export class ContactNotInOrganizationError extends Error {
+  readonly contactId: string;
+
+  constructor(contactId: string) {
+    super(`El contacto "${contactId}" no pertenece a la organización indicada.`);
+    this.name = "ContactNotInOrganizationError";
+    this.contactId = contactId;
+  }
+}
+
+/**
  * Una fila persistida contiene un valor fuera del dominio esperado. Indica
  * corrupción o una migración incompleta, no una entrada del usuario.
  */

@@ -1,4 +1,7 @@
-import { requireOrganizationScope } from "../domain/errors";
+import {
+  ContactNotInOrganizationError,
+  requireOrganizationScope,
+} from "../domain/errors";
 import type {
   Contact,
   ContactIdentity,
@@ -103,6 +106,12 @@ export class ContactRepository {
    * Vincula una identidad externa al contacto. Es idempotente dentro de la
    * organización: repetir la llamada con el mismo proveedor e identificador
    * externo devuelve la identidad existente sin reasignarla a otro contacto.
+   *
+   * Las claves foráneas de `contact_identities` validan `organization_id` y
+   * `contact_id` por separado, pero no que el contacto pertenezca a esa
+   * organización. El `INSERT ... SELECT` toma el contacto de una consulta ya
+   * filtrada por organización, de modo que la comprobación es parte de la
+   * misma sentencia y no deja ventana entre verificar e insertar.
    */
   async linkIdentity(
     organizationId: string,
@@ -118,7 +127,9 @@ export class ContactRepository {
       .prepare(
         `INSERT INTO contact_identities
            (id, organization_id, contact_id, provider, external_id, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)
+         SELECT ?, ?, contacts.id, ?, ?, ?, ?
+           FROM contacts
+          WHERE contacts.organization_id = ? AND contacts.id = ?
          ON CONFLICT (organization_id, provider, external_id)
          DO UPDATE SET updated_at = excluded.updated_at
          RETURNING *`,
@@ -126,16 +137,19 @@ export class ContactRepository {
       .bind(
         crypto.randomUUID(),
         scope,
-        input.contactId,
         input.provider,
         input.externalId,
         now,
         now,
+        scope,
+        input.contactId,
       )
       .first<ContactIdentityRow>();
 
+    // Sin filas candidatas: el contacto no existe dentro de la organización,
+    // así que no hubo inserción ni conflicto que resolver.
     if (row === null) {
-      throw new Error("No se pudo vincular la identidad del contacto.");
+      throw new ContactNotInOrganizationError(input.contactId);
     }
 
     return toContactIdentity(row);
