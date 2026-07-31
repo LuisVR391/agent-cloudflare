@@ -4,6 +4,8 @@
 
 **Fecha:** 2026-07-30
 
+**Alcance de implementación:** Issue #6.
+
 ## Contexto
 
 El panel necesita identidad, sesiones y autorización antes de exponer datos

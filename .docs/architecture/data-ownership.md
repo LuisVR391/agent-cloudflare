@@ -25,6 +25,7 @@ pero no competir por la autoridad del mismo dato.
 | Ejecución larga y checkpoints técnicos | Workflows | Recuperación y progreso de procesos |
 | Resultados empresariales de un Workflow | D1 | Estado final consultable y auditable |
 | Inferencia, clasificación y embeddings | Workers AI o proveedor | Cómputo; no es almacén empresarial |
+| Sesiones de usuarios | D1 | Estado técnico de autenticación mediante Better Auth |
 | Tokens y secretos | Cloudflare Secrets | Custodia de credenciales |
 | Logs, trazas y métricas técnicas | Observabilidad | Diagnóstico con datos redactados |
 
@@ -40,23 +41,29 @@ dominio la defina como durable.
 
 ### Esquema implementado
 
-La matriz anterior describe la propiedad objetivo de cada categoría. Hoy existen
-en `migrations/` únicamente estas tablas:
+La matriz anterior describe la propiedad objetivo de cada categoría. Hoy
+existen en `migrations/` estas tablas:
 
 | Tabla | Contenido | Migración |
 | --- | --- | --- |
 | `organizations` | Raíz de aislamiento: identificador, slug, nombre y estado | `0001_initial_schema.sql` |
 | `contacts` | Contacto empresarial dentro de una organización | `0001_initial_schema.sql` |
 | `contact_identities` | Identidad externa del contacto por proveedor | `0001_initial_schema.sql` |
+| `users`, `user_sessions`, `user_accounts`, `auth_verifications` | Identidad y sesión técnica de Better Auth | `0002_authentication_and_authorization.sql` |
+| `memberships`, `roles`, `permissions`, `membership_roles`, `role_permissions` | Autorización canónica del producto | `0002_authentication_and_authorization.sql` |
+| `installation_state`, `auth_rate_limits` | Instalación única y protección contra abuso | `0002_authentication_and_authorization.sql` |
+| `audit_logs` | Acciones autorizadas relevantes por organización | `0002_authentication_and_authorization.sql` |
 
-Las demás categorías siguen siendo conceptuales: se crearán con la capacidad
+Las categorías no listadas siguen siendo conceptuales: se crearán con la capacidad
 que las necesite, mediante migraciones nuevas y aditivas. Las convenciones que
 rigen ese crecimiento están en
 [ADR-0006](../decisions/ADR-0006-d1-schema-conventions.md); el flujo local está
 en [base de datos local](../operations/local-database.md).
 
-El acceso ocurre a través de `src/worker/repositories/`, donde cada método de
-una tabla empresarial recibe `organizationId` y lo incluye en su filtro.
+El acceso propio ocurre a través de `src/worker/repositories/`. Better Auth
+accede únicamente a sus cuatro tablas técnicas mediante su adaptador D1,
+excepción definida en
+[ADR-0007](../decisions/ADR-0007-better-auth-and-organization-context.md).
 
 ## Durable Object: runtime por conversación
 
