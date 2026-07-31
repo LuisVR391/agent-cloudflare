@@ -38,6 +38,26 @@ Una operación empresarial no se considera completada solo porque exista en
 memoria, una cola o un Durable Object. Debe quedar persistida en D1 cuando el
 dominio la defina como durable.
 
+### Esquema implementado
+
+La matriz anterior describe la propiedad objetivo de cada categoría. Hoy existen
+en `migrations/` únicamente estas tablas:
+
+| Tabla | Contenido | Migración |
+| --- | --- | --- |
+| `organizations` | Raíz de aislamiento: identificador, slug, nombre y estado | `0001_initial_schema.sql` |
+| `contacts` | Contacto empresarial dentro de una organización | `0001_initial_schema.sql` |
+| `contact_identities` | Identidad externa del contacto por proveedor | `0001_initial_schema.sql` |
+
+Las demás categorías siguen siendo conceptuales: se crearán con la capacidad
+que las necesite, mediante migraciones nuevas y aditivas. Las convenciones que
+rigen ese crecimiento están en
+[ADR-0006](../decisions/ADR-0006-d1-schema-conventions.md); el flujo local está
+en [base de datos local](../operations/local-database.md).
+
+El acceso ocurre a través de `src/worker/repositories/`, donde cada método de
+una tabla empresarial recibe `organizationId` y lo incluye en su filtro.
+
 ## Durable Object: runtime por conversación
 
 Cada conversación activa tendrá una identidad
