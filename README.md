@@ -167,6 +167,9 @@ npm run db:migrate
 npm run dev
 ```
 
+El servidor local usa `http://localhost:5190`. El puerto es estricto para
+mantener estable el origen utilizado por la autenticación.
+
 No se necesitan credenciales reales para abrir la página inicial y consultar
 `/api/health`. Para probar `/setup`, `/login` y `/app`, configura los secretos
 locales descritos en [operación de autenticación](./.docs/operations/authentication.md).

@@ -11,7 +11,7 @@ Copia `.dev.vars.example` como `.dev.vars` y sustituye todos los marcadores:
 ```text
 BETTER_AUTH_SECRET=<valor aleatorio de al menos 32 caracteres>
 AUTH_SETUP_TOKEN=<token aleatorio de un solo uso>
-BETTER_AUTH_URL=http://localhost:5173
+BETTER_AUTH_URL=http://localhost:5190
 ```
 
 No confirmes `.dev.vars`. En un entorno remoto registra los valores
@@ -32,6 +32,10 @@ creó ni modificó ningún recurso remoto como parte del Issue #6.
 npm run db:migrate
 npm run dev
 ```
+
+Vite usa `http://localhost:5190` y falla explícitamente si ese puerto está
+ocupado, en lugar de cambiar silenciosamente a otro origen que invalide la
+configuración de autenticación.
 
 1. Abre `/setup`.
 2. Introduce `AUTH_SETUP_TOKEN`, organización y propietario.
