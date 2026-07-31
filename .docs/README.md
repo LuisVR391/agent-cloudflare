@@ -44,6 +44,7 @@ estructura y proceso de sustitución.
 | [Seguridad](../SECURITY.md) | Vigente | 0 | Reglas mínimas para secretos, webhooks, datos y procesamiento |
 | [Contribución](../CONTRIBUTING.md) | Vigente | 0 | Flujo local y convenciones actuales |
 | [Continuidad de agentes de codificación](./operations/agent-continuity.md) | Vigente | 0 | Skill, hooks, confianza, guardrails y validación repo-local para Codex y Claude Code |
+| [Base de datos local](./operations/local-database.md) | Vigente | 0 | Binding, migraciones, inspección y pruebas de D1 en local |
 | [Instrucciones para Claude Code](../CLAUDE.md) | Vigente | 0 | Punto de entrada que importa las reglas compartidas |
 
 ### Fase 0 — Fundamentos
@@ -62,6 +63,7 @@ estructura y proceso de sustitución.
 | [ADR-0003: Runtime durable por conversación](./decisions/ADR-0003-conversation-agent.md) | Vigente | Coordinación viva y aislada mediante Durable Objects |
 | [ADR-0004: Aprobación humana](./decisions/ADR-0004-human-approval.md) | Vigente | Evaluación, autorización, publicación versionada y rollback |
 | [ADR-0005: Guardrails compartidos de agentes](./decisions/ADR-0005-shared-agent-guardrails.md) | Vigente | Núcleo neutral, adaptadores por agente y skill sin copias |
+| [ADR-0006: Convenciones de esquema en D1](./decisions/ADR-0006-d1-schema-conventions.md) | Vigente | Identificadores, timestamps, aislamiento, migraciones y repositorios |
 
 ### Fase 1 — WhatsApp funcional
 

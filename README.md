@@ -46,13 +46,18 @@ forks del producto.
 | Workers AI | Binding preparado | Binding `AI` declarado, sin flujo de inferencia |
 | R2 | Binding preparado | `MEDIA_BUCKET` declarado, sin ingestión de medios |
 | Observabilidad | Configurada | Logs y trazas habilitados en Wrangler |
+| D1 en local y pruebas | Base implementada | Binding `DB`, `migrations/0001_initial_schema.sql` y repositorios con aislamiento probado |
 | WhatsApp Cloud API | Planificada | Secretos de ejemplo; no existe webhook funcional |
-| D1, Queues, Workflows y Vectorize | Planificadas | Forman parte de la arquitectura objetivo, no de la configuración actual |
+| Queues, Workflows y Vectorize | Planificadas | Forman parte de la arquitectura objetivo, no de la configuración actual |
 | CRM, inbox, agenda y pipelines | Planificados | Pendientes de las fases de producto |
 | Versionado, evaluación y mejora de agentes | Planificados | Fuera del prototipo actual |
 
 `CustomerSupportAgent` demuestra identidad y estado durable, pero todavía no
 implementa el runtime conversacional definido para el producto.
+
+La base D1 existe en local y en pruebas con `organizations`, `contacts` y
+`contact_identities`. No hay ninguna base creada en Cloudflare ni ruta HTTP que
+exponga estos datos: eso depende de la autenticación y de los entornos.
 
 ## Arquitectura objetivo
 
@@ -154,11 +159,14 @@ nvm use
 npm ci
 cp .dev.vars.example .dev.vars
 npm run cf-typegen
+npm run db:migrate
 npm run dev
 ```
 
 No se necesitan credenciales reales para abrir la página inicial y consultar
-`/api/health`.
+`/api/health`. `npm run db:migrate` aplica el esquema sobre la base D1 local;
+el flujo completo está en
+[base de datos local](./.docs/operations/local-database.md).
 
 ## Comandos
 
@@ -169,6 +177,8 @@ No se necesitan credenciales reales para abrir la página inicial y consultar
 | `npm run preview` | Ejecuta localmente el artefacto final |
 | `npm test` | Ejecuta pruebas dentro del runtime de Cloudflare |
 | `npm run cf-typegen` | Regenera los tipos de bindings de Wrangler |
+| `npm run db:migrate` | Aplica las migraciones de D1 en la base local |
+| `npm run db:migrations:list` | Muestra las migraciones de D1 pendientes en local |
 | `npm run check` | Ejecuta tipos, pruebas y build |
 | `npm run deploy:dry` | Valida el paquete de despliegue sin publicarlo |
 | `npm run deploy` | Construye y despliega a Cloudflare |
@@ -182,8 +192,17 @@ crearse antes del primer despliegue:
 npx wrangler r2 bucket create agent-cloudflare-media
 ```
 
-Los recursos futuros de D1, Queues, Workflows y Vectorize se incorporarán con
-su fase correspondiente y no deben crearse anticipadamente en producción.
+El binding `DB` declara la base `agent-cloudflare-db` con un `database_id`
+marcador que solo sirve para desarrollo local y pruebas. La base real se creará
+con autorización explícita al definir entornos, sustituyendo el marcador por el
+identificador devuelto:
+
+```bash
+npx wrangler d1 create agent-cloudflare-db
+```
+
+Los recursos futuros de Queues, Workflows y Vectorize se incorporarán con su
+fase correspondiente y no deben crearse anticipadamente en producción.
 
 Para desarrollo local, copia `.dev.vars.example` a `.dev.vars`. En Cloudflare,
 registra los secretos de WhatsApp de forma interactiva:

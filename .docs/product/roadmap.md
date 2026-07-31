@@ -46,7 +46,7 @@ aislamiento multiempresa.
 | Reglas de desarrollo y ADRs | Completado | Roadmap | [Issue #4](https://github.com/LuisVR391/agent-cloudflare/issues/4) y [PR #9](https://github.com/LuisVR391/agent-cloudflare/pull/9) |
 | Continuidad de agentes con skills y hooks de Codex | Completado | Reglas de desarrollo y ADRs | [Issue #10](https://github.com/LuisVR391/agent-cloudflare/issues/10) y [PR #11](https://github.com/LuisVR391/agent-cloudflare/pull/11) |
 | Continuidad de agentes con Claude Code sobre guardrails compartidos | Completado | Continuidad de agentes con Codex ([Issue #10](https://github.com/LuisVR391/agent-cloudflare/issues/10)) | [Issue #12](https://github.com/LuisVR391/agent-cloudflare/issues/12), [PR #11](https://github.com/LuisVR391/agent-cloudflare/pull/11) y [ADR-0005](../decisions/ADR-0005-shared-agent-guardrails.md) |
-| D1, migraciones y pruebas locales multiempresa | Planificado | Reglas y ADRs de #4 | [Issue #5](https://github.com/LuisVR391/agent-cloudflare/issues/5) |
+| D1, migraciones y pruebas locales multiempresa | Completado | Reglas y ADRs de #4 | [Issue #5](https://github.com/LuisVR391/agent-cloudflare/issues/5), [PR #13](https://github.com/LuisVR391/agent-cloudflare/pull/13) y [ADR-0006](../decisions/ADR-0006-d1-schema-conventions.md) |
 | Autenticación, roles y aislamiento multiempresa | Planificado | D1 y migraciones de #5 | [Issue #6](https://github.com/LuisVR391/agent-cloudflare/issues/6) |
 | Entornos y staging | Planificado | Fundamentos anteriores (#4, #5 y #6) | [Issue #7](https://github.com/LuisVR391/agent-cloudflare/issues/7) |
 | Visión especializada de producto | Planificado | Guía rectora | Issue aún no creado |
