@@ -1,0 +1,138 @@
+import { env } from "cloudflare:workers";
+import { beforeEach, describe, expect, it } from "vitest";
+import { MissingOrganizationScopeError } from "../../src/worker/domain/errors";
+import type { Organization } from "../../src/worker/domain/types";
+import { createRepositories } from "../../src/worker/repositories";
+
+const { organizations, contacts } = createRepositories(env.DB);
+
+let salon: Organization;
+let barberia: Organization;
+
+beforeEach(async () => {
+  salon = await organizations.create({
+    slug: `salon-${crypto.randomUUID()}`,
+    displayName: "Salón Aurora",
+  });
+  barberia = await organizations.create({
+    slug: `barberia-${crypto.randomUUID()}`,
+    displayName: "Barbería Norte",
+  });
+});
+
+describe("aislamiento por organización", () => {
+  it("no lista contactos de otra organización", async () => {
+    const propio = await contacts.create(salon.id, { displayName: "Ana" });
+    await contacts.create(barberia.id, { displayName: "Luis" });
+
+    const listados = await contacts.listByOrganization(salon.id);
+
+    expect(listados.map((contacto) => contacto.id)).toEqual([propio.id]);
+  });
+
+  it("no resuelve por id un contacto de otra organización", async () => {
+    const ajeno = await contacts.create(barberia.id, { displayName: "Luis" });
+
+    await expect(contacts.findById(salon.id, ajeno.id)).resolves.toBeNull();
+    await expect(contacts.findById(barberia.id, ajeno.id)).resolves.toMatchObject(
+      { id: ajeno.id, organizationId: barberia.id },
+    );
+  });
+
+  it("no resuelve por identidad externa un contacto de otra organización", async () => {
+    const ajeno = await contacts.create(barberia.id, { displayName: "Luis" });
+    await contacts.linkIdentity(barberia.id, {
+      contactId: ajeno.id,
+      provider: "whatsapp",
+      externalId: "5215550001111",
+    });
+
+    await expect(
+      contacts.findByExternalIdentity(salon.id, "whatsapp", "5215550001111"),
+    ).resolves.toBeNull();
+  });
+
+  it("falla de forma cerrada cuando no hay organización", async () => {
+    await expect(contacts.listByOrganization("")).rejects.toBeInstanceOf(
+      MissingOrganizationScopeError,
+    );
+    await expect(contacts.create("   ")).rejects.toBeInstanceOf(
+      MissingOrganizationScopeError,
+    );
+    await expect(
+      contacts.findByExternalIdentity("", "whatsapp", "5215550001111"),
+    ).rejects.toBeInstanceOf(MissingOrganizationScopeError);
+  });
+});
+
+describe("identidades externas", () => {
+  it("permite el mismo identificador externo en organizaciones distintas", async () => {
+    const enSalon = await contacts.create(salon.id, { displayName: "Ana" });
+    const enBarberia = await contacts.create(barberia.id, {
+      displayName: "Ana",
+    });
+
+    await contacts.linkIdentity(salon.id, {
+      contactId: enSalon.id,
+      provider: "whatsapp",
+      externalId: "5215550002222",
+    });
+    await contacts.linkIdentity(barberia.id, {
+      contactId: enBarberia.id,
+      provider: "whatsapp",
+      externalId: "5215550002222",
+    });
+
+    await expect(
+      contacts.findByExternalIdentity(salon.id, "whatsapp", "5215550002222"),
+    ).resolves.toMatchObject({ id: enSalon.id });
+    await expect(
+      contacts.findByExternalIdentity(barberia.id, "whatsapp", "5215550002222"),
+    ).resolves.toMatchObject({ id: enBarberia.id });
+  });
+
+  it("es idempotente dentro de la organización", async () => {
+    const contacto = await contacts.create(salon.id, { displayName: "Ana" });
+
+    const primera = await contacts.linkIdentity(salon.id, {
+      contactId: contacto.id,
+      provider: "whatsapp",
+      externalId: "5215550003333",
+    });
+    const repetida = await contacts.linkIdentity(salon.id, {
+      contactId: contacto.id,
+      provider: "whatsapp",
+      externalId: "5215550003333",
+    });
+
+    expect(repetida.id).toBe(primera.id);
+
+    const { results } = await env.DB.prepare(
+      `SELECT id FROM contact_identities WHERE organization_id = ?`,
+    )
+      .bind(salon.id)
+      .all<{ id: string }>();
+
+    expect(results).toHaveLength(1);
+  });
+
+  it("no reasigna una identidad ya vinculada a otro contacto", async () => {
+    const original = await contacts.create(salon.id, { displayName: "Ana" });
+    const otro = await contacts.create(salon.id, { displayName: "Ana Duplicada" });
+
+    await contacts.linkIdentity(salon.id, {
+      contactId: original.id,
+      provider: "whatsapp",
+      externalId: "5215550004444",
+    });
+    await contacts.linkIdentity(salon.id, {
+      contactId: otro.id,
+      provider: "whatsapp",
+      externalId: "5215550004444",
+    });
+
+    await expect(
+      contacts.findByExternalIdentity(salon.id, "whatsapp", "5215550004444"),
+    ).resolves.toMatchObject({ id: original.id });
+  });
+});
