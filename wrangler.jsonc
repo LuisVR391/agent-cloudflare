@@ -18,6 +18,16 @@
       "new_sqlite_classes": ["CustomerSupportAgent"]
     }
   ],
+  // `database_id` es un marcador para desarrollo local y pruebas. El recurso
+  // real se creará con autorización explícita al definir entornos (issue #7).
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "agent-cloudflare-db",
+      "database_id": "local-development-placeholder",
+      "migrations_dir": "migrations"
+    }
+  ],
   "ai": {
     "binding": "AI"
   },

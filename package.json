@@ -16,6 +16,8 @@
     "deploy:dry": "npm run build && wrangler deploy --dry-run",
     "typecheck": "wrangler types && tsc --noEmit",
     "cf-typegen": "wrangler types",
+    "db:migrate": "wrangler d1 migrations apply agent-cloudflare-db --local",
+    "db:migrations:list": "wrangler d1 migrations list agent-cloudflare-db --local",
     "test": "vitest run",
     "check:agents": "node --check .agents/guard/project-guard.mjs && node --check .agents/guard/validate-agent-config.mjs && node --check .codex/hooks/project-guard.mjs && node --check .claude/hooks/project-guard.mjs && node .agents/guard/validate-agent-config.mjs && node .agents/guard/scenarios.mjs",
     "check": "npm run check:agents && npm run typecheck && npm run test && npm run build"

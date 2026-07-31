@@ -17,5 +17,15 @@
       "tag": "v1",
       "new_sqlite_classes": ["CustomerSupportAgent"]
     }
+  ],
+  // Base separada de la de desarrollo para que las pruebas no compartan estado
+  // local. Vitest aplica las migraciones desde `migrations/` en cada archivo.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "agent-cloudflare-test-db",
+      "database_id": "test-placeholder",
+      "migrations_dir": "migrations"
+    }
   ]
 }
