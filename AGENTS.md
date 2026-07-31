@@ -3,6 +3,9 @@
 Estas instrucciones aplican a todo el repositorio y son la fuente única de
 reglas para desarrolladores y agentes de codificación. Los archivos de
 integración de herramientas deben remitir aquí en vez de copiar estas reglas.
+La [guía de continuidad de agentes](./.docs/operations/agent-continuity.md)
+explica el skill y los hooks repo-locales que ayudan a Codex y Claude Code a
+aplicar estas reglas sin sustituirlas.
 
 ## Antes de modificar
 
@@ -125,6 +128,15 @@ vigente.
 
 Los commits deben ser coherentes por responsabilidad. Un PR debe explicar
 alcance, impacto, validación, riesgos y cualquier operación externa pendiente.
+Además, debe declarar explícitamente el impacto en `Documentación`, `ADR`,
+`Roadmap` y `Validación`; si una categoría no aplica, incluye un motivo
+concreto.
+
+Los agentes pueden crear commits locales atómicos como parte de un cambio
+solicitado, pero nunca ejecutan `git push` sin confirmación explícita del
+usuario para la rama y los commits actuales. Después de recibirla, el comando
+usa `AGENT_PUSH_CONFIRMED=1 git push`; una autorización anterior no se
+reutiliza. El force push permanece prohibido.
 
 ## Documentación y ADRs
 

@@ -17,7 +17,8 @@
     "typecheck": "wrangler types && tsc --noEmit",
     "cf-typegen": "wrangler types",
     "test": "vitest run",
-    "check": "npm run typecheck && npm run test && npm run build"
+    "check:agents": "node --check .agents/guard/project-guard.mjs && node --check .agents/guard/validate-agent-config.mjs && node --check .codex/hooks/project-guard.mjs && node --check .claude/hooks/project-guard.mjs && node .agents/guard/validate-agent-config.mjs && node .agents/guard/scenarios.mjs",
+    "check": "npm run check:agents && npm run typecheck && npm run test && npm run build"
   },
   "dependencies": {
     "agents": "^0.20.1",

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Entregar cambio de Agent Cloudflare"
+  short_description: "Entrega cambios con integridad y trazabilidad"
+  default_prompt: "Use $deliver-agent-cloudflare-change to implement, validate, document, and publish a scoped project change."

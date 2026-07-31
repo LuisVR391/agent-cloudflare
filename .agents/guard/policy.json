@@ -1,0 +1,142 @@
+{
+  "version": 1,
+  "project": "agent-cloudflare",
+  "sourcesOfTruth": [
+    "AGENTS.md",
+    "README.md",
+    ".docs/guia-arquitectura-producto.md",
+    ".docs/product/roadmap.md",
+    ".docs/decisions/README.md"
+  ],
+  "implementationPrefixes": [
+    "src/",
+    "migrations/",
+    "package.json",
+    "wrangler.jsonc",
+    ".agents/",
+    ".codex/",
+    ".claude/"
+  ],
+  "documentationPrefixes": [
+    ".docs/",
+    "AGENTS.md",
+    "CLAUDE.md",
+    "CONTRIBUTING.md",
+    "README.md",
+    "SECURITY.md"
+  ],
+  "architecturePrefixes": [
+    ".docs/architecture/",
+    ".docs/decisions/",
+    "migrations/",
+    "wrangler.jsonc"
+  ],
+  "deliverablePrefixes": [
+    ".agents/",
+    ".claude/",
+    ".codex/",
+    "migrations/",
+    "src/",
+    "wrangler.jsonc"
+  ],
+  "migrationPrefixes": [
+    "migrations/"
+  ],
+  "adrPrefix": ".docs/decisions/",
+  "roadmapPath": ".docs/product/roadmap.md",
+  "sensitivePathPatterns": [
+    "(^|/)\\.env($|\\.)",
+    "(^|/)\\.dev\\.vars($|\\.)",
+    "(^|/)(id_rsa|id_ed25519)$",
+    "\\.(pem|key|p12|pfx)$"
+  ],
+  "sensitivePathAllowPatterns": [
+    "\\.(example|sample)$"
+  ],
+  "highConfidenceSecretPatterns": [
+    "-----BEGIN (RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----",
+    "\\bsk-[A-Za-z0-9_-]{20,}\\b",
+    "\\bgh[pousr]_[A-Za-z0-9]{20,}\\b"
+  ],
+  "pushConfirmation": {
+    "environmentVariable": "AGENT_PUSH_CONFIRMED",
+    "value": "1"
+  },
+  "blockedCommandPatterns": [
+    {
+      "id": "git-reset-hard",
+      "pattern": "(^|[;&|]\\s*|\\s)git\\s+reset\\s+--hard(?:\\s|$)",
+      "message": "Bloqueado: git reset --hard puede descartar trabajo no recuperable."
+    },
+    {
+      "id": "git-clean-force",
+      "pattern": "(^|[;&|]\\s*|\\s)git\\s+clean\\s+[^\\n;&|]*-[^\\s]*f",
+      "message": "Bloqueado: git clean forzado puede eliminar archivos no rastreados."
+    },
+    {
+      "id": "git-force-push",
+      "pattern": "(^|[;&|]\\s*|\\s)git\\s+push\\b[^\\n;&|]*(--force(?:-with-lease)?|-f)(?:\\s|$)",
+      "message": "Bloqueado: el repositorio no permite force push automatizado."
+    },
+    {
+      "id": "cloudflare-deploy",
+      "pattern": "(^|[;&|]\\s*|\\s)(npm\\s+run\\s+deploy|(?:npx\\s+)?wrangler\\s+deploy)(?![^\\n;&|]*--dry-run)",
+      "message": "Bloqueado: un despliegue no dry-run requiere autorización y ejecución humana explícita."
+    },
+    {
+      "id": "d1-remote-execute",
+      "pattern": "(^|[;&|]\\s*|\\s)(?:npx\\s+)?wrangler\\s+d1\\s+execute\\b[^\\n;&|]*--remote",
+      "message": "Bloqueado: la ejecución remota de D1 no está autorizada desde agentes."
+    },
+    {
+      "id": "cloudflare-resource-delete",
+      "pattern": "(^|[;&|]\\s*|\\s)(?:npx\\s+)?wrangler\\s+(d1\\s+delete|r2\\s+bucket\\s+delete|kv\\s+namespace\\s+delete|queues?\\s+delete|workflows?\\s+delete)\\b",
+      "message": "Bloqueado: la eliminación de recursos Cloudflare requiere una operación humana separada."
+    }
+  ],
+  "documentationMap": [
+    {
+      "prefix": "src/worker/",
+      "documents": [
+        "README.md",
+        ".docs/architecture/"
+      ]
+    },
+    {
+      "prefix": "migrations/",
+      "documents": [
+        ".docs/architecture/data-ownership.md",
+        ".docs/operations/"
+      ]
+    },
+    {
+      "prefix": "wrangler.jsonc",
+      "documents": [
+        "README.md",
+        ".docs/operations/"
+      ]
+    },
+    {
+      "prefix": ".agents/",
+      "documents": [
+        "AGENTS.md",
+        ".docs/operations/agent-continuity.md"
+      ]
+    },
+    {
+      "prefix": ".codex/",
+      "documents": [
+        "AGENTS.md",
+        ".docs/operations/agent-continuity.md"
+      ]
+    },
+    {
+      "prefix": ".claude/",
+      "documents": [
+        "AGENTS.md",
+        "CLAUDE.md",
+        ".docs/operations/agent-continuity.md"
+      ]
+    }
+  ]
+}
