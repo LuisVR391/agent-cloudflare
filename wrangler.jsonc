@@ -52,5 +52,82 @@
       "enabled": true,
       "head_sampling_rate": 0.01
     }
+  },
+  "env": {
+    // Staging se publica como un Worker independiente bajo workers.dev. Los
+    // marcadores impiden usar autenticación o D1 remotos antes del bootstrap
+    // humano descrito en `.docs/operations/environments.md`.
+    "staging": {
+      "name": "agent-cloudflare-staging",
+      "workers_dev": true,
+      "vars": {
+        "BETTER_AUTH_URL": "https://staging.invalid"
+      },
+      "secrets": {
+        "required": ["BETTER_AUTH_SECRET", "AUTH_SETUP_TOKEN"]
+      },
+      "durable_objects": {
+        "bindings": [
+          {
+            "name": "CustomerSupportAgent",
+            "class_name": "CustomerSupportAgent"
+          }
+        ]
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "agent-cloudflare-staging-db",
+          "database_id": "staging-not-provisioned",
+          "migrations_dir": "migrations"
+        }
+      ],
+      "ai": {
+        "binding": "AI"
+      },
+      "r2_buckets": [
+        {
+          "binding": "MEDIA_BUCKET",
+          "bucket_name": "agent-cloudflare-staging-media"
+        }
+      ]
+    },
+    // Producción queda deliberadamente inaccesible: no tiene workers.dev,
+    // ruta pública, recursos provisionados ni script de despliegue.
+    "production": {
+      "name": "agent-cloudflare-production",
+      "workers_dev": false,
+      "vars": {
+        "BETTER_AUTH_URL": "https://production.invalid"
+      },
+      "secrets": {
+        "required": ["BETTER_AUTH_SECRET", "AUTH_SETUP_TOKEN"]
+      },
+      "durable_objects": {
+        "bindings": [
+          {
+            "name": "CustomerSupportAgent",
+            "class_name": "CustomerSupportAgent"
+          }
+        ]
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "agent-cloudflare-production-db",
+          "database_id": "production-not-provisioned",
+          "migrations_dir": "migrations"
+        }
+      ],
+      "ai": {
+        "binding": "AI"
+      },
+      "r2_buckets": [
+        {
+          "binding": "MEDIA_BUCKET",
+          "bucket_name": "agent-cloudflare-production-media"
+        }
+      ]
+    }
   }
 }

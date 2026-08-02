@@ -27,9 +27,10 @@ fragmento. En local solo se admite HTTP para `localhost` o `127.0.0.1`; un
 entorno remoto requiere HTTPS. Si falta, es inválido o la solicitud llega por
 otro origen, la autenticación falla de forma cerrada.
 
-El binding remoto de `BETTER_AUTH_URL` se definirá por entorno junto con staging
-en el Issue #7. No se creó ni modificó ningún recurso remoto como parte del
-Issue #6.
+`wrangler.jsonc` reserva un valor independiente de `BETTER_AUTH_URL` para cada
+entorno. Los marcadores remotos deben sustituirse por el origen HTTPS exacto
+durante el procedimiento de [entornos y staging](./environments.md). No se creó
+ni modificó ningún recurso remoto como parte de los Issues #6 o #7.
 
 ## Arranque local
 

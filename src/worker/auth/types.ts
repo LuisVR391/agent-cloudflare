@@ -4,7 +4,7 @@ export type AuthBindings = {
   BETTER_AUTH_URL: string;
 };
 
-export type WorkerEnv = Env & AuthBindings;
+export type WorkerEnv = Omit<Env, keyof AuthBindings> & AuthBindings;
 
 export type AuthenticatedUser = {
   id: string;

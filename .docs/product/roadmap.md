@@ -48,7 +48,7 @@ aislamiento multiempresa.
 | Continuidad de agentes con Claude Code sobre guardrails compartidos | Completado | Continuidad de agentes con Codex ([Issue #10](https://github.com/LuisVR391/agent-cloudflare/issues/10)) | [Issue #12](https://github.com/LuisVR391/agent-cloudflare/issues/12), [PR #11](https://github.com/LuisVR391/agent-cloudflare/pull/11) y [ADR-0005](../decisions/ADR-0005-shared-agent-guardrails.md) |
 | D1, migraciones y pruebas locales multiempresa | Completado | Reglas y ADRs de #4 | [Issue #5](https://github.com/LuisVR391/agent-cloudflare/issues/5), [PR #13](https://github.com/LuisVR391/agent-cloudflare/pull/13) y [ADR-0006](../decisions/ADR-0006-d1-schema-conventions.md) |
 | Autenticación, roles y aislamiento multiempresa | Completado | D1 y migraciones de #5 | [Issue #6](https://github.com/LuisVR391/agent-cloudflare/issues/6), [PR #14](https://github.com/LuisVR391/agent-cloudflare/pull/14), [ADR-0007](../decisions/ADR-0007-better-auth-and-organization-context.md), [modelo de seguridad](../architecture/security-model.md) y [operación](../operations/authentication.md) |
-| Entornos y staging | Planificado | Fundamentos anteriores (#4, #5 y #6) | [Issue #7](https://github.com/LuisVR391/agent-cloudflare/issues/7) |
+| Entornos y staging | Completado | Fundamentos anteriores (#4, #5 y #6) | [Issue #7](https://github.com/LuisVR391/agent-cloudflare/issues/7) y [PR #15](https://github.com/LuisVR391/agent-cloudflare/pull/15) |
 | Visión especializada de producto | Planificado | Guía rectora | Issue aún no creado |
 | Overview de arquitectura | Planificado | Guía rectora y ADRs | Issue aún no creado |
 

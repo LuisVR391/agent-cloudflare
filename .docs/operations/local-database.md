@@ -13,12 +13,13 @@ con `database_id` marcador. **No existe ninguna base creada en la cuenta de
 Cloudflare.** El marcador basta para desarrollo local y pruebas, donde Wrangler
 y Miniflare mantienen un SQLite bajo `.wrangler/state/`.
 
-Crear el recurso real y separar bindings por entorno pertenece al entregable de
-entornos y staging del [roadmap](../product/roadmap.md); requiere autorización
-explícita y sustituir el `database_id` por el identificador devuelto:
+Los bindings remotos ya tienen nombres y marcadores separados en
+`wrangler.jsonc`. Crear el recurso real pertenece al bootstrap humano descrito
+en [entornos y staging](./environments.md); requiere autorización explícita y
+sustituir el `database_id` del entorno por el identificador devuelto:
 
 ```bash
-npx wrangler d1 create agent-cloudflare-db
+npx wrangler d1 create agent-cloudflare-staging-db
 ```
 
 Un despliegue real fallará mientras el marcador siga en la configuración. Eso

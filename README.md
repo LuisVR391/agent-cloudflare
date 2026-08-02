@@ -49,6 +49,7 @@ forks del producto.
 | Observabilidad | Configurada | Logs y trazas habilitados en Wrangler |
 | D1 en local y pruebas | Base implementada | Migraciones `0001` y `0002`, repositorios y aislamiento probado |
 | Autenticación y autorización | Implementada | Better Auth, sesión D1, instalación única, roles fijos y contexto organizacional; [PR #14](https://github.com/LuisVR391/agent-cloudflare/pull/14) |
+| Entornos y staging | Configuración preparada | Local, staging y producción tienen bindings aislados y runbook; no existen recursos remotos |
 | Panel de conversaciones y agentes | Planificado | Navegación reservada y deshabilitada; no existen todavía módulos operativos |
 | WhatsApp Cloud API | Planificada | Secretos de ejemplo; no existe webhook funcional |
 | Queues, Workflows y Vectorize | Planificadas | Forman parte de la arquitectura objetivo, no de la configuración actual |
@@ -189,55 +190,46 @@ está en [base de datos local](./.docs/operations/local-database.md).
 | `npm run cf-typegen` | Regenera los tipos de bindings de Wrangler |
 | `npm run db:migrate` | Aplica las migraciones de D1 en la base local |
 | `npm run db:migrations:list` | Muestra las migraciones de D1 pendientes en local |
-| `npm run check` | Ejecuta tipos, pruebas y build |
-| `npm run deploy:dry` | Valida el paquete de despliegue sin publicarlo |
-| `npm run deploy` | Construye y despliega a Cloudflare |
+| `npm run check` | Ejecuta guardrails, tipos, pruebas, build y dry-run de staging |
+| `npm run check:staging` | Construye y valida `env.staging` sin publicar |
+| `npm run deploy:staging` | Construye y despliega únicamente a staging; requiere operación humana autorizada |
 
 ## Recursos y secretos actuales
 
-La configuración actual declara el bucket `agent-cloudflare-media`. Debe
-crearse antes del primer despliegue:
+La configuración base declara `agent-cloudflare-db` y
+`agent-cloudflare-media` para simulación local. `env.staging` y
+`env.production` repiten los bindings sobre nombres de recursos separados. Sus
+IDs y orígenes `.invalid` son marcadores deliberados: actualmente no existe
+ninguna base, bucket, Worker o ruta remota creada por este proyecto.
 
-```bash
-npx wrangler r2 bucket create agent-cloudflare-media
-```
-
-El binding `DB` declara la base `agent-cloudflare-db` con un `database_id`
-marcador que solo sirve para desarrollo local y pruebas. La base real se creará
-con autorización explícita al definir entornos, sustituyendo el marcador por el
-identificador devuelto:
-
-```bash
-npx wrangler d1 create agent-cloudflare-db
-```
+El bootstrap reproducible, los nombres exactos y los gates de despliegue están
+en [entornos y staging](./.docs/operations/environments.md). Producción no tiene
+ruta pública ni script de despliegue.
 
 Los recursos futuros de Queues, Workflows y Vectorize se incorporarán con su
 fase correspondiente y no deben crearse anticipadamente en producción.
 
-Para desarrollo local, copia `.dev.vars.example` a `.dev.vars`. En Cloudflare,
-registra los secretos de autenticación y WhatsApp de forma interactiva:
+Para desarrollo local, copia `.dev.vars.example` a `.dev.vars`. Cuando staging
+sea autorizado, registra únicamente los secretos usados por la autenticación
+actual mediante prompts interactivos y dirigidos al entorno:
 
 ```bash
-npx wrangler secret put BETTER_AUTH_SECRET
-npx wrangler secret put AUTH_SETUP_TOKEN
-npx wrangler secret put WHATSAPP_VERIFY_TOKEN
-npx wrangler secret put WHATSAPP_APP_SECRET
-npx wrangler secret put WHATSAPP_ACCESS_TOKEN
-npx wrangler secret put WHATSAPP_PHONE_NUMBER_ID
+npx wrangler secret put BETTER_AUTH_SECRET --env staging
+npx wrangler secret put AUTH_SETUP_TOKEN --env staging
 ```
 
-No pases secretos como argumentos ni los agregues a `wrangler.jsonc`.
-`BETTER_AUTH_URL` también es obligatorio y debe contener el origen público
-exacto de cada entorno, sin ruta. No es un secreto: su binding por entorno se
-definirá junto con staging en el Issue #7. Hasta entonces la autenticación
-remota falla de forma cerrada y solo está configurada para desarrollo y pruebas.
+Los secretos de WhatsApp permanecen planificados y no se cargan remotamente
+hasta implementar el canal. No pases secretos como argumentos ni los agregues
+a `wrangler.jsonc`. `BETTER_AUTH_URL` es un valor público obligatorio y debe
+contener el origen exacto de cada entorno, sin ruta. Mientras conserve un
+marcador `.invalid`, la autenticación remota falla de forma cerrada.
 
 ## Validación y despliegue
 
 1. Trabaja y valida localmente.
 2. Ejecuta `npm run check`.
-3. Ejecuta `npm run deploy:dry`.
-4. Despliega primero a un entorno aislado de staging cuando esté configurado.
+3. Ejecuta `npm run check:staging` y revisa los bindings mostrados.
+4. Sigue el runbook y despliega primero a staging solo con autorización.
 5. Publica en producción únicamente después de la validación y aprobación
    correspondientes.
 

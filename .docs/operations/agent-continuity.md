@@ -184,6 +184,11 @@ también exige contenido real bajo las secciones `Documentación`, `ADR`,
 La plantilla de PR incluye esas secciones. Los comentarios HTML no cuentan
 como contenido y una sección vacía falla el CI.
 
+La configuración de staging añade dos superficies explícitas: `npm run
+check:staging` ejecuta únicamente build y dry-run, mientras `npm run
+deploy:staging` sigue siendo un despliegue real y el guardrail lo bloquea para
+agentes. No existe un script de producción.
+
 ## Mantenimiento
 
 - Escribe cada regla nueva en el núcleo, nunca en un adaptador.
