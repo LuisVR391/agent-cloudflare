@@ -45,6 +45,12 @@ Cloudflare Secrets o configuración de entorno; nunca se persisten en D1 ni se
 registran. El rate limit de autenticación usa D1 y solo guarda una clave HMAC,
 conteo y timestamp numérico técnico.
 
+El origen público es obligatorio y exacto por entorno. Better Auth no confía en
+un origen inferido de la solicitud. Los rechazos que ya poseen actor y
+organización validados se auditan en D1; los anteriores a ese contexto se
+registran como eventos operativos redactados sin atribuirlos a una organización
+controlada por el cliente.
+
 ## Consecuencias
 
 ### Positivas

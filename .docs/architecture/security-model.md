@@ -13,6 +13,8 @@ administrativo. La decisión y sus límites están en
   membresías, organización activa, rol y permisos desde D1.
 - Los prompts y el Durable Object no autorizan acciones.
 - Cloudflare Secrets custodia los secretos de sesión e instalación.
+- `BETTER_AUTH_URL` declara el único origen público permitido para la
+  autenticación de cada entorno; no se infiere de una solicitud.
 
 ## Flujo de acceso
 
@@ -28,6 +30,10 @@ Credenciales
 
 Una cookie alterada se ignora. Una cuenta suspendida, organización suspendida,
 membresía revocada o falta de permisos produce rechazo en backend.
+
+Las rutas protegidas distinguen sesión ausente, falta de membresía, selección
+organizacional pendiente y permiso insuficiente. Ninguno de esos estados se
+convierte en acceso por usar un identificador enviado por el frontend.
 
 ## Roles iniciales
 
@@ -57,13 +63,21 @@ interfaces o contratos ya existan.
 ## Sesiones y abuso
 
 - Cookies de sesión y organización son `HttpOnly` y `SameSite=Lax`; usan
-  `Secure` bajo HTTPS.
+  `Secure` cuando el origen configurado usa HTTPS.
+- Better Auth solo confía en el origen exacto de `BETTER_AUTH_URL`. Si falta,
+  es inválido o no coincide con el origen de la solicitud, las rutas de
+  autenticación y autorización fallan de forma cerrada.
 - Better Auth mantiene sesiones en D1 y aplica rate limit persistente.
 - La clave del rate limit se guarda como HMAC para no conservar IP ni
   identificadores crudos.
 - Las respuestas de error usan un envelope estable y `correlationId`, sin
   contraseñas, tokens ni detalles internos.
-- Se auditan la instalación y el cambio explícito de organización.
+- D1 audita la instalación, el cambio explícito de organización y los rechazos
+  de permisos que ya tienen una organización y un actor validados.
+- Los rechazos anteriores al contexto organizacional se registran como eventos
+  operativos redactados con acción, motivo y `correlationId`. No incluyen
+  credenciales, tokens, cuerpos, correos ni el identificador empresarial
+  solicitado.
 
 ## Fuera de alcance
 

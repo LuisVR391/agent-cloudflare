@@ -60,8 +60,10 @@ implementa el runtime conversacional definido para el producto.
 
 La base D1 existe en local y en pruebas con datos de organizaciones, contactos,
 identidad, sesión y autorización. Las rutas del panel validan identidad,
-membresía, organización activa y permisos en backend. No hay ninguna base
-creada en Cloudflare ni un entorno remoto configurado.
+membresía, organización activa, origen público y permisos en backend. Los
+rechazos con contexto empresarial quedan en auditoría D1; los rechazos previos
+al contexto producen eventos operativos redactados. No hay ninguna base creada
+en Cloudflare ni un entorno remoto configurado.
 
 ## Arquitectura objetivo
 
@@ -225,6 +227,10 @@ npx wrangler secret put WHATSAPP_PHONE_NUMBER_ID
 ```
 
 No pases secretos como argumentos ni los agregues a `wrangler.jsonc`.
+`BETTER_AUTH_URL` también es obligatorio y debe contener el origen público
+exacto de cada entorno, sin ruta. No es un secreto: su binding por entorno se
+definirá junto con staging en el Issue #7. Hasta entonces la autenticación
+remota falla de forma cerrada y solo está configurada para desarrollo y pruebas.
 
 ## Validación y despliegue
 

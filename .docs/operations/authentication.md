@@ -22,9 +22,14 @@ npx wrangler secret put BETTER_AUTH_SECRET
 npx wrangler secret put AUTH_SETUP_TOKEN
 ```
 
-`BETTER_AUTH_URL` es opcional; cuando se define debe coincidir exactamente con
-el origen público. Si falta, el Worker usa el origen de la solicitud. No se
-creó ni modificó ningún recurso remoto como parte del Issue #6.
+`BETTER_AUTH_URL` es obligatorio y debe ser un origen exacto sin ruta, query ni
+fragmento. En local solo se admite HTTP para `localhost` o `127.0.0.1`; un
+entorno remoto requiere HTTPS. Si falta, es inválido o la solicitud llega por
+otro origen, la autenticación falla de forma cerrada.
+
+El binding remoto de `BETTER_AUTH_URL` se definirá por entorno junto con staging
+en el Issue #7. No se creó ni modificó ningún recurso remoto como parte del
+Issue #6.
 
 ## Arranque local
 
@@ -36,6 +41,11 @@ npm run dev
 Vite usa `http://localhost:5190` y falla explícitamente si ese puerto está
 ocupado, en lugar de cambiar silenciosamente a otro origen que invalide la
 configuración de autenticación.
+
+Los errores `AUTH_NOT_CONFIGURED` y `AUTH_ORIGIN_MISMATCH` indican que el valor
+no existe, no es un origen válido o no coincide con la URL abierta. Corrige la
+configuración; no agregues el origen recibido automáticamente a una lista de
+confianza.
 
 1. Abre `/setup`.
 2. Introduce `AUTH_SETUP_TOKEN`, organización y propietario.
