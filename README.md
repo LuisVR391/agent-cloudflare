@@ -48,7 +48,7 @@ forks del producto.
 | R2 | Binding preparado | `MEDIA_BUCKET` declarado, sin ingestión de medios |
 | Observabilidad | Configurada | Logs y trazas habilitados en Wrangler |
 | D1 en local y pruebas | Base implementada | Migraciones `0001` y `0002`, repositorios y aislamiento probado |
-| Autenticación y autorización | Implementada en rama de Issue #6 | Better Auth, sesión D1, instalación única, roles fijos y contexto organizacional |
+| Autenticación y autorización | Implementada | Better Auth, sesión D1, instalación única, roles fijos y contexto organizacional; [PR #14](https://github.com/LuisVR391/agent-cloudflare/pull/14) |
 | Panel de conversaciones y agentes | Planificado | Navegación reservada y deshabilitada; no existen todavía módulos operativos |
 | WhatsApp Cloud API | Planificada | Secretos de ejemplo; no existe webhook funcional |
 | Queues, Workflows y Vectorize | Planificadas | Forman parte de la arquitectura objetivo, no de la configuración actual |
