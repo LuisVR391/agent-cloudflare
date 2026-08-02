@@ -58,7 +58,7 @@ estructura y proceso de sustitución.
 | [Propiedad de datos](./architecture/data-ownership.md) | Vigente | Fuentes de verdad y ciclo de vida de los datos |
 | [Modelo de seguridad](./architecture/security-model.md) | Vigente | Autenticación, autorización, aislamiento y auditoría |
 | [Contratos transversales](./architecture/contracts.md) | Vigente | Contratos compartidos, identificadores e idempotencia |
-| `operations/environments.md` | Pendiente | Local, staging, producción, bindings y secretos |
+| [Entornos y staging](./operations/environments.md) | Vigente | Local, staging, producción, bindings, secretos, despliegue y rollback |
 | [ADR-0001: Arquitectura Cloudflare-native](./decisions/ADR-0001-cloudflare-native.md) | Vigente | Servicios Cloudflare mediante bindings y responsabilidades separadas |
 | [ADR-0002: D1 como fuente de verdad](./decisions/ADR-0002-d1-source-of-truth.md) | Vigente | Autoridad empresarial y relacional, migraciones y proyecciones |
 | [ADR-0003: Runtime durable por conversación](./decisions/ADR-0003-conversation-agent.md) | Vigente | Coordinación viva y aislada mediante Durable Objects |
