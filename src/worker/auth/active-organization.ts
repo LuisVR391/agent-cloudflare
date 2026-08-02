@@ -69,10 +69,10 @@ export async function readActiveOrganization(
 export async function createActiveOrganizationCookie(
   organizationId: string,
   secret: string,
-  request: Request,
+  authOrigin: string,
 ): Promise<string> {
   const value = `${organizationId}.${await signature(secret, organizationId)}`;
-  const secure = new URL(request.url).protocol === "https:" ? "; Secure" : "";
+  const secure = new URL(authOrigin).protocol === "https:" ? "; Secure" : "";
 
   return `${cookieName}=${encodeURIComponent(value)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000${secure}`;
 }

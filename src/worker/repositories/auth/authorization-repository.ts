@@ -229,4 +229,30 @@ export class AuthorizationRepository {
       )
       .run();
   }
+
+  async writeAuthorizationRejectionAudit(
+    user: AuthenticatedUser,
+    organizationId: string,
+    action: string,
+    resourceType: string,
+    correlationId: string,
+  ): Promise<void> {
+    await this.#db
+      .prepare(
+        `INSERT INTO audit_logs
+           (id, organization_id, actor_type, actor_id, action, resource_type,
+            resource_id, result, correlation_id, occurred_at)
+         VALUES (?, ?, 'staff', ?, ?, ?, NULL, 'rejected', ?, ?)`,
+      )
+      .bind(
+        crypto.randomUUID(),
+        organizationId,
+        user.id,
+        action,
+        resourceType,
+        correlationId,
+        new Date().toISOString(),
+      )
+      .run();
+  }
 }

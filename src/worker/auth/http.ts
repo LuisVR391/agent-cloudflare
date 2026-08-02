@@ -8,10 +8,10 @@ import {
   createActiveOrganizationCookie,
   readActiveOrganization,
 } from "./active-organization";
-import { createAuth } from "./auth";
+import { createAuth, getConfiguredAuthOrigin } from "./auth";
 import type {
   AuthenticatedUser,
-  AuthorizationContext,
+  AuthorizationResolution,
   WorkerEnv,
 } from "./types";
 
@@ -45,13 +45,60 @@ function json(body: unknown, status = 200, headers?: HeadersInit): Response {
   });
 }
 
-function error(
+export function error(
   status: number,
   code: string,
   message: string,
   correlationId: string,
 ): Response {
   return json({ error: { code, message, correlationId } }, status);
+}
+
+export function logSecurityRejection(
+  action: string,
+  reason: string,
+  correlationId: string,
+): void {
+  console.warn(
+    JSON.stringify({
+      event: "security.authorization",
+      action,
+      result: "rejected",
+      reason,
+      correlationId,
+    }),
+  );
+}
+
+function hasSessionSecret(env: WorkerEnv): boolean {
+  return (
+    typeof env.BETTER_AUTH_SECRET === "string" &&
+    env.BETTER_AUTH_SECRET.length >= 32
+  );
+}
+
+function authConfigurationFailure(
+  request: Request,
+  env: WorkerEnv,
+): Extract<AuthorizationResolution, { authorized: false }> | null {
+  const authOrigin = getConfiguredAuthOrigin(env);
+  if (!hasSessionSecret(env) || !authOrigin) {
+    return {
+      authorized: false,
+      status: 503,
+      code: "AUTH_NOT_CONFIGURED",
+      message: "La autenticación no está configurada en este entorno.",
+    };
+  }
+  if (new URL(request.url).origin !== authOrigin) {
+    return {
+      authorized: false,
+      status: 403,
+      code: "AUTH_ORIGIN_MISMATCH",
+      message: "El origen de la solicitud no está autorizado.",
+    };
+  }
+  return null;
 }
 
 async function readJson(request: Request): Promise<unknown> {
@@ -81,7 +128,7 @@ async function getAuthenticatedUser(
   request: Request,
   env: WorkerEnv,
 ): Promise<AuthenticatedUser | null> {
-  const auth = createAuth(env, new URL(request.url).origin);
+  const auth = createAuth(env);
   const session = await auth.api.getSession({ headers: request.headers });
   if (!session || session.user.status !== "active") return null;
 
@@ -92,25 +139,52 @@ async function getAuthenticatedUser(
   };
 }
 
-export async function getAuthorizationContext(
+export async function resolveAuthorizationContext(
   request: Request,
   env: WorkerEnv,
-): Promise<AuthorizationContext | null> {
+): Promise<AuthorizationResolution> {
+  const configurationFailure = authConfigurationFailure(request, env);
+  if (configurationFailure) return configurationFailure;
+
   const user = await getAuthenticatedUser(request, env);
-  if (!user) return null;
+  if (!user) {
+    return {
+      authorized: false,
+      status: 401,
+      code: "UNAUTHENTICATED",
+      message: "Inicia sesión para continuar.",
+    };
+  }
 
   const repository = new AuthorizationRepository(env.DB);
   const organizations = await repository.listAccessForUser(user.id);
-  if (organizations.length === 0) return null;
+  if (organizations.length === 0) {
+    return {
+      authorized: false,
+      status: 403,
+      code: "NO_ORGANIZATION_ACCESS",
+      message: "Tu cuenta no tiene acceso a una organización activa.",
+    };
+  }
 
   const activeOrganization = await readActiveOrganization(
     request,
     env.BETTER_AUTH_SECRET,
     organizations,
   );
-  if (!activeOrganization) return null;
+  if (!activeOrganization) {
+    return {
+      authorized: false,
+      status: 409,
+      code: "ORGANIZATION_SELECTION_REQUIRED",
+      message: "Selecciona una organización válida para continuar.",
+    };
+  }
 
-  return { user, organizations, activeOrganization };
+  return {
+    authorized: true,
+    context: { user, organizations, activeOrganization },
+  };
 }
 
 async function handleSetupStatus(env: WorkerEnv): Promise<Response> {
@@ -149,6 +223,11 @@ async function handleSetup(
   }
 
   if (!(await secretsMatch(input.setupToken, env.AUTH_SETUP_TOKEN))) {
+    logSecurityRejection(
+      "installation.create",
+      "invalid_setup_token",
+      correlationId,
+    );
     return error(
       403,
       "INVALID_SETUP_TOKEN",
@@ -181,7 +260,7 @@ async function handleSetup(
     });
     organizationId = organization.id;
 
-    const auth = createAuth(env, new URL(request.url).origin, true);
+    const auth = createAuth(env, true);
     const registration = await auth.api.signUpEmail({
       body: {
         name: input.ownerName,
@@ -260,11 +339,20 @@ async function handleContext(
     organizations,
   );
   const responseHeaders: Record<string, string> = {};
+  const authOrigin = getConfiguredAuthOrigin(env);
+  if (!authOrigin) {
+    return error(
+      503,
+      "AUTH_NOT_CONFIGURED",
+      "La autenticación no está configurada en este entorno.",
+      correlationId,
+    );
+  }
   if (activeOrganization && organizations.length === 1) {
     responseHeaders["Set-Cookie"] = await createActiveOrganizationCookie(
       activeOrganization.organizationId,
       env.BETTER_AUTH_SECRET,
-      request,
+      authOrigin,
     );
   }
 
@@ -294,6 +382,11 @@ async function handleOrganizationSelection(
   try {
     input = organizationSelectionSchema.parse(await readJson(request));
   } catch {
+    logSecurityRejection(
+      "organization.select",
+      "invalid_organization_input",
+      correlationId,
+    );
     return error(
       400,
       "INVALID_ORGANIZATION",
@@ -308,6 +401,11 @@ async function handleOrganizationSelection(
     (organization) => organization.organizationId === input.organizationId,
   );
   if (!selected) {
+    logSecurityRejection(
+      "organization.select",
+      "organization_access_denied",
+      correlationId,
+    );
     return error(
       403,
       "ORGANIZATION_ACCESS_DENIED",
@@ -322,6 +420,16 @@ async function handleOrganizationSelection(
     correlationId,
   );
 
+  const authOrigin = getConfiguredAuthOrigin(env);
+  if (!authOrigin) {
+    return error(
+      503,
+      "AUTH_NOT_CONFIGURED",
+      "La autenticación no está configurada en este entorno.",
+      correlationId,
+    );
+  }
+
   return json(
     { activeOrganization: selected },
     200,
@@ -329,7 +437,7 @@ async function handleOrganizationSelection(
       "Set-Cookie": await createActiveOrganizationCookie(
         selected.organizationId,
         env.BETTER_AUTH_SECRET,
-        request,
+        authOrigin,
       ),
     },
   );
@@ -346,25 +454,29 @@ export async function routeAuthRequest(
   if (url.pathname === "/api/setup/status" && request.method === "GET") {
     return handleSetupStatus(env);
   }
-  const hasSessionSecret =
-    typeof env.BETTER_AUTH_SECRET === "string" &&
-    env.BETTER_AUTH_SECRET.length >= 32;
+  const configurationFailure = authConfigurationFailure(request, env);
   if (
     (url.pathname.startsWith("/api/auth/") ||
+      (url.pathname === "/api/setup" && request.method === "POST") ||
       url.pathname === "/api/context" ||
       url.pathname === "/api/context/organization") &&
-    !hasSessionSecret
+    configurationFailure
   ) {
+    logSecurityRejection(
+      "authentication.configure",
+      configurationFailure.code.toLowerCase(),
+      correlationId,
+    );
     return error(
-      503,
-      "AUTH_NOT_CONFIGURED",
-      "La autenticación no está configurada en este entorno.",
+      configurationFailure.status,
+      configurationFailure.code,
+      configurationFailure.message,
       correlationId,
     );
   }
   if (url.pathname === "/api/setup" && request.method === "POST") {
     if (
-      !hasSessionSecret ||
+      !hasSessionSecret(env) ||
       typeof env.AUTH_SETUP_TOKEN !== "string" ||
       env.AUTH_SETUP_TOKEN.length < 12
     ) {
@@ -378,7 +490,15 @@ export async function routeAuthRequest(
     return handleSetup(request, env, correlationId);
   }
   if (url.pathname.startsWith("/api/auth/")) {
-    return createAuth(env, url.origin).handler(request);
+    const response = await createAuth(env).handler(request);
+    if (url.pathname === "/api/auth/sign-in/email" && response.status >= 400) {
+      logSecurityRejection(
+        "authentication.sign_in",
+        "credentials_rejected",
+        correlationId,
+      );
+    }
+    return response;
   }
   if (url.pathname === "/api/context" && request.method === "GET") {
     return handleContext(request, env, correlationId);

@@ -3,12 +3,35 @@ import { betterAuth } from "better-auth";
 import { createRateLimitStorage } from "../repositories/auth/rate-limit-storage";
 import type { WorkerEnv } from "./types";
 
-export function createAuth(
-  env: WorkerEnv,
-  requestOrigin: string,
-  allowSignUp = false,
-) {
-  const baseURL = env.BETTER_AUTH_URL || requestOrigin;
+export function getConfiguredAuthOrigin(env: WorkerEnv): string | null {
+  if (typeof env.BETTER_AUTH_URL !== "string") return null;
+
+  try {
+    const url = new URL(env.BETTER_AUTH_URL);
+    const isLocalDevelopment =
+      url.hostname === "localhost" || url.hostname === "127.0.0.1";
+    if (
+      (url.protocol !== "https:" &&
+        !(isLocalDevelopment && url.protocol === "http:")) ||
+      url.username ||
+      url.password ||
+      url.pathname !== "/" ||
+      url.search ||
+      url.hash
+    ) {
+      return null;
+    }
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
+export function createAuth(env: WorkerEnv, allowSignUp = false) {
+  const baseURL = getConfiguredAuthOrigin(env);
+  if (!baseURL) {
+    throw new Error("AUTH_NOT_CONFIGURED");
+  }
 
   return betterAuth({
     appName: "Agent Cloudflare",
@@ -16,7 +39,7 @@ export function createAuth(
     basePath: "/api/auth",
     database: env.DB,
     secret: env.BETTER_AUTH_SECRET,
-    trustedOrigins: [requestOrigin, baseURL],
+    trustedOrigins: [baseURL],
     emailAndPassword: {
       enabled: true,
       disableSignUp: !allowSignUp,

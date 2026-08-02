@@ -1,7 +1,13 @@
 import { routeAgentRequest } from "agents";
 
-import { getAuthorizationContext, routeAuthRequest } from "./auth/http";
+import {
+  error,
+  logSecurityRejection,
+  resolveAuthorizationContext,
+  routeAuthRequest,
+} from "./auth/http";
 import type { WorkerEnv } from "./auth/types";
+import { AuthorizationRepository } from "./repositories/auth/authorization-repository";
 
 export { CustomerSupportAgent } from "./customer-support-agent";
 
@@ -46,23 +52,40 @@ export default {
     }
 
     if (url.pathname.startsWith("/agents/")) {
-      const context = await getAuthorizationContext(request, workerEnv);
+      const correlationId =
+        request.headers.get("x-correlation-id") ?? crypto.randomUUID();
+      const authorization = await resolveAuthorizationContext(request, workerEnv);
+      if (!authorization.authorized) {
+        logSecurityRejection(
+          "conversation.agent.access",
+          authorization.code.toLowerCase(),
+          correlationId,
+        );
+        return error(
+          authorization.status,
+          authorization.code,
+          authorization.message,
+          correlationId,
+        );
+      }
+
+      const { context } = authorization;
       if (
-        !context ||
         !context.activeOrganization.permissions.includes("conversations.manage")
       ) {
-        return new Response(
-          JSON.stringify({
-            error: {
-              code: context ? "FORBIDDEN" : "UNAUTHENTICATED",
-              message: context
-                ? "No tienes permiso para usar el agente."
-                : "Inicia sesión para continuar.",
-              correlationId:
-                request.headers.get("x-correlation-id") ?? crypto.randomUUID(),
-            },
-          }),
-          { status: context ? 403 : 401, headers: jsonHeaders },
+        const repository = new AuthorizationRepository(workerEnv.DB);
+        await repository.writeAuthorizationRejectionAudit(
+          context.user,
+          context.activeOrganization.organizationId,
+          "conversation.agent.access",
+          "conversation_agent",
+          correlationId,
+        );
+        return error(
+          403,
+          "FORBIDDEN",
+          "No tienes permiso para usar el agente.",
+          correlationId,
         );
       }
     }

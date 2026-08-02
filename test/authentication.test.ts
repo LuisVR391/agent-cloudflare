@@ -1,5 +1,5 @@
 import { exports } from "cloudflare:workers";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 const fetchWorker = (path: string, init?: RequestInit) =>
   exports.default.fetch(new Request(`https://example.com${path}`, init));
@@ -15,6 +15,7 @@ const setupBody = {
 
 describe("instalación y autenticación", () => {
   it("rechaza un token de instalación inválido sin crear datos", async () => {
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const response = await fetchWorker("/api/setup", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -25,6 +26,10 @@ describe("instalación y autenticación", () => {
     await expect(response.json()).resolves.toMatchObject({
       error: { code: "INVALID_SETUP_TOKEN" },
     });
+    expect(warning).toHaveBeenCalledWith(
+      expect.stringContaining('"reason":"invalid_setup_token"'),
+    );
+    warning.mockRestore();
   });
 
   it("crea una sola instalación, cierra el registro y permite iniciar sesión", async () => {
