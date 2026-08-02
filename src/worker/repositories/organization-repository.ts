@@ -60,4 +60,16 @@ export class OrganizationRepository {
 
     return row === null ? null : toOrganization(row);
   }
+
+  async deleteById(organizationId: string): Promise<void> {
+    const scope = requireOrganizationScope(
+      organizationId,
+      "OrganizationRepository.deleteById",
+    );
+
+    await this.#db
+      .prepare("DELETE FROM organizations WHERE id = ?")
+      .bind(scope)
+      .run();
+  }
 }

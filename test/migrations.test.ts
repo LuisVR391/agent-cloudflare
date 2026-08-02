@@ -17,9 +17,21 @@ describe("migraciones de D1", () => {
   it("crea el esquema inicial desde una base vacía", async () => {
     expect(await objectNames("table")).toEqual(
       expect.arrayContaining([
+        "audit_logs",
+        "auth_rate_limits",
+        "auth_verifications",
         "contact_identities",
         "contacts",
+        "installation_state",
+        "membership_roles",
+        "memberships",
         "organizations",
+        "permissions",
+        "role_permissions",
+        "roles",
+        "user_accounts",
+        "user_sessions",
+        "users",
       ]),
     );
   });
@@ -31,6 +43,7 @@ describe("migraciones de D1", () => {
 
     expect(results.map((row) => row.name)).toEqual([
       "0001_initial_schema.sql",
+      "0002_authentication_and_authorization.sql",
     ]);
   });
 

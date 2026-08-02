@@ -71,9 +71,10 @@ aislado. Una migración nueva queda cubierta sin configuración adicional.
 npm test
 ```
 
-`test/migrations.test.ts` verifica el esquema aplicado desde vacío y
+`test/migrations.test.ts` verifica el esquema aplicado desde vacío,
 `test/repositories/isolation.test.ts` verifica que ninguna consulta cruza
-organizaciones.
+organizaciones y `test/authentication.test.ts` recorre instalación, cierre del
+registro, inicio de sesión y contexto organizacional.
 
 ## Reglas que no cambian en local
 

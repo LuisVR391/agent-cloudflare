@@ -20,12 +20,20 @@ export default defineConfig({
           configPath: "./wrangler.test.jsonc",
         },
         miniflare: {
-          bindings: { TEST_MIGRATIONS: migrations },
+          bindings: {
+            TEST_MIGRATIONS: migrations,
+            BETTER_AUTH_SECRET:
+              "test-only-better-auth-secret-at-least-thirty-two-characters",
+            AUTH_SETUP_TOKEN: "test-only-setup-token",
+            BETTER_AUTH_URL: "https://example.com",
+          },
         },
       };
     }),
   ],
   test: {
+    include: ["test/**/*.test.ts"],
+    exclude: ["test/client/**"],
     setupFiles: ["./test/apply-migrations.ts"],
   },
 });

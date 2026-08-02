@@ -11,7 +11,10 @@
     "skipLibCheck": true,
     "useDefineForClassFields": true,
     "resolveJsonModule": true,
-    "allowImportingTsExtensions": false
+    "allowImportingTsExtensions": false,
+    "paths": {
+      "@/*": ["./src/client/*"]
+    }
   },
   "include": [
     "worker-configuration.d.ts",

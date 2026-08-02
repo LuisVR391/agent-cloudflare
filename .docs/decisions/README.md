@@ -58,3 +58,4 @@ histórica como si siempre hubiera sido distinta.
 | [ADR-0004](./ADR-0004-human-approval.md) | Aceptado | Aprobación humana para mejoras sensibles |
 | [ADR-0005](./ADR-0005-shared-agent-guardrails.md) | Aceptado | Núcleo neutral de guardrails para agentes de codificación |
 | [ADR-0006](./ADR-0006-d1-schema-conventions.md) | Aceptado | Convenciones de esquema y migraciones en D1 |
+| [ADR-0007](./ADR-0007-better-auth-and-organization-context.md) | Aceptado | Better Auth en D1 y contexto organizacional validado |

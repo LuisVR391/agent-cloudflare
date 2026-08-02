@@ -45,6 +45,7 @@ estructura y proceso de sustitución.
 | [Contribución](../CONTRIBUTING.md) | Vigente | 0 | Flujo local y convenciones actuales |
 | [Continuidad de agentes de codificación](./operations/agent-continuity.md) | Vigente | 0 | Skill, hooks, confianza, guardrails y validación repo-local para Codex y Claude Code |
 | [Base de datos local](./operations/local-database.md) | Vigente | 0 | Binding, migraciones, inspección y pruebas de D1 en local |
+| [Operación de autenticación](./operations/authentication.md) | Vigente | 0 | Secretos, instalación inicial, acceso local y recuperación |
 | [Instrucciones para Claude Code](../CLAUDE.md) | Vigente | 0 | Punto de entrada que importa las reglas compartidas |
 
 ### Fase 0 — Fundamentos
@@ -55,7 +56,7 @@ estructura y proceso de sustitución.
 | `architecture/overview.md` | Pendiente | Componentes, límites y flujo general |
 | [Modelo de dominio](./architecture/domain-model.md) | Vigente | Lenguaje, entidades, relaciones e invariantes multiempresa |
 | [Propiedad de datos](./architecture/data-ownership.md) | Vigente | Fuentes de verdad y ciclo de vida de los datos |
-| `architecture/security-model.md` | Pendiente | Autenticación, autorización, aislamiento y auditoría |
+| [Modelo de seguridad](./architecture/security-model.md) | Vigente | Autenticación, autorización, aislamiento y auditoría |
 | [Contratos transversales](./architecture/contracts.md) | Vigente | Contratos compartidos, identificadores e idempotencia |
 | `operations/environments.md` | Pendiente | Local, staging, producción, bindings y secretos |
 | [ADR-0001: Arquitectura Cloudflare-native](./decisions/ADR-0001-cloudflare-native.md) | Vigente | Servicios Cloudflare mediante bindings y responsabilidades separadas |
@@ -64,6 +65,7 @@ estructura y proceso de sustitución.
 | [ADR-0004: Aprobación humana](./decisions/ADR-0004-human-approval.md) | Vigente | Evaluación, autorización, publicación versionada y rollback |
 | [ADR-0005: Guardrails compartidos de agentes](./decisions/ADR-0005-shared-agent-guardrails.md) | Vigente | Núcleo neutral, adaptadores por agente y skill sin copias |
 | [ADR-0006: Convenciones de esquema en D1](./decisions/ADR-0006-d1-schema-conventions.md) | Vigente | Identificadores, timestamps, aislamiento, migraciones y repositorios |
+| [ADR-0007: Better Auth y contexto organizacional](./decisions/ADR-0007-better-auth-and-organization-context.md) | Vigente | Sesiones en D1, instalación cerrada y autorización por organización |
 
 ### Fase 1 — WhatsApp funcional
 

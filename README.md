@@ -6,8 +6,9 @@ belleza y automatizará atención, ventas, agenda, seguimiento y mejora continua
 desde una sola interfaz.
 
 > El repositorio se encuentra en una etapa inicial. Actualmente contiene la
-> base técnica del Worker, un agente durable y una SPA de comprobación; todavía
-> no es un CRM funcional ni recibe mensajes reales de WhatsApp.
+> base técnica del Worker, un agente durable, autenticación cerrada y la base
+> del panel administrativo; todavía no es un CRM funcional ni recibe mensajes
+> reales de WhatsApp.
 
 ## Objetivo del producto
 
@@ -41,12 +42,14 @@ forks del producto.
 | Capacidad | Estado | Evidencia |
 | --- | --- | --- |
 | Worker y API HTTP | Implementada | `src/worker/index.ts` y `GET /api/health` |
-| SPA React servida por el Worker | Implementada | React 19, Vite y binding `ASSETS` |
+| SPA React servida por el Worker | Implementada | Landing, `/setup`, `/login`, `/app`, React 19, Tailwind y shadcn/ui |
 | Agente durable | Base implementada | `CustomerSupportAgent` con estado inicial |
 | Workers AI | Binding preparado | Binding `AI` declarado, sin flujo de inferencia |
 | R2 | Binding preparado | `MEDIA_BUCKET` declarado, sin ingestión de medios |
 | Observabilidad | Configurada | Logs y trazas habilitados en Wrangler |
-| D1 en local y pruebas | Base implementada | Binding `DB`, `migrations/0001_initial_schema.sql` y repositorios con aislamiento probado |
+| D1 en local y pruebas | Base implementada | Migraciones `0001` y `0002`, repositorios y aislamiento probado |
+| Autenticación y autorización | Implementada | Better Auth, sesión D1, instalación única, roles fijos y contexto organizacional; [PR #14](https://github.com/LuisVR391/agent-cloudflare/pull/14) |
+| Panel de conversaciones y agentes | Planificado | Navegación reservada y deshabilitada; no existen todavía módulos operativos |
 | WhatsApp Cloud API | Planificada | Secretos de ejemplo; no existe webhook funcional |
 | Queues, Workflows y Vectorize | Planificadas | Forman parte de la arquitectura objetivo, no de la configuración actual |
 | CRM, inbox, agenda y pipelines | Planificados | Pendientes de las fases de producto |
@@ -55,9 +58,12 @@ forks del producto.
 `CustomerSupportAgent` demuestra identidad y estado durable, pero todavía no
 implementa el runtime conversacional definido para el producto.
 
-La base D1 existe en local y en pruebas con `organizations`, `contacts` y
-`contact_identities`. No hay ninguna base creada en Cloudflare ni ruta HTTP que
-exponga estos datos: eso depende de la autenticación y de los entornos.
+La base D1 existe en local y en pruebas con datos de organizaciones, contactos,
+identidad, sesión y autorización. Las rutas del panel validan identidad,
+membresía, organización activa, origen público y permisos en backend. Los
+rechazos con contexto empresarial quedan en auditoría D1; los rechazos previos
+al contexto producen eventos operativos redactados. No hay ninguna base creada
+en Cloudflare ni un entorno remoto configurado.
 
 ## Arquitectura objetivo
 
@@ -148,7 +154,7 @@ arquitectónicas completas permanecen en la
 
 ## Requisitos
 
-- Node.js 22 recomendado (mínimo 20).
+- Node.js 22.18 o posterior.
 - Una cuenta de Cloudflare.
 - Wrangler autenticado con `npx wrangler login`.
 
@@ -163,10 +169,14 @@ npm run db:migrate
 npm run dev
 ```
 
+El servidor local usa `http://localhost:5190`. El puerto es estricto para
+mantener estable el origen utilizado por la autenticación.
+
 No se necesitan credenciales reales para abrir la página inicial y consultar
-`/api/health`. `npm run db:migrate` aplica el esquema sobre la base D1 local;
-el flujo completo está en
-[base de datos local](./.docs/operations/local-database.md).
+`/api/health`. Para probar `/setup`, `/login` y `/app`, configura los secretos
+locales descritos en [operación de autenticación](./.docs/operations/authentication.md).
+`npm run db:migrate` aplica el esquema sobre la base D1 local; el flujo de D1
+está en [base de datos local](./.docs/operations/local-database.md).
 
 ## Comandos
 
@@ -175,7 +185,7 @@ el flujo completo está en
 | `npm run dev` | Inicia React y el Worker mediante el plugin de Cloudflare para Vite |
 | `npm run build` | Construye frontend y Worker, y valida TypeScript |
 | `npm run preview` | Ejecuta localmente el artefacto final |
-| `npm test` | Ejecuta pruebas dentro del runtime de Cloudflare |
+| `npm test` | Ejecuta pruebas de Worker/D1 y de componentes React |
 | `npm run cf-typegen` | Regenera los tipos de bindings de Wrangler |
 | `npm run db:migrate` | Aplica las migraciones de D1 en la base local |
 | `npm run db:migrations:list` | Muestra las migraciones de D1 pendientes en local |
@@ -205,9 +215,11 @@ Los recursos futuros de Queues, Workflows y Vectorize se incorporarán con su
 fase correspondiente y no deben crearse anticipadamente en producción.
 
 Para desarrollo local, copia `.dev.vars.example` a `.dev.vars`. En Cloudflare,
-registra los secretos de WhatsApp de forma interactiva:
+registra los secretos de autenticación y WhatsApp de forma interactiva:
 
 ```bash
+npx wrangler secret put BETTER_AUTH_SECRET
+npx wrangler secret put AUTH_SETUP_TOKEN
 npx wrangler secret put WHATSAPP_VERIFY_TOKEN
 npx wrangler secret put WHATSAPP_APP_SECRET
 npx wrangler secret put WHATSAPP_ACCESS_TOKEN
@@ -215,6 +227,10 @@ npx wrangler secret put WHATSAPP_PHONE_NUMBER_ID
 ```
 
 No pases secretos como argumentos ni los agregues a `wrangler.jsonc`.
+`BETTER_AUTH_URL` también es obligatorio y debe contener el origen público
+exacto de cada entorno, sin ruta. No es un secreto: su binding por entorno se
+definirá junto con staging en el Issue #7. Hasta entonces la autenticación
+remota falla de forma cerrada y solo está configurada para desarrollo y pruebas.
 
 ## Validación y despliegue
 

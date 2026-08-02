@@ -128,7 +128,7 @@ type AuditRecord = {
   action: string;
   resourceType: string;
   resourceId?: string;
-  result: "allowed" | "denied" | "succeeded" | "failed";
+  result: "allowed" | "rejected" | "failed";
   correlationId: string;
   occurredAt: string;
 };
@@ -142,6 +142,9 @@ Reglas:
   mensajes completos ni información personal innecesaria.
 - Los detalles técnicos adicionales se almacenan de forma redactada y no
   cambian la semántica del resultado.
+- Un rechazo anterior a la resolución de `organizationId` no puede producir un
+  `AuditRecord` empresarial. Se emite como evento operativo redactado con
+  `correlationId`; no se asigna a una organización no validada.
 
 ## Límites de confianza
 
