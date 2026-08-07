@@ -52,7 +52,7 @@ estructura y proceso de sustitución.
 
 | Documento planificado | Estado | Contenido |
 | --- | --- | --- |
-| `product/vision.md` | Pendiente | Audiencia, problema, alcance del MVP y criterios de éxito |
+| [Visión especializada de producto](./product/vision.md) | Vigente | Audiencia, problema, alcance del MVP y criterios de éxito |
 | `architecture/overview.md` | Pendiente | Componentes, límites y flujo general |
 | [Modelo de dominio](./architecture/domain-model.md) | Vigente | Lenguaje, entidades, relaciones e invariantes multiempresa |
 | [Propiedad de datos](./architecture/data-ownership.md) | Vigente | Fuentes de verdad y ciclo de vida de los datos |
