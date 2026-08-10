@@ -47,12 +47,12 @@ forks del producto.
 | Workers AI | Binding preparado | Binding `AI` declarado, sin flujo de inferencia |
 | R2 | Binding preparado | `MEDIA_BUCKET` declarado, sin ingestión de medios |
 | Observabilidad | Configurada | Logs y trazas habilitados en Wrangler |
-| D1 en local y pruebas | Base implementada | Migraciones `0001` y `0002`, repositorios y aislamiento probado |
+| D1 en local y pruebas | Base implementada | Migraciones `0001` a `0003`, repositorios y aislamiento probado |
 | Autenticación y autorización | Implementada | Better Auth, sesión D1, instalación única, roles fijos y contexto organizacional; [PR #14](https://github.com/LuisVR391/agent-cloudflare/pull/14) |
 | Entornos y staging | Configuración preparada | Local, staging y producción tienen bindings aislados y runbook; no existen recursos remotos |
 | Panel de conversaciones y agentes | Planificado | Navegación reservada y deshabilitada; no existen todavía módulos operativos |
-| WhatsApp mediante Zernio | Planificada | [ADR-0008](./.docs/decisions/ADR-0008-zernio-whatsapp-adapter.md); no existe webhook ni envío funcional |
-| Queues, Workflows y Vectorize | Planificadas | Forman parte de la arquitectura objetivo, no de la configuración actual |
+| WhatsApp mediante Zernio | Base de entrada implementada | [ADR-0008](./.docs/decisions/ADR-0008-zernio-whatsapp-adapter.md); webhook firmado, deduplicación, Queue y cliente de salida probados en local, sin staging ni flujo conversacional |
+| Queues, Workflows y Vectorize | Parcial | `INBOUND_MESSAGES` está configurada y probada localmente; Workflows y Vectorize siguen planificados |
 | CRM, inbox, agenda y pipelines | Planificados | Pendientes de las fases de producto |
 | Versionado, evaluación y mejora de agentes | Planificados | Fuera del prototipo actual |
 

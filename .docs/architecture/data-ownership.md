@@ -154,7 +154,8 @@ Conversation Agent
 
 Outbound consumer
   -> registra el intento y envía mediante la API de Zernio
-  -> reconcilia entrega, lectura o error en D1 antes de reintentar
+  -> reutiliza una Idempotency-Key estable en cada reintento
+  -> reconcilia entrega, lectura o error en D1
 ```
 
 Las Queues contienen referencias y contexto mínimo; los registros consultables
@@ -167,8 +168,9 @@ y los efectos de negocio permanecen en D1.
 - Vectorize debe poder regenerarse desde las fuentes y metadatos canónicos.
 - Un mensaje reintentado debe encontrar su deduplicación antes de producir un
   nuevo efecto.
-- Un envío con resultado incierto no se repite hasta reconciliar la respuesta
-  y los eventos disponibles de Zernio.
+- Un envío con resultado incierto reutiliza su `Idempotency-Key` dentro de la
+  ventana del proveedor y se reconcilia con la respuesta y los eventos de
+  Zernio antes de decidir una recuperación posterior.
 - Los fallos parciales conservan el mismo `correlationId`.
 - Una discrepancia se resuelve a favor de la fuente de verdad declarada en
   este documento y queda registrada para auditoría.

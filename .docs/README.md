@@ -53,7 +53,7 @@ estructura y proceso de sustitución.
 | Documento planificado | Estado | Contenido |
 | --- | --- | --- |
 | [Visión especializada de producto](./product/vision.md) | Vigente | Audiencia, problema, alcance del MVP y criterios de éxito |
-| `architecture/overview.md` | Pendiente | Componentes, límites y flujo general |
+| [Overview de arquitectura](./architecture/overview.md) | Vigente | Componentes, límites y flujo general |
 | [Modelo de dominio](./architecture/domain-model.md) | Vigente | Lenguaje, entidades, relaciones e invariantes multiempresa |
 | [Propiedad de datos](./architecture/data-ownership.md) | Vigente | Fuentes de verdad y ciclo de vida de los datos |
 | [Modelo de seguridad](./architecture/security-model.md) | Vigente | Autenticación, autorización, aislamiento y auditoría |
@@ -73,10 +73,10 @@ estructura y proceso de sustitución.
 | Documento planificado | Estado | Contenido |
 | --- | --- | --- |
 | `architecture/message-lifecycle.md` | Pendiente | Webhook, normalización, colas, runtime y salida |
-| `modules/zernio-whatsapp-channel.md` | Pendiente | Firma, payloads, estados y adaptador bidireccional de Zernio |
+| [Canal de WhatsApp mediante Zernio](./modules/zernio-whatsapp-channel.md) | Vigente | Firma, payloads, estados y adaptador bidireccional de Zernio |
 | `modules/conversation-runtime.md` | Pendiente | Identidad, buffer, orden, modos y concurrencia |
 | `modules/inbox-and-handoff.md` | Pendiente | Actualización en tiempo real e intervención humana |
-| `operations/zernio-whatsapp-setup.md` | Pendiente | Conexión manual de cuentas, webhook y secretos por entorno |
+| [Configuración operativa de Zernio](./operations/zernio-whatsapp-setup.md) | Vigente | Conexión manual de cuentas, webhook y secretos por entorno |
 
 ### Fase 2 — CRM
 

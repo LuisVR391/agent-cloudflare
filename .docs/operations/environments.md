@@ -32,18 +32,19 @@ de un script de despliegue.
 | D1 `DB` | `agent-cloudflare-db` local | `agent-cloudflare-staging-db` | `agent-cloudflare-production-db` |
 | R2 `MEDIA_BUCKET` | `agent-cloudflare-media` local | `agent-cloudflare-staging-media` | `agent-cloudflare-production-media` |
 | Durable Object | Namespace local | Namespace del Worker de staging | Namespace del Worker de producción |
+| Queue `INBOUND_MESSAGES` | `agent-cloudflare-inbound` | `agent-cloudflare-staging-inbound` | `agent-cloudflare-production-inbound` planificada |
 | `BETTER_AUTH_URL` | `http://localhost:5190` | Origen exacto de staging en `workers.dev` | Origen HTTPS autorizado |
 | Secretos | `.dev.vars`, nunca Git | Secretos del Worker de staging | Secretos distintos del Worker de producción |
 
-`DB`, `MEDIA_BUCKET`, `AI` y `CustomerSupportAgent` conservan los mismos
+`DB`, `MEDIA_BUCKET`, `INBOUND_MESSAGES`, `AI` y `CustomerSupportAgent` conservan los mismos
 nombres de binding para no cambiar el contrato del Worker. Los recursos detrás
 de esos bindings son distintos por entorno. Assets, migraciones del Durable
 Object y observabilidad se heredan de la configuración común.
 
-Los únicos secretos exigidos por la capacidad actualmente activa son
-`BETTER_AUTH_SECRET` y `AUTH_SETUP_TOKEN`. `ZERNIO_API_KEY` y
-`ZERNIO_WEBHOOK_SECRET` están planificados para la Fase 1 y se registrarán en
-su entorno cuando exista el canal funcional; no se cargan por adelantado. Las
+Los secretos declarados para staging son `BETTER_AUTH_SECRET`,
+`AUTH_SETUP_TOKEN`, `ZERNIO_WEBHOOK_SECRET` y `ZERNIO_API_KEY`. Los dos
+valores de Zernio se cargan únicamente cuando se prepara el canal del entorno;
+la API key debe estar limitada al perfil y recursos necesarios. Las
 cuentas de WhatsApp se conectarán manualmente en Zernio y no se consideran
 recursos provisionados por este runbook. Nunca se copian secretos ni datos
 entre entornos.
@@ -82,6 +83,7 @@ incluyas secretos en argumentos, archivos versionados, logs o capturas.
    ```bash
    npx wrangler d1 create agent-cloudflare-staging-db
    npx wrangler r2 bucket create agent-cloudflare-staging-media
+   npx wrangler queues create agent-cloudflare-staging-inbound
    ```
 
 3. Sustituye `staging-not-provisioned` por el UUID devuelto por D1 y reemplaza
@@ -100,6 +102,8 @@ incluyas secretos en argumentos, archivos versionados, logs o capturas.
    ```bash
    npx wrangler secret put BETTER_AUTH_SECRET --env staging
    npx wrangler secret put AUTH_SETUP_TOKEN --env staging
+   npx wrangler secret put ZERNIO_WEBHOOK_SECRET --env staging
+   npx wrangler secret put ZERNIO_API_KEY --env staging
    npx wrangler secret list --env staging
    ```
 

@@ -73,9 +73,10 @@ y operar únicamente los perfiles requeridos.
   sus fallos, límites y cambios de contrato deben observarse y aislarse.
 - La entrega de webhooks es al menos una vez. La deduplicación persistente en
   D1 es obligatoria antes de encolar efectos.
-- La API de envío documentada no promete una clave de idempotencia para este
-  endpoint. El consumidor debe persistir el intento y reconciliar su respuesta
-  y eventos de estado antes de repetir un envío incierto.
+- La API de envío acepta `Idempotency-Key` y conserva la clave durante 24
+  horas. El consumidor debe derivar una clave estable por operación, persistir
+  el intento y reutilizarla en reintentos; la reconciliación con la respuesta y
+  los eventos de estado sigue siendo obligatoria.
 - Los identificadores de cuenta, conversación, mensaje y contacto de Zernio
   son opacos y no sustituyen los identificadores canónicos del producto.
 - Las referencias de medios no son almacenamiento permanente. El contenido

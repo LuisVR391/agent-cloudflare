@@ -50,7 +50,7 @@ aislamiento multiempresa.
 | Autenticación, roles y aislamiento multiempresa | Completado | D1 y migraciones de #5 | [Issue #6](https://github.com/LuisVR391/agent-cloudflare/issues/6), [PR #14](https://github.com/LuisVR391/agent-cloudflare/pull/14), [ADR-0007](../decisions/ADR-0007-better-auth-and-organization-context.md), [modelo de seguridad](../architecture/security-model.md) y [operación](../operations/authentication.md) |
 | Entornos y staging | Completado | Fundamentos anteriores (#4, #5 y #6) | [Issue #7](https://github.com/LuisVR391/agent-cloudflare/issues/7) y [PR #15](https://github.com/LuisVR391/agent-cloudflare/pull/15) |
 | Visión especializada de producto | Completado | Guía rectora | [Issue #16](https://github.com/LuisVR391/agent-cloudflare/issues/16) y [PR #17](https://github.com/LuisVR391/agent-cloudflare/pull/17) |
-| Overview de arquitectura | Planificado | Guía rectora y ADRs | Issue aún no creado |
+| Overview de arquitectura | En progreso | Guía rectora y ADRs | Documento implementado localmente; issue y PR pendientes |
 
 El estado completado de cada entregable entra en vigor al fusionarse en `main`
 el PR enlazado como evidencia.
