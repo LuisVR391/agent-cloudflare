@@ -1,9 +1,16 @@
 import { InvalidPersistedValueError } from "../domain/errors";
 import type {
+  ChannelAdapter,
+  ChannelProvider,
+  ChannelStatus,
+  CommunicationChannel,
   Contact,
   ContactIdentity,
   ContactStatus,
   IdentityProvider,
+  InboundWebhookEvent,
+  InboundWebhookEventStatus,
+  InboundWebhookEventType,
   Organization,
   OrganizationStatus,
 } from "../domain/types";
@@ -42,14 +49,57 @@ export type ContactIdentityRow = {
   updated_at: string;
 };
 
+export type CommunicationChannelRow = {
+  id: string;
+  organization_id: string;
+  provider: string;
+  adapter: string;
+  external_account_id: string;
+  external_profile_id: string | null;
+  display_name: string | null;
+  status: string;
+  disconnected_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type InboundWebhookEventRow = {
+  id: string;
+  organization_id: string;
+  channel_id: string;
+  adapter: string;
+  external_event_id: string;
+  event_type: string;
+  status: string;
+  correlation_id: string;
+  received_at: string;
+  enqueued_at: string | null;
+  processed_at: string | null;
+  failure_code: string | null;
+};
+
 const organizationStatuses: readonly OrganizationStatus[] = [
   "active",
   "suspended",
 ];
-
 const contactStatuses: readonly ContactStatus[] = ["active", "archived"];
-
 const identityProviders: readonly IdentityProvider[] = ["whatsapp"];
+const channelProviders: readonly ChannelProvider[] = ["whatsapp"];
+const channelAdapters: readonly ChannelAdapter[] = ["zernio"];
+const channelStatuses: readonly ChannelStatus[] = ["active", "disconnected"];
+const inboundWebhookEventTypes: readonly InboundWebhookEventType[] = [
+  "message.received",
+  "message.delivered",
+  "message.read",
+  "message.failed",
+  "account.disconnected",
+];
+const inboundWebhookEventStatuses: readonly InboundWebhookEventStatus[] = [
+  "received",
+  "enqueued",
+  "processed",
+  "failed",
+];
 
 function asMember<T extends string>(
   allowed: readonly T[],
@@ -60,7 +110,6 @@ function asMember<T extends string>(
   if (match === undefined) {
     throw new InvalidPersistedValueError(column, value);
   }
-
   return match;
 }
 
@@ -99,5 +148,66 @@ export function toContactIdentity(row: ContactIdentityRow): ContactIdentity {
     externalId: row.external_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+  };
+}
+
+export function toCommunicationChannel(
+  row: CommunicationChannelRow,
+): CommunicationChannel {
+  return {
+    id: row.id,
+    organizationId: row.organization_id,
+    provider: asMember(
+      channelProviders,
+      row.provider,
+      "communication_channels.provider",
+    ),
+    adapter: asMember(
+      channelAdapters,
+      row.adapter,
+      "communication_channels.adapter",
+    ),
+    externalAccountId: row.external_account_id,
+    externalProfileId: row.external_profile_id,
+    displayName: row.display_name,
+    status: asMember(
+      channelStatuses,
+      row.status,
+      "communication_channels.status",
+    ),
+    disconnectedAt: row.disconnected_at,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function toInboundWebhookEvent(
+  row: InboundWebhookEventRow,
+): InboundWebhookEvent {
+  return {
+    id: row.id,
+    organizationId: row.organization_id,
+    channelId: row.channel_id,
+    adapter: asMember(
+      channelAdapters,
+      row.adapter,
+      "inbound_webhook_events.adapter",
+    ),
+    externalEventId: row.external_event_id,
+    eventType: asMember(
+      inboundWebhookEventTypes,
+      row.event_type,
+      "inbound_webhook_events.event_type",
+    ),
+    status: asMember(
+      inboundWebhookEventStatuses,
+      row.status,
+      "inbound_webhook_events.status",
+    ),
+    correlationId: row.correlation_id,
+    receivedAt: row.received_at,
+    enqueuedAt: row.enqueued_at,
+    processedAt: row.processed_at,
+    failureCode: row.failure_code,
   };
 }
