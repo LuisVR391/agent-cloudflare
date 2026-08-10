@@ -41,9 +41,12 @@ de esos bindings son distintos por entorno. Assets, migraciones del Durable
 Object y observabilidad se heredan de la configuración común.
 
 Los únicos secretos exigidos por la capacidad actualmente activa son
-`BETTER_AUTH_SECRET` y `AUTH_SETUP_TOKEN`. Los secretos de WhatsApp se
-registrarán en su entorno cuando exista el canal funcional; no se cargan por
-adelantado. Nunca se copian secretos ni datos entre entornos.
+`BETTER_AUTH_SECRET` y `AUTH_SETUP_TOKEN`. `ZERNIO_API_KEY` y
+`ZERNIO_WEBHOOK_SECRET` están planificados para la Fase 1 y se registrarán en
+su entorno cuando exista el canal funcional; no se cargan por adelantado. Las
+cuentas de WhatsApp se conectarán manualmente en Zernio y no se consideran
+recursos provisionados por este runbook. Nunca se copian secretos ni datos
+entre entornos.
 
 ## Validación local
 

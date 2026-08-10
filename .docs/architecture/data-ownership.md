@@ -117,9 +117,10 @@ efecto empresarial.
 
 ## Secretos y credenciales
 
-Los tokens de WhatsApp y proveedores de IA se administran mediante secretos de
-Cloudflare. D1 solo puede guardar una referencia opaca, el proveedor, estado y
-metadatos no sensibles.
+La clave de API y el secreto de webhook de Zernio, junto con las credenciales
+de proveedores de IA, se administran mediante Cloudflare Secrets. D1 solo
+puede guardar una referencia opaca, el adaptador, la cuenta externa, su estado
+y metadatos no sensibles.
 
 Los secretos nunca se escriben en:
 
@@ -131,8 +132,12 @@ Los secretos nunca se escriben en:
 ## Flujo de propiedad de un mensaje
 
 ```text
+Zernio
+  -> recibe el mensaje de WhatsApp
+  -> entrega un webhook firmado y reintentable
+
 Webhook Worker
-  -> valida firma y estructura
+  -> valida firma sobre el cuerpo crudo, estructura, plataforma y cuenta
   -> registra deduplicación y recepción en D1
   -> publica referencia normalizada en Inbound Queue
 
@@ -148,8 +153,8 @@ Conversation Agent
   -> publica referencia en Outbound Queue
 
 Outbound consumer
-  -> envía al proveedor con idempotencia
-  -> actualiza entrega o error en D1
+  -> registra el intento y envía mediante la API de Zernio
+  -> reconcilia entrega, lectura o error en D1 antes de reintentar
 ```
 
 Las Queues contienen referencias y contexto mínimo; los registros consultables
@@ -162,6 +167,8 @@ y los efectos de negocio permanecen en D1.
 - Vectorize debe poder regenerarse desde las fuentes y metadatos canónicos.
 - Un mensaje reintentado debe encontrar su deduplicación antes de producir un
   nuevo efecto.
+- Un envío con resultado incierto no se repite hasta reconciliar la respuesta
+  y los eventos disponibles de Zernio.
 - Los fallos parciales conservan el mismo `correlationId`.
 - Una discrepancia se resuelve a favor de la fuente de verdad declarada en
   este documento y queda registrada para auditoría.

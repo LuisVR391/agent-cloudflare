@@ -51,7 +51,7 @@ forks del producto.
 | Autenticación y autorización | Implementada | Better Auth, sesión D1, instalación única, roles fijos y contexto organizacional; [PR #14](https://github.com/LuisVR391/agent-cloudflare/pull/14) |
 | Entornos y staging | Configuración preparada | Local, staging y producción tienen bindings aislados y runbook; no existen recursos remotos |
 | Panel de conversaciones y agentes | Planificado | Navegación reservada y deshabilitada; no existen todavía módulos operativos |
-| WhatsApp Cloud API | Planificada | Secretos de ejemplo; no existe webhook funcional |
+| WhatsApp mediante Zernio | Planificada | [ADR-0008](./.docs/decisions/ADR-0008-zernio-whatsapp-adapter.md); no existe webhook ni envío funcional |
 | Queues, Workflows y Vectorize | Planificadas | Forman parte de la arquitectura objetivo, no de la configuración actual |
 | CRM, inbox, agenda y pipelines | Planificados | Pendientes de las fases de producto |
 | Versionado, evaluación y mejora de agentes | Planificados | Fuera del prototipo actual |
@@ -69,12 +69,18 @@ en Cloudflare ni un entorno remoto configurado.
 ## Arquitectura objetivo
 
 ```text
-WhatsApp Cloud API
+WhatsApp
+        |
+        v
+Zernio
+  - conecta las cuentas del canal
+  - entrega webhooks y transporta respuestas
         |
         v
 Webhook Worker
-  - verifica token y firma
+  - verifica firma HMAC de Zernio
   - valida y deduplica el evento
+  - resuelve cuenta, canal y organización
   - registra la recepción
   - responde HTTP 200 rápidamente
         |
@@ -99,7 +105,10 @@ Durable Object por conversación
 Outbound Queue
         |
         v
-WhatsApp Cloud API
+Zernio API
+        |
+        v
+WhatsApp
 
 React 19 + Vite <--> Worker / Agents SDK
 ```
@@ -121,7 +130,9 @@ ejecutar herramientas; los prompts no serán un control de seguridad.
 ## Alcance del MVP
 
 La primera edición está limitada a un CRM conversacional para salones de
-belleza, con WhatsApp Cloud API como primer canal. El MVP deberá permitir:
+belleza, con WhatsApp mediante Zernio como primer canal. Zernio será solo el
+adaptador de transporte; el CRM, inbox, agentes, automatizaciones e historial
+canónico permanecerán en Agent Cloudflare. El MVP deberá permitir:
 
 1. Conectar un canal de WhatsApp y procesar mensajes de forma segura.
 2. Consultar conversaciones y contactos desde un inbox.
@@ -140,7 +151,7 @@ agentes, fine-tuning automático ni el soporte simultáneo para múltiples giros
 | Fase | Resultado esperado |
 | --- | --- |
 | [0. Fundamentos](./.docs/product/roadmap.md#fase-0--fundamentos) | Dominio, D1, autenticación, roles, contratos, ADRs, entornos y staging |
-| [1. WhatsApp funcional](./.docs/product/roadmap.md#fase-1--whatsapp-funcional) | Webhook seguro, deduplicación, colas, conversación durable, buffer, inbox y handoff |
+| [1. WhatsApp funcional](./.docs/product/roadmap.md#fase-1--whatsapp-funcional) | Webhook firmado de Zernio, adaptador de salida, deduplicación, colas, conversación durable, inbox y handoff |
 | [2. CRM](./.docs/product/roadmap.md#fase-2--crm) | Contactos, conversaciones, equipos, pipelines, tareas, citas y métricas iniciales |
 | [3. Agentes](./.docs/product/roadmap.md#fase-3--agentes) | Configuración, versiones, RAG, tools, routing, memoria, supervisión y failover |
 | [4. Automatización](./.docs/product/roadmap.md#fase-4--automatización) | Seguimientos, confirmaciones, campañas, reactivación y recordatorios |
@@ -218,11 +229,13 @@ npx wrangler secret put BETTER_AUTH_SECRET --env staging
 npx wrangler secret put AUTH_SETUP_TOKEN --env staging
 ```
 
-Los secretos de WhatsApp permanecen planificados y no se cargan remotamente
-hasta implementar el canal. No pases secretos como argumentos ni los agregues
-a `wrangler.jsonc`. `BETTER_AUTH_URL` es un valor público obligatorio y debe
-contener el origen exacto de cada entorno, sin ruta. Mientras conserve un
-marcador `.invalid`, la autenticación remota falla de forma cerrada.
+`ZERNIO_API_KEY` y `ZERNIO_WEBHOOK_SECRET` permanecen planificados y no son
+consumidos por el runtime actual. No se cargan remotamente hasta implementar el
+canal ni se usan para conectar cuentas desde el producto. No pases secretos
+como argumentos ni los agregues a `wrangler.jsonc`. `BETTER_AUTH_URL` es un
+valor público obligatorio y debe contener el origen exacto de cada entorno,
+sin ruta. Mientras conserve un marcador `.invalid`, la autenticación remota
+falla de forma cerrada.
 
 ## Validación y despliegue
 

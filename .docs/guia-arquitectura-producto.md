@@ -146,7 +146,12 @@ Cada dato debe tener una fuente de verdad definida.
 
 ## 4.2 Primer canal
 
-- WhatsApp Cloud API oficial de Meta.
+- WhatsApp mediante Zernio como adaptador bidireccional.
+
+Las cuentas se conectarán inicialmente desde el panel de Zernio. Agent
+Cloudflare conservará el CRM, el inbox, los agentes, la automatización y los
+datos canónicos; Zernio solo transportará mensajes y estados entre WhatsApp y
+el Worker, según [ADR-0008](./decisions/ADR-0008-zernio-whatsapp-adapter.md).
 
 ## 4.3 Canales futuros
 
@@ -224,14 +229,20 @@ Esto evita rediseñar todo el dominio cuando se requiera multi-tenancy real.
 # 6. Arquitectura general
 
 ```text
-WhatsApp Cloud API
+WhatsApp
+        │
+        ▼
+Zernio
+├── conexión manual de cuentas
+├── webhook de mensajes y estados
+└── API de envío
         │
         ▼
 Webhook Worker
-├── verifica token
-├── verifica X-Hub-Signature-256
+├── verifica X-Zernio-Signature sobre el cuerpo crudo
 ├── valida payload
-├── deduplica evento
+├── resuelve cuenta, canal y organización
+├── deduplica por ID estable del evento
 ├── registra recepción
 └── responde HTTP 200 rápidamente
         │
@@ -261,7 +272,10 @@ Durable Object por conversación
 Outbound Queue
         │
         ▼
-WhatsApp Cloud API
+Zernio API
+        │
+        ▼
+WhatsApp
 ```
 
 ---
@@ -680,6 +694,11 @@ human_team_id
 status
 ```
 
+`provider` describe el canal empresarial, por ejemplo `whatsapp`; el adaptador
+de transporte puede ser `zernio`. `external_account_id` es opaco y solo puede
+resolver una organización mediante configuración canónica de D1. Zernio no es
+la autoridad de contactos, conversaciones o mensajes del producto.
+
 Ejemplo:
 
 ```text
@@ -700,14 +719,14 @@ Un canal puede usar routing interno para delegar a diferentes agentes. No es nec
 
 ## 12.1 Entrada
 
-1. Meta envía el webhook.
-2. Worker verifica firma.
-3. Worker valida estructura.
-4. Worker obtiene `message_id`.
-5. Worker deduplica.
-6. Worker registra recepción.
-7. Worker encola.
-8. Worker responde 200.
+1. WhatsApp entrega el mensaje a la cuenta conectada en Zernio.
+2. Zernio envía el webhook.
+3. Worker verifica `X-Zernio-Signature` sobre el cuerpo crudo.
+4. Worker valida estructura, evento y plataforma.
+5. Worker resuelve la cuenta externa hacia canal y organización en D1.
+6. Worker persiste la deduplicación por ID estable del evento.
+7. Worker registra recepción y encola una referencia normalizada.
+8. Worker responde 200 dentro del plazo del proveedor.
 
 ## 12.2 Procesamiento
 
@@ -727,11 +746,12 @@ Un canal puede usar routing interno para delegar a diferentes agentes. No es nec
 ## 12.3 Salida
 
 1. Consumidor toma el mensaje.
-2. Llama a WhatsApp Cloud API.
-3. Registra ID externo.
-4. Marca enviado o error.
-5. Reintenta si corresponde.
-6. Actualiza el panel en tiempo real.
+2. Resuelve cuenta y conversación opacas de Zernio desde D1.
+3. Llama a la API de inbox de Zernio con credenciales del entorno.
+4. Registra el intento, ID externo y respuesta.
+5. Reconcilia los eventos de entrega, lectura o fallo.
+6. Solo reintenta cuando puede demostrar que no duplicará el envío.
+7. Actualiza el panel en tiempo real.
 
 ---
 
@@ -1317,6 +1337,12 @@ type NormalizedInboundMessage = {
 };
 ```
 
+`provider: "whatsapp"` identifica el canal, no el adaptador. Para Zernio,
+`externalMessageId` conserva el identificador opaco del mensaje y
+`rawEventRef` puede referenciar el ID estable del evento ya deduplicado, nunca
+el payload completo. La cuenta externa se resuelve antes de construir este
+contrato; no se acepta un `organizationId` declarado por el proveedor.
+
 ## 25.2 Resultado del agente
 
 ```ts
@@ -1537,14 +1563,16 @@ El agente debe:
 
 ## Fase 1 — WhatsApp funcional
 
-- Verificación webhook.
-- Validación de firma.
+- Adaptador bidireccional de Zernio.
+- Verificación HMAC del webhook sobre el cuerpo crudo.
+- Resolución confiable de cuenta, canal y organización.
 - Dedupe.
 - Queue inbound.
 - Durable Object por conversación.
 - Buffer.
 - Respuesta.
 - Queue outbound.
+- Estados de entrega, lectura, fallo y desconexión.
 - Inbox.
 - Handoff humano.
 

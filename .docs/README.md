@@ -66,16 +66,17 @@ estructura y proceso de sustitución.
 | [ADR-0005: Guardrails compartidos de agentes](./decisions/ADR-0005-shared-agent-guardrails.md) | Vigente | Núcleo neutral, adaptadores por agente y skill sin copias |
 | [ADR-0006: Convenciones de esquema en D1](./decisions/ADR-0006-d1-schema-conventions.md) | Vigente | Identificadores, timestamps, aislamiento, migraciones y repositorios |
 | [ADR-0007: Better Auth y contexto organizacional](./decisions/ADR-0007-better-auth-and-organization-context.md) | Vigente | Sesiones en D1, instalación cerrada y autorización por organización |
+| [ADR-0008: Zernio como adaptador de WhatsApp](./decisions/ADR-0008-zernio-whatsapp-adapter.md) | Vigente | Canal bidireccional externo sin delegar datos ni runtime empresarial |
 
 ### Fase 1 — WhatsApp funcional
 
 | Documento planificado | Estado | Contenido |
 | --- | --- | --- |
 | `architecture/message-lifecycle.md` | Pendiente | Webhook, normalización, colas, runtime y salida |
-| `modules/whatsapp-channel.md` | Pendiente | Verificación, firmas, payloads y adaptador de Meta |
+| `modules/zernio-whatsapp-channel.md` | Pendiente | Firma, payloads, estados y adaptador bidireccional de Zernio |
 | `modules/conversation-runtime.md` | Pendiente | Identidad, buffer, orden, modos y concurrencia |
 | `modules/inbox-and-handoff.md` | Pendiente | Actualización en tiempo real e intervención humana |
-| `operations/whatsapp-setup.md` | Pendiente | Configuración segura de la aplicación y número |
+| `operations/zernio-whatsapp-setup.md` | Pendiente | Conexión manual de cuentas, webhook y secretos por entorno |
 
 ### Fase 2 — CRM
 

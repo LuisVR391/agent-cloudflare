@@ -36,12 +36,18 @@ type NormalizedInboundMessage = {
 
 Reglas:
 
-- `externalMessageId` identifica el evento en el proveedor.
+- `provider: "whatsapp"` identifica el canal empresarial; Zernio es el
+  adaptador y no introduce un contrato paralelo.
+- `externalMessageId` identifica el mensaje externo de forma opaca.
 - `channelId` ya debe estar resuelto dentro de `organizationId`.
 - `mediaUrl` es una referencia temporal de entrada; después de validar y
   copiar el archivo, el dominio usará una referencia autorizada a R2.
 - `rawEventRef` apunta a evidencia autorizada si la política decide
   conservarla; no contiene el payload completo.
+- Para Zernio, la recepción se deduplica primero con el ID estable del webhook
+  y solo después se construye este contrato. El `accountId` externo debe
+  resolver canal y organización en D1; el payload no declara una organización
+  confiable.
 - El contrato se rechaza si el tipo no está soportado o falta un campo
   obligatorio.
 
@@ -109,8 +115,10 @@ type IdempotencyContext = {
 
 Reglas:
 
-- Un mensaje entrante usa como identidad lógica la combinación de
-  organización, proveedor y `externalMessageId`.
+- Una entrega de Zernio usa como identidad lógica la combinación de adaptador
+  e ID estable del evento. El mensaje normalizado conserva además la
+  combinación de organización, canal y `externalMessageId` para impedir que
+  dos eventos representen dos veces el mismo mensaje.
 - Una acción empresarial usa una clave estable dentro de la organización y su
   `scope`, por ejemplo confirmar una cita o mover una oportunidad.
 - Un reintento con la misma clave devuelve o reconstruye el resultado anterior
@@ -150,7 +158,7 @@ Reglas:
 
 | Origen | Tratamiento |
 | --- | --- |
-| Webhook de proveedor | No confiable hasta validar firma, estructura y canal |
+| Webhook de Zernio | No confiable hasta validar firma sobre el cuerpo crudo, estructura, plataforma y resolución del canal |
 | Frontend autenticado | Identidad conocida; organización y permisos se recalculan |
 | Queue o Workflow | Transporte confiable, pero el efecto sigue siendo idempotente |
 | Durable Object | Coordinador confiable de su identidad; referencias empresariales se verifican |

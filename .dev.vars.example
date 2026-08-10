@@ -1,9 +1,9 @@
 # Copia este archivo como .dev.vars para desarrollo local.
 # Nunca confirmes .dev.vars en Git.
-WHATSAPP_VERIFY_TOKEN=replace-me
-WHATSAPP_APP_SECRET=replace-me
-WHATSAPP_ACCESS_TOKEN=replace-me
-WHATSAPP_PHONE_NUMBER_ID=replace-me
+# Canal Zernio planificado para Fase 1; el runtime actual no consume estos
+# valores. Las cuentas se conectarán manualmente desde el panel de Zernio.
+ZERNIO_API_KEY=replace-me
+ZERNIO_WEBHOOK_SECRET=replace-me
 
 # Autenticación del panel. Genera valores aleatorios distintos por entorno.
 BETTER_AUTH_SECRET=replace-with-at-least-32-random-characters

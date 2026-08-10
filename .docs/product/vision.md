@@ -72,8 +72,8 @@ el control de la conversación.
 
 El MVP incluye las capacidades mínimas para:
 
-1. Conectar WhatsApp Cloud API y procesar mensajes con validación, deduplicación
-   y entrega durable.
+1. Conectar cuentas de WhatsApp en Zernio y procesar sus mensajes mediante un
+   adaptador firmado, deduplicado y durable en Cloudflare.
 2. Consultar conversaciones y contactos desde un inbox e intervenir como
    persona autorizada.
 3. Gestionar el avance de un prospecto, tareas y citas desde el CRM.
@@ -105,7 +105,8 @@ Quedan fuera de la primera edición:
 El MVP se considera validado cuando existe evidencia de que:
 
 - Un mensaje real de WhatsApp recorre recepción, procesamiento y respuesta sin
-  duplicar efectos ante reintentos.
+  duplicar efectos ante reintentos, aunque Zernio entregue el mismo evento más
+  de una vez.
 - Un colaborador autorizado puede consultar la conversación, intervenir y
   devolver el control sin acceder a datos de otra organización.
 - El recorrido de un contacto desde conversación hasta cita puede operarse y
