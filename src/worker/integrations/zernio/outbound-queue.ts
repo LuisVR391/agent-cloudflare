@@ -7,6 +7,7 @@ import {
   ZernioResponseError,
   ZernioTransportError,
 } from "./client";
+import { MessageStatusReconciliationRepository } from "../../repositories/message-status-reconciliation-repository";
 
 type OutboundEnv = {
   DB: D1Database;
@@ -16,6 +17,7 @@ type OutboundEnv = {
 type DeliveryRow = {
   organization_id: string;
   conversation_id: string;
+  channel_id: string;
   message_id: string;
   text_content: string;
   idempotency_key: string;
@@ -104,12 +106,21 @@ async function persistFailure(
   status: "failed" | "delivery_unknown",
   errorCode: string,
   now: string,
+  externalMessageId: string | null = null,
 ): Promise<void> {
   await env.DB.batch([
     env.DB.prepare(`UPDATE outbound_message_deliveries SET status = ?,
+      external_message_id = COALESCE(external_message_id, ?),
       last_error_code = ?, updated_at = ?
       WHERE organization_id = ? AND message_id = ? AND status != 'sent'`)
-      .bind(status, errorCode, now, delivery.organization_id, delivery.message_id),
+      .bind(
+        status,
+        externalMessageId,
+        errorCode,
+        now,
+        delivery.organization_id,
+        delivery.message_id,
+      ),
     env.DB.prepare(`UPDATE messages SET status = ?, updated_at = ?
       WHERE organization_id = ? AND id = ?
         AND status NOT IN ('sent', 'delivered', 'read')`)
@@ -124,9 +135,9 @@ export async function processOutboundQueueMessage(
 ): Promise<ProcessingResult> {
   const parsed = outboundQueueMessageSchema.parse(body);
   const delivery = await env.DB.prepare(`SELECT d.organization_id,
-    m.conversation_id, d.message_id, d.idempotency_key, d.attempt_count,
-    d.status AS delivery_status, d.external_message_id, m.text_content,
-    ch.external_account_id, ch.status AS channel_status,
+    m.conversation_id, c.channel_id, d.message_id, d.idempotency_key,
+    d.attempt_count, d.status AS delivery_status, d.external_message_id,
+    m.text_content, ch.external_account_id, ch.status AS channel_status,
     c.external_conversation_id
     FROM outbound_message_deliveries d
     JOIN messages m ON m.organization_id = d.organization_id AND m.id = d.message_id
@@ -203,6 +214,7 @@ export async function processOutboundQueueMessage(
       "delivery_unknown",
       "ZERNIO_CONVERSATION_MISMATCH",
       now,
+      sent.messageId,
     );
     return {
       action: "ack",
@@ -228,6 +240,15 @@ export async function processOutboundQueueMessage(
         updated_at = ? WHERE organization_id = ? AND id = ?`)
         .bind(sent.messageId, now, parsed.organizationId, parsed.messageId),
     ]);
+    await new MessageStatusReconciliationRepository(
+      env.DB,
+    ).reconcileLinkedMessage({
+      organizationId: parsed.organizationId,
+      channelId: delivery.channel_id,
+      externalConversationId: delivery.external_conversation_id,
+      messageId: parsed.messageId,
+      reconciledAt: now,
+    });
   } catch {
     await persistFailure(
       env,

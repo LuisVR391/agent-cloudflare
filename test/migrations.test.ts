@@ -49,6 +49,7 @@ describe("migraciones de D1", () => {
       "0003_zernio_whatsapp_channel.sql",
       "0004_conversations_and_messages.sql",
       "0005_message_sent_reconciliation.sql",
+      "0006_outbound_status_reconciliation.sql",
     ]);
   });
 
@@ -62,6 +63,9 @@ describe("migraciones de D1", () => {
         "inbound_webhook_events_organization_status_idx",
         "contacts_organization_created_idx",
         "organizations_slug_unique",
+        "message_status_events_reconciliation_idx",
+        "messages_organization_platform_idx",
+        "outbound_deliveries_organization_external_idx",
       ]),
     );
   });

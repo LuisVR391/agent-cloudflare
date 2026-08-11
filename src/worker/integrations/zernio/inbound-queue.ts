@@ -7,6 +7,7 @@ import { InboundWebhookEventRepository } from "../../repositories/inbound-webhoo
 import { ConversationRepository } from "../../repositories/conversation-repository";
 import { getAgentByName } from "agents";
 import { persistInboundAttachments } from "./media";
+import { MessageStatusReconciliationRepository } from "../../repositories/message-status-reconciliation-repository";
 
 type InboundQueueEnv = {
   DB: D1Database;
@@ -80,76 +81,34 @@ export async function processInboundQueueMessage(
     });
   } else {
     const now = new Date().toISOString();
-    await env.DB.prepare(`INSERT INTO message_status_events
-      (id, organization_id, external_event_id, conversation_external_id,
-       message_external_id, status, occurred_at, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT (organization_id, external_event_id) DO NOTHING`)
-      .bind(
-        crypto.randomUUID(),
-        parsed.organizationId,
-        parsed.eventId,
-        parsed.externalConversationId,
-        parsed.externalMessageId,
-        parsed.status,
-        parsed.occurredAt,
-        now,
-      ).run();
+    const reconciliation = await new MessageStatusReconciliationRepository(
+      env.DB,
+    ).recordAndReconcile({
+      organizationId: parsed.organizationId,
+      channelId: parsed.channelId,
+      eventId: parsed.eventId,
+      externalConversationId: parsed.externalConversationId,
+      externalMessageId: parsed.externalMessageId,
+      platformMessageId: parsed.platformMessageId,
+      status: parsed.status,
+      occurredAt: parsed.occurredAt,
+      recordedAt: now,
+    });
 
-    const message = await env.DB.prepare(`UPDATE messages SET
-      platform_message_id = COALESCE(platform_message_id, ?),
-      status = CASE
-        WHEN ? = 'read' THEN 'read'
-        WHEN ? = 'delivered' AND status != 'read' THEN 'delivered'
-        WHEN ? = 'sent' AND status NOT IN ('delivered', 'read') THEN 'sent'
-        WHEN ? = 'failed' AND status NOT IN ('delivered', 'read') THEN 'failed'
-        ELSE status
-      END,
-      updated_at = ?
-      WHERE organization_id = ? AND external_message_id = ?
-      RETURNING id, conversation_id`)
-      .bind(
-        parsed.platformMessageId,
-        parsed.status,
-        parsed.status,
-        parsed.status,
-        parsed.status,
-        now,
-        parsed.organizationId,
-        parsed.externalMessageId,
-      )
-      .first<{ id: string; conversation_id: string }>();
-
-    if (parsed.status === "sent") {
-      await env.DB.prepare(`UPDATE outbound_message_deliveries SET
-        status = 'sent', external_message_id = ?, last_error_code = NULL,
-        sent_at = COALESCE(sent_at, ?), updated_at = ?
-        WHERE organization_id = ? AND external_message_id = ?`)
-        .bind(
-          parsed.externalMessageId,
-          parsed.occurredAt,
-          now,
-          parsed.organizationId,
-          parsed.externalMessageId,
-        ).run();
-    } else if (parsed.status === "failed") {
-      await env.DB.prepare(`UPDATE outbound_message_deliveries SET
-        status = 'failed', last_error_code = 'ZERNIO_DELIVERY_FAILED',
-        updated_at = ?
-        WHERE organization_id = ? AND external_message_id = ?`)
-        .bind(now, parsed.organizationId, parsed.externalMessageId).run();
-    }
-
-    if (message) {
-      await env.DB.prepare(`UPDATE message_status_events SET reconciled_at = ?
-        WHERE organization_id = ? AND external_event_id = ?`)
-        .bind(now, parsed.organizationId, parsed.eventId).run();
+    if (reconciliation.result === "reconciled") {
       await notifyMessageChanged(env, {
         organizationId: parsed.organizationId,
-        conversationId: message.conversation_id,
-        messageId: message.id,
+        conversationId: reconciliation.conversationId,
+        messageId: reconciliation.messageId,
         occurredAt: parsed.occurredAt,
       });
+    } else {
+      console.info(JSON.stringify({
+        event: "queue.inbound.status_reconciliation",
+        result: reconciliation.result,
+        correlationId: parsed.correlationId,
+        eventId: parsed.eventId,
+      }));
     }
   }
   await new InboundWebhookEventRepository(env.DB).markProcessed(

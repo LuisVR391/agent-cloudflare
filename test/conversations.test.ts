@@ -1,8 +1,14 @@
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ConversationRepository } from "../src/worker/repositories/conversation-repository";
-import type { OutboundQueueMessage } from "../src/worker/integrations/zernio/contracts";
-import { processInboundQueueMessage } from "../src/worker/integrations/zernio/inbound-queue";
+import type {
+  InboundQueueMessage,
+  OutboundQueueMessage,
+} from "../src/worker/integrations/zernio/contracts";
+import {
+  handleInboundQueue,
+  processInboundQueueMessage,
+} from "../src/worker/integrations/zernio/inbound-queue";
 import {
   handleOutboundQueue,
   processOutboundQueueMessage,
@@ -128,6 +134,148 @@ describe.sequential("conversaciones canónicas", () => {
     expect(reconciled?.reconciled_at).not.toBeNull();
     expect(fetch).toHaveBeenCalledTimes(1);
     vi.unstubAllGlobals();
+  });
+
+  it("reconcilia estados fuera de orden recibidos antes de la respuesta", async () => {
+    const repository = new ConversationRepository(env.DB);
+    const inbound = await repository.upsertInbound({
+      organizationId,
+      channelId,
+      externalConversationId: "z-conversation-out-of-order",
+      externalContactId: "wa-contact-out-of-order",
+      externalMessageId: "z-message-out-of-order",
+      platformMessageId: "wamid-inbound-out-of-order",
+      text: "Consulta",
+      occurredAt,
+      correlationId: "81818181-8181-4181-8181-818181818181",
+    });
+    const outgoing = await repository.createOutgoing({
+      organizationId,
+      conversationId: inbound.conversationId,
+      actorId: "staff-1",
+      clientRequestId: "82828282-8282-4282-8282-828282828282",
+      text: "Respuesta",
+      correlationId: "83838383-8383-4383-8383-838383838383",
+    });
+    const statuses = [
+      { eventId: "status-read-first", status: "read" as const,
+        occurredAt: "2026-08-10T18:02:03.000Z" },
+      { eventId: "status-delivered-second", status: "delivered" as const,
+        occurredAt: "2026-08-10T18:02:02.000Z" },
+      { eventId: "status-sent-last", status: "sent" as const,
+        occurredAt: "2026-08-10T18:02:01.000Z" },
+    ];
+    for (const status of statuses) {
+      await processInboundQueueMessage(env, {
+        kind: "messageStatus",
+        eventId: status.eventId,
+        correlationId: "84848484-8484-4484-8484-848484848484",
+        organizationId,
+        channelId,
+        externalAccountId: "account-beautyplace",
+        externalConversationId: "z-conversation-out-of-order",
+        externalMessageId: "z-outbound-out-of-order",
+        platformMessageId: "wamid-outbound-out-of-order",
+        status: status.status,
+        occurredAt: status.occurredAt,
+      });
+    }
+
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({
+      success: true,
+      data: {
+        messageId: "z-outbound-out-of-order",
+        conversationId: "z-conversation-out-of-order",
+        sentAt: "2026-08-10T18:02:01.000Z",
+      },
+    })));
+    await expect(processOutboundQueueMessage(
+      {
+        DB: env.DB,
+        CustomerSupportAgent: env.CustomerSupportAgent,
+        ZERNIO_API_KEY: "test-only-zernio-key",
+      },
+      {
+        kind: "sendTextMessage",
+        organizationId,
+        conversationId: inbound.conversationId,
+        messageId: outgoing.messageId,
+        correlationId: outgoing.correlationId,
+      },
+    )).resolves.toEqual({ action: "ack", result: "sent" });
+
+    const state = await env.DB.prepare(`SELECT m.status AS message_status,
+      m.external_message_id, m.platform_message_id,
+      d.status AS delivery_status, d.last_error_code
+      FROM messages m JOIN outbound_message_deliveries d
+        ON d.organization_id = m.organization_id AND d.message_id = m.id
+      WHERE m.organization_id = ? AND m.id = ?`)
+      .bind(organizationId, outgoing.messageId)
+      .first<{
+        message_status: string;
+        external_message_id: string;
+        platform_message_id: string;
+        delivery_status: string;
+        last_error_code: string | null;
+      }>();
+    expect(state).toEqual({
+      message_status: "read",
+      external_message_id: "z-outbound-out-of-order",
+      platform_message_id: "wamid-outbound-out-of-order",
+      delivery_status: "sent",
+      last_error_code: null,
+    });
+    const events = await env.DB.prepare(`SELECT status, reconciled_at
+      FROM message_status_events WHERE organization_id = ?
+        AND message_external_id = ? ORDER BY status`)
+      .bind(organizationId, "z-outbound-out-of-order")
+      .all<{ status: string; reconciled_at: string | null }>();
+    expect(events.results).toHaveLength(3);
+    expect(events.results.every((event) => event.reconciled_at !== null)).toBe(true);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    vi.unstubAllGlobals();
+  });
+
+  it("confirma en Queue un estado válido no vinculado después de persistirlo", async () => {
+    const consoleInfo = vi.spyOn(console, "info").mockImplementation(() => undefined);
+    const ack = vi.fn();
+    const retry = vi.fn();
+    const eventId = "status-unmatched-queue";
+
+    await handleInboundQueue({
+      queue: "inbound-test",
+      messages: [{
+        id: "queue-status-unmatched",
+        timestamp: new Date(),
+        body: {
+          kind: "messageStatus",
+          eventId,
+          correlationId: "85858585-8585-4585-8585-858585858585",
+          organizationId,
+          channelId,
+          externalAccountId: "account-beautyplace",
+          externalConversationId: "unknown-conversation",
+          externalMessageId: "unknown-message",
+          platformMessageId: "unknown-platform-message",
+          status: "read",
+          occurredAt: "2026-08-10T18:03:00.000Z",
+        },
+        attempts: 1,
+        ack,
+        retry,
+      }],
+    } as unknown as MessageBatch<InboundQueueMessage>, env);
+
+    expect(ack).toHaveBeenCalledOnce();
+    expect(retry).not.toHaveBeenCalled();
+    const persisted = await env.DB.prepare(`SELECT channel_id, reconciled_at
+      FROM message_status_events
+      WHERE organization_id = ? AND external_event_id = ?`)
+      .bind(organizationId, eventId)
+      .first<{ channel_id: string; reconciled_at: string | null }>();
+    expect(persisted).toEqual({ channel_id: channelId, reconciled_at: null });
+    expect(consoleInfo).toHaveBeenCalledWith(expect.stringContaining('"result":"unmatched"'));
+    consoleInfo.mockRestore();
   });
 
   it("persiste un rechazo definitivo sin dejar el mensaje en cola", async () => {
@@ -275,7 +423,8 @@ describe.sequential("conversaciones canónicas", () => {
       errorCode: "ZERNIO_CONVERSATION_MISMATCH",
     });
     const state = await env.DB.prepare(`SELECT m.status AS message_status,
-      d.status AS delivery_status, d.last_error_code, d.attempt_count
+      d.status AS delivery_status, d.external_message_id,
+      d.last_error_code, d.attempt_count
       FROM messages m JOIN outbound_message_deliveries d
         ON d.organization_id = m.organization_id AND d.message_id = m.id
       WHERE m.organization_id = ? AND m.id = ?`)
@@ -283,14 +432,69 @@ describe.sequential("conversaciones canónicas", () => {
       .first<{
         message_status: string;
         delivery_status: string;
+        external_message_id: string;
         last_error_code: string;
         attempt_count: number;
       }>();
     expect(state).toEqual({
       message_status: "delivery_unknown",
       delivery_status: "delivery_unknown",
+      external_message_id: "z-outbound-mismatch",
       last_error_code: "ZERNIO_CONVERSATION_MISMATCH",
       attempt_count: 1,
+    });
+
+    await processInboundQueueMessage(env, {
+      kind: "messageStatus",
+      eventId: "status-wrong-conversation",
+      correlationId: "61616161-6161-4161-8161-616161616161",
+      organizationId,
+      channelId,
+      externalAccountId: "account-beautyplace",
+      externalConversationId: "another-conversation",
+      externalMessageId: "z-outbound-mismatch",
+      platformMessageId: "wamid-outbound-mismatch",
+      status: "read",
+      occurredAt: "2026-08-11T12:00:01.000Z",
+    });
+    const afterWrongConversation = await env.DB.prepare(
+      "SELECT status FROM messages WHERE organization_id = ? AND id = ?",
+    ).bind(organizationId, outgoing.messageId).first<{ status: string }>();
+    expect(afterWrongConversation?.status).toBe("delivery_unknown");
+
+    await processInboundQueueMessage(env, {
+      kind: "messageStatus",
+      eventId: "status-correct-conversation",
+      correlationId: "62626262-6262-4262-8262-626262626262",
+      organizationId,
+      channelId,
+      externalAccountId: "account-beautyplace",
+      externalConversationId: "z-conversation-unknown",
+      externalMessageId: "z-outbound-mismatch",
+      platformMessageId: "wamid-outbound-mismatch",
+      status: "read",
+      occurredAt: "2026-08-11T12:00:02.000Z",
+    });
+    const recovered = await env.DB.prepare(`SELECT m.status AS message_status,
+      m.external_message_id, m.platform_message_id,
+      d.status AS delivery_status, d.last_error_code
+      FROM messages m JOIN outbound_message_deliveries d
+        ON d.organization_id = m.organization_id AND d.message_id = m.id
+      WHERE m.organization_id = ? AND m.id = ?`)
+      .bind(organizationId, outgoing.messageId)
+      .first<{
+        message_status: string;
+        external_message_id: string;
+        platform_message_id: string;
+        delivery_status: string;
+        last_error_code: string | null;
+      }>();
+    expect(recovered).toEqual({
+      message_status: "read",
+      external_message_id: "z-outbound-mismatch",
+      platform_message_id: "wamid-outbound-mismatch",
+      delivery_status: "sent",
+      last_error_code: null,
     });
     vi.unstubAllGlobals();
   });
