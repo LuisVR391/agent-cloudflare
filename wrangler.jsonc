@@ -77,7 +77,7 @@
       "name": "agent-cloudflare-staging",
       "workers_dev": true,
       "vars": {
-        "BETTER_AUTH_URL": "https://staging.invalid"
+        "BETTER_AUTH_URL": "https://agent-cloudflare-staging.luisvr391.workers.dev"
       },
       "secrets": {
         "required": [
@@ -99,7 +99,7 @@
         {
           "binding": "DB",
           "database_name": "agent-cloudflare-staging-db",
-          "database_id": "staging-not-provisioned",
+          "database_id": "b3eaa1ce-1dbb-46dd-90b9-0aea49ee87f3",
           "migrations_dir": "migrations"
         }
       ],
