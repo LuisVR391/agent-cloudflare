@@ -139,12 +139,16 @@ export async function getConversationMessages(conversationId: string) {
   return response.json() as Promise<{ conversation: ConversationSummary; messages: ConversationMessage[] }>;
 }
 
-export async function sendConversationMessage(conversationId: string, text: string) {
+export async function sendConversationMessage(
+  conversationId: string,
+  text: string,
+  clientRequestId: string,
+) {
   const response = await fetch(`/api/conversations/${encodeURIComponent(conversationId)}/messages`, {
     method: "POST",
     credentials: "same-origin",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ clientRequestId: crypto.randomUUID(), text }),
+    body: JSON.stringify({ clientRequestId, text }),
   });
   if (!response.ok) throw new Error(await parseError(response, "No fue posible enviar el mensaje."));
 }

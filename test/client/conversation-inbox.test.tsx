@@ -1,6 +1,6 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ConversationInbox } from "../../src/client/components/conversation-inbox";
 import {
   getConversationMessages,
@@ -28,7 +28,10 @@ const conversation = {
 };
 
 describe("inbox de conversaciones", () => {
+  afterEach(() => cleanup());
+
   beforeEach(() => {
+    vi.clearAllMocks();
     vi.mocked(listConversations).mockResolvedValue({
       conversations: [conversation],
       nextCursor: null,
@@ -57,6 +60,42 @@ describe("inbox de conversaciones", () => {
     await user.type(screen.getByLabelText("Mensaje"), "Hola, con gusto.");
     await user.click(screen.getByRole("button", { name: "Enviar mensaje" }));
     await waitFor(() => expect(sendConversationMessage)
-      .toHaveBeenCalledWith("conversation-1", "Hola, con gusto."));
+      .toHaveBeenCalledWith("conversation-1", "Hola, con gusto.", expect.any(String)));
+  });
+  it("conserva la misma idempotencia al reintentar un fallo de encolado", async () => {
+    const user = userEvent.setup();
+    vi.mocked(sendConversationMessage)
+      .mockRejectedValueOnce(new Error("Queue no disponible"))
+      .mockResolvedValueOnce(undefined);
+    render(<ConversationInbox />);
+    await user.click(await screen.findByRole("button", { name: /María/i }));
+    await user.type(screen.getByLabelText("Mensaje"), "Respuesta estable");
+    await user.click(screen.getByRole("button", { name: "Enviar mensaje" }));
+    expect(await screen.findByText("Queue no disponible")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Enviar mensaje" }));
+
+    await waitFor(() => expect(sendConversationMessage).toHaveBeenCalledTimes(2));
+    const firstRequestId = vi.mocked(sendConversationMessage).mock.calls[0][2];
+    const secondRequestId = vi.mocked(sendConversationMessage).mock.calls[1][2];
+    expect(secondRequestId).toBe(firstRequestId);
+  });
+
+  it("muestra un fallo saliente con una etiqueta comprensible", async () => {
+    vi.mocked(getConversationMessages).mockResolvedValue({
+      conversation,
+      messages: [{
+        id: "message-failed",
+        direction: "outgoing",
+        senderType: "staff",
+        text: "No llegó",
+        status: "failed",
+        occurredAt: conversation.lastMessageAt,
+        attachments: [],
+      }],
+    });
+    const user = userEvent.setup();
+    render(<ConversationInbox />);
+    await user.click(await screen.findByRole("button", { name: /María/i }));
+    expect(await screen.findByText(/No enviado/)).toBeInTheDocument();
   });
 });
