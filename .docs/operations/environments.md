@@ -32,8 +32,8 @@ de un script de despliegue.
 | R2 `MEDIA_BUCKET` | `agent-cloudflare-media` local | `agent-cloudflare-staging-media` | `agent-cloudflare-production-media` |
 | Durable Object | Namespace local | Namespace del Worker de staging | Namespace del Worker de producción |
 | Queue `INBOUND_MESSAGES` | `agent-cloudflare-inbound` | `agent-cloudflare-staging-inbound` | `agent-cloudflare-production-inbound` planificada |
-| Queue `OUTBOUND_MESSAGES` | `agent-cloudflare-outbound` | `agent-cloudflare-staging-outbound` pendiente de provisión | `agent-cloudflare-production-outbound` planificada |
-| DLQ de entrada/salida | sufijo `-dlq` | pendientes de provisión | planificadas |
+| Queue `OUTBOUND_MESSAGES` | `agent-cloudflare-outbound` | `agent-cloudflare-staging-outbound` provisionada | `agent-cloudflare-production-outbound` planificada |
+| DLQ de entrada/salida | sufijo `-dlq` | provisionadas, sin consumidor | planificadas |
 | `BETTER_AUTH_URL` | `http://localhost:5190` | `https://agent-cloudflare-staging.luisvr391.workers.dev` | Origen HTTPS autorizado |
 | Secretos | `.dev.vars`, nunca Git | Secretos del Worker de staging | Secretos distintos del Worker de producción |
 
@@ -70,13 +70,14 @@ recursos; su salida debe mostrar únicamente bindings de staging.
 
 ## Bootstrap humano de staging
 
-Los pasos 1 a 8 se completaron el 2026-08-10 con D1
+Los pasos 1 a 8 se completaron para la base de staging con D1
 `b3eaa1ce-1dbb-46dd-90b9-0aea49ee87f3`, R2
-`agent-cloudflare-staging-media`, Queue `agent-cloudflare-staging-inbound` y
-Worker `agent-cloudflare-staging`. La versión verificada es
-`a59cd299-5dc2-4546-a033-3c92b5796e59`; `/api/health`, `/api/setup/status` y
-la SPA respondieron correctamente. La instalación mediante `/setup` fue completada y el panel
-autenticado quedó verificado.
+`agent-cloudflare-staging-media`, Queues de entrada y salida y sus DLQ. La
+versión `ec1e3bcb-36b3-40de-af33-cef33f663c3c` quedó desplegada el
+2026-08-10; `/api/health`, `/api/setup/status`, la SPA, el inbox y la
+recepción en vivo respondieron correctamente. La migración `0004` está
+aplicada. La migración `0005` y la corrección de salida del Issue #25 siguen
+pendientes de autorización y despliegue.
 
 Esta sección conserva el procedimiento reproducible y no autoriza producción.
 Usa una cuenta de Cloudflare correcta y no incluyas secretos en argumentos,
@@ -94,6 +95,9 @@ archivos versionados, logs o capturas.
    npx wrangler d1 create agent-cloudflare-staging-db
    npx wrangler r2 bucket create agent-cloudflare-staging-media
    npx wrangler queues create agent-cloudflare-staging-inbound
+   npx wrangler queues create agent-cloudflare-staging-outbound
+   npx wrangler queues create agent-cloudflare-staging-inbound-dlq
+   npx wrangler queues create agent-cloudflare-staging-outbound-dlq
    ```
 
 3. Sustituye `staging-not-provisioned` por el UUID devuelto por D1 y reemplaza

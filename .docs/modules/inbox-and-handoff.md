@@ -13,14 +13,22 @@ de la organización activa.
   backend.
 
 `conversations.read` permite consulta; `conversations.manage` permite
-responder, pausar, tomar control, resolver y reabrir.
+responder, pausar, tomar control, resolver y reabrir. El backend solo acepta una
+respuesta cuando la conversación está abierta y en modo `human`; una
+conversación resuelta debe reabrirse y un modo pausado debe volver a control
+humano.
 
 ## Interfaz
 
 La navegación habilita Conversaciones con listas de abiertas y resueltas,
-detalle del hilo, estados de entrega, compositor y controles operativos. El
-WebSocket solicita una recarga del registro canónico; un polling de respaldo
-mantiene la vista utilizable ante desconexión.
+detalle del hilo, compositor y controles operativos. Los mensajes presentan
+`En cola`, `Enviado`, `Entregado`, `Leído`, `No enviado` o
+`Confirmación pendiente` según el registro canónico.
+
+El WebSocket solicita una recarga de D1 cuando cambia un mensaje entrante o
+saliente. Un polling de respaldo actualiza lista e hilo cada diez segundos ante
+una desconexión. Si falla el encolado, el compositor restaura el texto y
+conserva el mismo `clientRequestId` para un reintento seguro.
 
 Contacto enriquecido, equipos, asignación, notas, pipeline, citas y métricas
-pertenecen a Fase 2. La IA automática pertenece a Fase 3.
+pertenecen a Fase 2. Las respuestas automáticas y la IA pertenecen a Fase 3.
