@@ -73,10 +73,12 @@ recursos; su salida debe mostrar únicamente bindings de staging.
 Los pasos 1 a 8 se completaron para la base de staging con D1
 `b3eaa1ce-1dbb-46dd-90b9-0aea49ee87f3`, R2
 `agent-cloudflare-staging-media`, Queues de entrada y salida y sus DLQ. La
-versión `6e7870bb-ed49-4732-a6d3-98d6e0119d12` quedó desplegada el
+versión `4180d56e-4660-4504-a60d-01f1d13cc598` quedó desplegada el
 2026-08-11; `/api/health`, `/api/setup/status` y la SPA respondieron `200`.
-Las migraciones `0001` a `0005` están aplicadas y la corrección de salida del
-Issue #25 está activa; falta validar un envío humano real.
+Las migraciones `0001` a `0006` están aplicadas. Una prueba humana anterior
+confirmó transporte, entrega y lectura en Zernio, pero la UI conservó
+`delivery_unknown`; la reconciliación independiente del orden ya está activa
+y requiere una prueba humana nueva.
 
 Esta sección conserva el procedimiento reproducible y no autoriza producción.
 Usa una cuenta de Cloudflare correcta y no incluyas secretos en argumentos,

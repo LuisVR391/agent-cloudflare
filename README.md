@@ -47,12 +47,12 @@ forks del producto.
 | Workers AI | Binding preparado | Binding `AI` declarado, sin flujo de inferencia |
 | R2 | Parcial | `MEDIA_BUCKET` y persistencia de adjuntos implementados; validación integral pendiente en #20 |
 | Observabilidad | Configurada | Logs y trazas habilitados en Wrangler |
-| D1 en local y pruebas | Implementada para Fase 1 | Migraciones `0001` a `0005`, repositorios, mensajes, entregas y aislamiento probado |
+| D1 en local y pruebas | Implementada para Fase 1 | Migraciones `0001` a `0006`, repositorios, mensajes, entregas y aislamiento probado |
 | Autenticación y autorización | Implementada | Better Auth, sesión D1, instalación única, roles fijos y contexto organizacional; [PR #14](https://github.com/LuisVR391/agent-cloudflare/pull/14) |
 | Entornos y staging | Staging desplegado | Recursos aislados; producción sigue sin provisionar |
-| Panel de conversaciones | Salida desplegada en staging | Inbox protegido, historial, recepción en vivo, estados y handoff; falta validar una respuesta humana real |
+| Panel de conversaciones | Reconciliación desplegada en staging | Inbox protegido, historial, recepción en vivo y handoff; falta validar la actualización final de estado con un envío nuevo |
 | Panel de agentes | Planificado | Navegación reservada y deshabilitada |
-| WhatsApp mediante Zernio | En progreso | Entrada real deduplicada y visible; corrección de salida humana y `message.sent` desplegada desde [Issue #25](https://github.com/LuisVR391/agent-cloudflare/issues/25) |
+| WhatsApp mediante Zernio | En progreso | Entrada y salida reales confirmadas; reconciliación fuera de orden desplegada y pendiente de prueba humana |
 | Queues, Workflows y Vectorize | Parcial | Queues de entrada/salida y DLQ provisionadas en staging; Workflows y Vectorize permanecen planificados |
 | CRM, agenda y pipelines | Planificados | El inbox mínimo pertenece a Fase 1; el enriquecimiento comercial sigue en Fase 2 |
 | Versionado, evaluación y mejora de agentes | Planificados | Fuera del prototipo actual |
@@ -66,11 +66,13 @@ conversaciones, mensajes e intentos de entrega con aislamiento por organización
 Las rutas del panel recalculan identidad, membresía y permisos en backend.
 Staging dispone de D1, R2, Durable Object, Queues de entrada/salida, DLQ,
 Worker y secretos aislados. La recepción real y el inbox en vivo están
-verificados. Una respuesta humana histórica llegó al consumidor saliente, pero agotó sus
-reintentos sin llegar a WhatsApp. La corrección #25 está desplegada: clasifica
-el fallo, evita dejarla en `queued` y reconcilia mediante `message.sent`; falta
-repetir la prueba real sin reproducir el mensaje anterior. Producción
-permanece sin recursos ni ruta pública.
+verificados. La corrección #25 permitió que una respuesta humana real llegara
+una sola vez a WhatsApp; Zernio confirmó envío, entrega y lectura. La UI
+permaneció en `delivery_unknown` porque esos estados podían procesarse antes
+de enlazar el identificador externo. La migración `0006` y el repositorio de
+reconciliación corrigen ese orden y están desplegados en staging; falta una
+prueba nueva sin reproducir mensajes históricos. Producción permanece sin
+recursos ni ruta pública.
 
 ## Arquitectura objetivo
 

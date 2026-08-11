@@ -16,7 +16,8 @@ definida en [ADR-0008](../decisions/ADR-0008-zernio-whatsapp-adapter.md).
 - D1 resuelve `external_account_id` hacia un canal activo y una organización.
 - `inbound_webhook_events` deduplica por adaptador e ID estable del evento.
 - `INBOUND_MESSAGES` transporta el contrato normalizado y el consumidor marca
-  el evento procesado; una desconexión cambia el estado del canal.
+  el evento procesado; una desconexión cambia el estado del canal. La Queue
+  entrega al menos una vez y no garantiza el orden entre estados.
 - `OUTBOUND_MESSAGES` entrega respuestas humanas a
   `ZernioClient.sendTextMessage` con una clave estable y resultado persistido.
 - El inbox autenticado consulta D1 y nunca adopta el inbox de Zernio como
@@ -34,9 +35,18 @@ definida en [ADR-0008](../decisions/ADR-0008-zernio-whatsapp-adapter.md).
 | Schema, plataforma o canal inválido | `422` | Falla de forma cerrada |
 | Queue no disponible | `503` | El evento queda fallido y Zernio reintenta |
 
-`message.sent` reconcilia una entrega creada por Agent Cloudflare mediante el
-ID externo devuelto por Zernio. Un evento de un mensaje desconocido se conserva
-sin reconciliar; nunca se vincula por texto, teléfono ni similitud.
+Una respuesta `202` confirma recepción durable y publicación en Queue; no
+demuestra que el estado empresarial ya se haya reconciliado en D1.
+
+Los eventos `message.sent`, `message.delivered`, `message.read` y
+`message.failed` se conservan con organización, canal, conversación y los dos
+identificadores opacos del mensaje. El consumidor reproduce ese historial
+cuando la respuesta de envío enlaza el ID de Zernio, por lo que el resultado no
+depende del orden de Queue. Una respuesta válida con conversación discordante
+solo conserva el ID como candidato: el mensaje permanece en
+`delivery_unknown` hasta recibir un webhook del canal y conversación
+esperados. Un evento desconocido permanece sin reconciliar y nunca se vincula
+por texto, teléfono, tiempo ni similitud.
 
 ## Datos y seguridad
 
@@ -54,10 +64,13 @@ fallback. Ninguno de estos valores aparece en logs operativos.
 - Entrada real, persistencia, inbox y actualización en vivo están verificados
   en staging.
 - Queue de entrada, Queue de salida y sus DLQ están provisionadas en staging.
-- [Issue #25](https://github.com/LuisVR391/agent-cloudflare/issues/25) corrige
-  el estado saliente observado y agrega `message.sent`; ambos están desplegados
-  en staging.
-- Falta activar `message.sent` en Zernio y verificar envío, entrega y lectura
-  reales.
+- [Issue #25](https://github.com/LuisVR391/agent-cloudflare/issues/25) corrigió
+  la invocación de `fetch`; una respuesta humana real llegó una sola vez a
+  WhatsApp y Zernio emitió `message.sent`, `message.delivered` y
+  `message.read`.
+- Esa prueba dejó la UI en `delivery_unknown` porque los estados aceptados no
+  podían vincularse después. La reconciliación independiente del orden está
+  desplegada en staging como versión
+  `4180d56e-4660-4504-a60d-01f1d13cc598`; requiere una prueba humana nueva.
 - La conservación y validación integral de medios permanece en
   [Issue #20](https://github.com/LuisVR391/agent-cloudflare/issues/20).
