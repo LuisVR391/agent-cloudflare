@@ -7,9 +7,9 @@ desde una sola interfaz.
 
 > El repositorio se encuentra en Fase 1. Staging recibe mensajes reales de
 > WhatsApp, persiste contactos y conversaciones, y actualiza el inbox en vivo.
-> La respuesta humana está implementada; el Issue #25 corrige y vuelve
-> observable el fallo de salida detectado antes de declararla validada de
-> extremo a extremo.
+> La corrección del Issue #25 está desplegada en staging y vuelve observable
+> el fallo de salida; falta validar una respuesta humana real de extremo a
+> extremo.
 ## Objetivo del producto
 
 Agent Cloudflare debe permitir que una empresa administre desde un solo panel:
@@ -50,9 +50,9 @@ forks del producto.
 | D1 en local y pruebas | Implementada para Fase 1 | Migraciones `0001` a `0005`, repositorios, mensajes, entregas y aislamiento probado |
 | Autenticación y autorización | Implementada | Better Auth, sesión D1, instalación única, roles fijos y contexto organizacional; [PR #14](https://github.com/LuisVR391/agent-cloudflare/pull/14) |
 | Entornos y staging | Staging desplegado | Recursos aislados; producción sigue sin provisionar |
-| Panel de conversaciones | Entrada validada en staging | Inbox protegido, historial, recepción en vivo, estados y handoff; salida humana pendiente de validar con #25 |
+| Panel de conversaciones | Salida desplegada en staging | Inbox protegido, historial, recepción en vivo, estados y handoff; falta validar una respuesta humana real |
 | Panel de agentes | Planificado | Navegación reservada y deshabilitada |
-| WhatsApp mediante Zernio | En progreso | Entrada real deduplicada y visible; corrección de salida humana y `message.sent` en [Issue #25](https://github.com/LuisVR391/agent-cloudflare/issues/25) |
+| WhatsApp mediante Zernio | En progreso | Entrada real deduplicada y visible; corrección de salida humana y `message.sent` desplegada desde [Issue #25](https://github.com/LuisVR391/agent-cloudflare/issues/25) |
 | Queues, Workflows y Vectorize | Parcial | Queues de entrada/salida y DLQ provisionadas en staging; Workflows y Vectorize permanecen planificados |
 | CRM, agenda y pipelines | Planificados | El inbox mínimo pertenece a Fase 1; el enriquecimiento comercial sigue en Fase 2 |
 | Versionado, evaluación y mejora de agentes | Planificados | Fuera del prototipo actual |
@@ -66,9 +66,10 @@ conversaciones, mensajes e intentos de entrega con aislamiento por organización
 Las rutas del panel recalculan identidad, membresía y permisos en backend.
 Staging dispone de D1, R2, Durable Object, Queues de entrada/salida, DLQ,
 Worker y secretos aislados. La recepción real y el inbox en vivo están
-verificados. Una respuesta humana llegó al consumidor saliente, pero agotó sus
-reintentos sin llegar a WhatsApp; #25 clasifica el fallo, evita dejarla en
-`queued` y agrega reconciliación mediante `message.sent`. Producción
+verificados. Una respuesta humana histórica llegó al consumidor saliente, pero agotó sus
+reintentos sin llegar a WhatsApp. La corrección #25 está desplegada: clasifica
+el fallo, evita dejarla en `queued` y reconcilia mediante `message.sent`; falta
+repetir la prueba real sin reproducir el mensaje anterior. Producción
 permanece sin recursos ni ruta pública.
 
 ## Arquitectura objetivo

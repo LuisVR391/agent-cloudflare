@@ -73,11 +73,10 @@ recursos; su salida debe mostrar únicamente bindings de staging.
 Los pasos 1 a 8 se completaron para la base de staging con D1
 `b3eaa1ce-1dbb-46dd-90b9-0aea49ee87f3`, R2
 `agent-cloudflare-staging-media`, Queues de entrada y salida y sus DLQ. La
-versión `ec1e3bcb-36b3-40de-af33-cef33f663c3c` quedó desplegada el
-2026-08-10; `/api/health`, `/api/setup/status`, la SPA, el inbox y la
-recepción en vivo respondieron correctamente. La migración `0004` está
-aplicada. La migración `0005` y la corrección de salida del Issue #25 siguen
-pendientes de autorización y despliegue.
+versión `6e7870bb-ed49-4732-a6d3-98d6e0119d12` quedó desplegada el
+2026-08-11; `/api/health`, `/api/setup/status` y la SPA respondieron `200`.
+Las migraciones `0001` a `0005` están aplicadas y la corrección de salida del
+Issue #25 está activa; falta validar un envío humano real.
 
 Esta sección conserva el procedimiento reproducible y no autoriza producción.
 Usa una cuenta de Cloudflare correcta y no incluyas secretos en argumentos,

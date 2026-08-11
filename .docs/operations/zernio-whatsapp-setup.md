@@ -9,10 +9,11 @@ de Zernio está activo.
 
 La entrada real, la persistencia canónica, el inbox y su actualización en vivo
 están verificados. Las Queues de entrada y salida y sus DLQ están provisionadas.
-La salida humana observada en staging alcanzó el consumidor, pero agotó sus
-reintentos sin entregar el mensaje y dejó la UI en `queued`; el
-[Issue #25](https://github.com/LuisVR391/agent-cloudflare/issues/25) corrige
-esa discrepancia antes de repetir la validación remota.
+La salida humana histórica alcanzó el consumidor, pero agotó sus reintentos sin
+entregar el mensaje y dejó la UI en `queued`. La corrección del
+[Issue #25](https://github.com/LuisVR391/agent-cloudflare/issues/25) y la
+migración `0005` están desplegadas; falta repetir la validación remota con un
+mensaje nuevo.
 
 ## Prerrequisitos
 
@@ -120,8 +121,9 @@ vivo. El primer intento de respuesta humana llegó a la Queue saliente y agotó
 seis ejecuciones con categoría genérica, sin llegar a WhatsApp. No se debe
 reproducir automáticamente ese mensaje histórico.
 
-Después de fusionar #25, aplica la migración pendiente, despliega staging,
-activa `message.sent` y ejecuta nuevamente los pasos anteriores. Registra
+La versión `6e7870bb-ed49-4732-a6d3-98d6e0119d12` y la migración `0005` están
+activas en staging. Activa `message.sent` y ejecuta nuevamente los pasos
+anteriores. Registra
 versión, IDs opacos y estados, sin copiar texto, teléfono, tokens ni payloads.
 
 

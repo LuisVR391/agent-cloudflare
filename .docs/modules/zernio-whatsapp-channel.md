@@ -55,8 +55,9 @@ fallback. Ninguno de estos valores aparece en logs operativos.
   en staging.
 - Queue de entrada, Queue de salida y sus DLQ están provisionadas en staging.
 - [Issue #25](https://github.com/LuisVR391/agent-cloudflare/issues/25) corrige
-  el estado saliente observado y agrega `message.sent`.
-- Falta aplicar la migración nueva, desplegar el PR autorizado, activar
-  `message.sent` en Zernio y verificar envío, entrega y lectura reales.
+  el estado saliente observado y agrega `message.sent`; ambos están desplegados
+  en staging.
+- Falta activar `message.sent` en Zernio y verificar envío, entrega y lectura
+  reales.
 - La conservación y validación integral de medios permanece en
   [Issue #20](https://github.com/LuisVR391/agent-cloudflare/issues/20).
