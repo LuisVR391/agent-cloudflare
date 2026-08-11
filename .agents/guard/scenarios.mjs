@@ -108,6 +108,62 @@ test("bloquea D1 remoto, borrados y force push", () => {
   }
 });
 
+test("un despliegue exige la marca de autorización y conserva el dry-run", () => {
+  const withoutConfirmation = preTool("npm run deploy:staging");
+  assert.equal(denied(withoutConfirmation), true);
+  assert.match(
+    withoutConfirmation.hookSpecificOutput.permissionDecisionReason,
+    /AGENT_DEPLOY_CONFIRMED=1/,
+  );
+
+  assert.equal(denied(preTool("npx wrangler deploy")), true);
+  assert.equal(denied(preTool("npx wrangler versions deploy")), true);
+
+  assert.equal(preTool("AGENT_DEPLOY_CONFIRMED=1 npm run deploy:staging"), null);
+  assert.equal(preTool("AGENT_DEPLOY_CONFIRMED=1 npx wrangler deploy"), null);
+});
+
+test("la marca de despliegue no libera otros bloqueos", () => {
+  const commands = [
+    "AGENT_DEPLOY_CONFIRMED=1 npx wrangler r2 bucket delete customer-files",
+    "AGENT_DEPLOY_CONFIRMED=1 npx wrangler secret put ZERNIO_TOKEN",
+    "AGENT_DEPLOY_CONFIRMED=1 git push origin feature",
+  ];
+  for (const command of commands) {
+    assert.equal(denied(preTool(command)), true, command);
+  }
+});
+
+// Con la red habilitada en el sandbox del agente, estos comandos ya no
+// escalan a una aprobación externa: el bloqueo determinista es el único
+// control que queda antes de un efecto remoto.
+test("bloquea secretos remotos, mutaciones de GitHub y publicación", () => {
+  const commands = [
+    "npx wrangler secret put ZERNIO_TOKEN",
+    "npx wrangler secret bulk delete secrets.json",
+    "gh pr merge 26 --squash",
+    "gh release create v0.2.0",
+    "gh api -X DELETE repos/example/agents/issues/comments/1",
+    "npm publish --access public",
+  ];
+  for (const command of commands) {
+    assert.equal(denied(preTool(command)), true, command);
+  }
+});
+
+test("conserva la inspección remota y la creación de un PR", () => {
+  const commands = [
+    "gh pr create --fill",
+    "gh pr view 26",
+    "gh api repos/example/agents/pulls/26",
+    "npx wrangler secret list",
+    "npx wrangler versions list",
+  ];
+  for (const command of commands) {
+    assert.equal(preTool(command, {}, staged("")), null, command);
+  }
+});
+
 test("bloquea secretos de alta confianza sin repetirlos", () => {
   const secret = "sk-abcdefghijklmnopqrstuvwxyz123456";
   const output = handleHook(

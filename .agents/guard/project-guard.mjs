@@ -149,6 +149,20 @@ function hasPushConfirmation(command, policy) {
   return expression.test(command);
 }
 
+// Una regla bloqueada puede declarar la marca que la libera. A diferencia de
+// `hasPushConfirmation`, la marca no necesita preceder a un comando concreto:
+// un despliegue se invoca tanto por script de npm como por wrangler directo.
+function hasRuleConfirmation(command, confirmation) {
+  const variable = confirmation?.environmentVariable;
+  const value = confirmation?.value;
+  if (!variable || !value) return false;
+  const expression = new RegExp(
+    `(^|[;&|]\\s*|\\s)(?:env\\s+)?${variable}=${value}(?=\\s)`,
+    "i",
+  );
+  return expression.test(command);
+}
+
 function extractPatchOperations(patch, cwd = repositoryRoot) {
   const operations = [];
   const regex = /^\*\*\* (Add|Update|Delete) File: (.+)$/gm;
@@ -308,9 +322,9 @@ function handlePreToolUse(input, policy, runtime = {}) {
   }
 
   for (const rule of policy.blockedCommandPatterns) {
-    if (new RegExp(rule.pattern, "i").test(command)) {
-      return denyPreToolUse(rule.message);
-    }
+    if (!new RegExp(rule.pattern, "i").test(command)) continue;
+    if (hasRuleConfirmation(command, rule.confirmation)) continue;
+    return denyPreToolUse(rule.message);
   }
 
   if (isGitPush(command) && !hasPushConfirmation(command, policy)) {

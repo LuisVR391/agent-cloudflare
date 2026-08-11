@@ -79,6 +79,15 @@
       "message": "Bloqueado: el repositorio no permite force push automatizado."
     },
     {
+      "id": "cloudflare-deploy",
+      "pattern": "(^|[;&|]\\s*|\\s)(npm\\s+run\\s+deploy|(?:npx\\s+)?wrangler\\s+(?:versions\\s+deploy|pages\\s+deploy|triggers\\s+deploy|deploy))(?![^\\n;&|]*--dry-run)",
+      "confirmation": {
+        "environmentVariable": "AGENT_DEPLOY_CONFIRMED",
+        "value": "1"
+      },
+      "message": "Bloqueado: un despliegue requiere autorización explícita del usuario para el entorno y el artefacto actuales. Después de recibirla, ejecuta `AGENT_DEPLOY_CONFIRMED=1 <comando>` en el mismo comando. Producción y las operaciones destructivas requieren una autorización separada."
+    },
+    {
       "id": "d1-remote-execute",
       "pattern": "(^|[;&|]\\s*|\\s)(?:npx\\s+)?wrangler\\s+d1\\s+execute\\b[^\\n;&|]*--remote",
       "message": "Bloqueado: la ejecución remota de D1 no está autorizada desde agentes."
@@ -87,6 +96,26 @@
       "id": "cloudflare-resource-delete",
       "pattern": "(^|[;&|]\\s*|\\s)(?:npx\\s+)?wrangler\\s+(d1\\s+delete|r2\\s+bucket\\s+delete|kv\\s+namespace\\s+delete|queues?\\s+delete|workflows?\\s+delete)\\b",
       "message": "Bloqueado: la eliminación de recursos Cloudflare requiere una operación humana separada."
+    },
+    {
+      "id": "cloudflare-secret-write",
+      "pattern": "(^|[;&|]\\s*|\\s)(?:npx\\s+)?wrangler\\s+secret(?:\\s+bulk)?\\s+(?:put|delete)\\b",
+      "message": "Bloqueado: crear o eliminar secretos en Cloudflare es una operación humana separada."
+    },
+    {
+      "id": "github-remote-mutation",
+      "pattern": "(^|[;&|]\\s*|\\s)gh\\s+(?:pr\\s+(?:merge|close)|release\\s+(?:create|delete|upload)|repo\\s+(?:delete|archive)|secret\\s+(?:set|delete)|workflow\\s+run)\\b",
+      "message": "Bloqueado: fusionar, publicar o alterar el repositorio remoto requiere una operación humana separada."
+    },
+    {
+      "id": "github-api-mutation",
+      "pattern": "(^|[;&|]\\s*|\\s)gh\\s+api\\b[^\\n;&|]*(?:-X|--method)[=\\s]+(?:POST|PUT|PATCH|DELETE)\\b",
+      "message": "Bloqueado: `gh api` con un método mutante altera el repositorio remoto sin dejar la auditoría de un flujo revisado."
+    },
+    {
+      "id": "package-publish",
+      "pattern": "(^|[;&|]\\s*|\\s)npm\\s+publish\\b",
+      "message": "Bloqueado: la publicación de paquetes no está autorizada desde agentes."
     }
   ],
   "documentationMap": [
