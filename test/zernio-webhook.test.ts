@@ -248,7 +248,7 @@ describe("consumidor de entrada", () => {
       ZERNIO_WEBHOOK_SECRET: secret,
     });
 
-    await processInboundQueueMessage(env.DB, queue.messages[0]);
+    await processInboundQueueMessage(env, queue.messages[0]);
     const row = await env.DB.prepare(
       `SELECT status, processed_at FROM inbound_webhook_events
        WHERE external_event_id = ?`,

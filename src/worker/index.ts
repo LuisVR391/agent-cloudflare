@@ -7,9 +7,11 @@ import {
   routeAuthRequest,
 } from "./auth/http";
 import type { WorkerEnv } from "./auth/types";
-import type { InboundQueueMessage } from "./integrations/zernio/contracts";
+import type { InboundQueueMessage, OutboundQueueMessage } from "./integrations/zernio/contracts";
 import { handleInboundQueue } from "./integrations/zernio/inbound-queue";
+import { handleOutboundQueue } from "./integrations/zernio/outbound-queue";
 import { handleZernioWebhook } from "./integrations/zernio/webhook";
+import { routeConversationApi } from "./conversation-api";
 import { AuthorizationRepository } from "./repositories/auth/authorization-repository";
 
 export { CustomerSupportAgent } from "./customer-support-agent";
@@ -43,6 +45,9 @@ export default {
     if (authResponse) {
       return authResponse;
     }
+
+    const conversationResponse = await routeConversationApi(request, env as never);
+    if (conversationResponse) return conversationResponse;
 
     if (url.pathname.startsWith("/api/")) {
       return new Response(
@@ -95,6 +100,15 @@ export default {
           correlationId,
         );
       }
+      const instanceName = url.pathname.split("/").filter(Boolean).at(-1);
+      if (instanceName !== "demo") {
+        return error(
+          404,
+          "NOT_FOUND",
+          "La instancia solicitada no está expuesta directamente.",
+          correlationId,
+        );
+      }
     }
 
     const agentResponse = await routeAgentRequest(request, env);
@@ -106,6 +120,10 @@ export default {
   },
 
   async queue(batch, env): Promise<void> {
-    await handleInboundQueue(batch, env.DB);
+    if (batch.queue.includes("outbound")) {
+      await handleOutboundQueue(batch as MessageBatch<OutboundQueueMessage>, env);
+      return;
+    }
+    await handleInboundQueue(batch as MessageBatch<InboundQueueMessage>, env);
   },
-} satisfies ExportedHandler<Env, InboundQueueMessage>;
+} satisfies ExportedHandler<Env, InboundQueueMessage | OutboundQueueMessage>;

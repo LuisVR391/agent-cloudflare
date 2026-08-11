@@ -22,8 +22,8 @@ cuando satisface sus criterios y el PR correspondiente está fusionado en
 
 | Fase | Estado | Dependencia | Criterio de salida |
 | --- | --- | --- | --- |
-| 0. Fundamentos | En progreso | Ninguna | Fundamentos documentales, datos, seguridad y entornos validados; staging preparado sin crear producción sin autorización. |
-| 1. WhatsApp funcional | Planificado | Fase 0 | Mensajes de WhatsApp procesados de extremo a extremo con seguridad, durabilidad, inbox y handoff humano. |
+| 0. Fundamentos | Completado | Ninguna | Fundamentos documentales, datos, seguridad y entornos validados; staging preparado sin crear producción sin autorización. |
+| 1. WhatsApp funcional | En progreso | Fase 0 | Mensajes de WhatsApp procesados de extremo a extremo con seguridad, durabilidad, inbox y handoff humano. |
 | 2. CRM | Planificado | Fase 1 | El flujo comercial desde contacto hasta cita puede operarse y medirse desde el CRM. |
 | 3. Agentes | Planificado | Fase 2 | Agentes versionados usan conocimiento y herramientas autorizadas con aislamiento y supervisión. |
 | 4. Automatización | Planificado | Fase 3 | Procesos de seguimiento se ejecutan como Workflows durables, recuperables y observables. |
@@ -50,7 +50,7 @@ aislamiento multiempresa.
 | Autenticación, roles y aislamiento multiempresa | Completado | D1 y migraciones de #5 | [Issue #6](https://github.com/LuisVR391/agent-cloudflare/issues/6), [PR #14](https://github.com/LuisVR391/agent-cloudflare/pull/14), [ADR-0007](../decisions/ADR-0007-better-auth-and-organization-context.md), [modelo de seguridad](../architecture/security-model.md) y [operación](../operations/authentication.md) |
 | Entornos y staging | Completado | Fundamentos anteriores (#4, #5 y #6) | [Issue #7](https://github.com/LuisVR391/agent-cloudflare/issues/7) y [PR #15](https://github.com/LuisVR391/agent-cloudflare/pull/15) |
 | Visión especializada de producto | Completado | Guía rectora | [Issue #16](https://github.com/LuisVR391/agent-cloudflare/issues/16) y [PR #17](https://github.com/LuisVR391/agent-cloudflare/pull/17) |
-| Overview de arquitectura | En progreso | Guía rectora y ADRs | Documento implementado localmente; issue y PR pendientes |
+| Overview de arquitectura | Completado | Guía rectora y ADRs | [PR #18](https://github.com/LuisVR391/agent-cloudflare/pull/18) |
 
 El estado completado de cada entregable entra en vigor al fusionarse en `main`
 el PR enlazado como evidencia.
@@ -66,6 +66,12 @@ están verificadas; y existe una ruta reproducible y aislada hacia staging.
 asíncrona y durable, con visibilidad operativa e intervención humana.
 
 **Dependencia:** Fase 0 completada.
+
+**Seguimiento:** [Issue #19](https://github.com/LuisVR391/agent-cloudflare/issues/19),
+con cortes de persistencia e inbox [#22](https://github.com/LuisVR391/agent-cloudflare/issues/22),
+runtime durable [#23](https://github.com/LuisVR391/agent-cloudflare/issues/23),
+salida humana [#21](https://github.com/LuisVR391/agent-cloudflare/issues/21) y
+medios/validación [#20](https://github.com/LuisVR391/agent-cloudflare/issues/20).
 
 **Entregables resumidos:** adaptador bidireccional de Zernio, webhook con firma
 HMAC, resolución confiable de cuenta y organización, normalización y

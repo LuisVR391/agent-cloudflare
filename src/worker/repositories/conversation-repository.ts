@@ -1,0 +1,231 @@
+import { requireOrganizationScope } from "../domain/errors";
+import type {
+  AttentionMode,
+  ConversationMessage,
+  ConversationStatus,
+  ConversationSummary,
+} from "../domain/types";
+
+type SummaryRow = {
+  id: string; organization_id: string; channel_id: string; contact_id: string;
+  contact_display_name: string | null; contact_external_id: string;
+  channel_display_name: string | null; status: ConversationStatus;
+  attention_mode: AttentionMode; version: number; last_message_at: string;
+  last_message_text: string | null;
+};
+type MessageRow = {
+  id: string; organization_id: string; conversation_id: string;
+  direction: "incoming" | "outgoing"; sender_type: "customer" | "staff" | "system";
+  sender_id: string | null; message_type: "text" | "audio" | "image" | "document";
+  text_content: string | null; status: ConversationMessage["status"]; occurred_at: string;
+};
+type AttachmentRow = {
+  id: string; message_id: string; attachment_type: "audio" | "image" | "document";
+  content_type: string; byte_size: number;
+};
+
+const summarySelect = `SELECT c.id, c.organization_id, c.channel_id, c.contact_id,
+  ct.display_name AS contact_display_name, ci.external_id AS contact_external_id,
+  ch.display_name AS channel_display_name, c.status, c.attention_mode, c.version,
+  c.last_message_at,
+  (SELECT m.text_content FROM messages m WHERE m.organization_id = c.organization_id
+    AND m.conversation_id = c.id ORDER BY m.occurred_at DESC, m.id DESC LIMIT 1)
+    AS last_message_text
+ FROM conversations c
+ JOIN contacts ct ON ct.organization_id = c.organization_id AND ct.id = c.contact_id
+ JOIN contact_identities ci ON ci.organization_id = ct.organization_id
+  AND ci.contact_id = ct.id AND ci.provider = 'whatsapp'
+ JOIN communication_channels ch ON ch.organization_id = c.organization_id
+  AND ch.id = c.channel_id`;
+
+function summary(row: SummaryRow): ConversationSummary {
+  return {
+    id: row.id, organizationId: row.organization_id, channelId: row.channel_id,
+    contactId: row.contact_id, contactDisplayName: row.contact_display_name,
+    contactExternalId: row.contact_external_id, channelDisplayName: row.channel_display_name,
+    status: row.status, attentionMode: row.attention_mode, version: row.version,
+    lastMessageAt: row.last_message_at, lastMessageText: row.last_message_text,
+  };
+}
+
+export class ConversationRepository {
+  constructor(private readonly db: D1Database) {}
+
+  async list(organizationId: string, options: {
+    status?: ConversationStatus; limit: number; cursor?: string;
+  }): Promise<ConversationSummary[]> {
+    const scope = requireOrganizationScope(organizationId, "ConversationRepository.list");
+    const clauses = ["c.organization_id = ?"];
+    const bindings: unknown[] = [scope];
+    if (options.status) { clauses.push("c.status = ?"); bindings.push(options.status); }
+    if (options.cursor) { clauses.push("c.last_message_at < ?"); bindings.push(options.cursor); }
+    bindings.push(options.limit);
+    const { results } = await this.db.prepare(`${summarySelect}
+      WHERE ${clauses.join(" AND ")}
+      ORDER BY c.last_message_at DESC, c.id DESC LIMIT ?`)
+      .bind(...bindings).all<SummaryRow>();
+    return results.map(summary);
+  }
+
+  async find(organizationId: string, conversationId: string): Promise<ConversationSummary | null> {
+    const scope = requireOrganizationScope(organizationId, "ConversationRepository.find");
+    const row = await this.db.prepare(`${summarySelect}
+      WHERE c.organization_id = ? AND c.id = ?`).bind(scope, conversationId).first<SummaryRow>();
+    return row ? summary(row) : null;
+  }
+
+  async listMessages(organizationId: string, conversationId: string, options: {
+    limit: number; cursor?: string;
+  }): Promise<ConversationMessage[]> {
+    const scope = requireOrganizationScope(organizationId, "ConversationRepository.listMessages");
+    const cursorSql = options.cursor ? "AND occurred_at < ?" : "";
+    const bindings = options.cursor
+      ? [scope, conversationId, options.cursor, options.limit]
+      : [scope, conversationId, options.limit];
+    const { results } = await this.db.prepare(`SELECT * FROM messages
+      WHERE organization_id = ? AND conversation_id = ? ${cursorSql}
+      ORDER BY occurred_at DESC, id DESC LIMIT ?`).bind(...bindings).all<MessageRow>();
+    if (results.length === 0) return [];
+    const placeholders = results.map(() => "?").join(",");
+    const attachments = await this.db.prepare(`SELECT id, message_id, attachment_type,
+      content_type, byte_size FROM message_attachments
+      WHERE organization_id = ? AND message_id IN (${placeholders})`)
+      .bind(scope, ...results.map((row) => row.id)).all<AttachmentRow>();
+    return results.map((row) => ({
+      id: row.id, organizationId: row.organization_id, conversationId: row.conversation_id,
+      direction: row.direction, senderType: row.sender_type, senderId: row.sender_id,
+      messageType: row.message_type, text: row.text_content, status: row.status,
+      occurredAt: row.occurred_at,
+      attachments: attachments.results.filter((item) => item.message_id === row.id)
+        .map((item) => ({
+          id: item.id, type: item.attachment_type,
+          contentType: item.content_type, byteSize: item.byte_size,
+        })),
+    })).reverse();
+  }
+
+  async upsertInbound(input: {
+    organizationId: string; channelId: string; externalConversationId: string;
+    externalContactId: string; externalMessageId: string; platformMessageId: string;
+    text: string | null; messageType?: "text" | "audio" | "image" | "document";
+    occurredAt: string; correlationId: string;
+  }): Promise<{ conversationId: string; messageId: string }> {
+    const scope = requireOrganizationScope(input.organizationId, "ConversationRepository.upsertInbound");
+    let contact = await this.findContact(scope, input.externalContactId);
+    if (!contact) {
+      const now = new Date().toISOString();
+      const candidateId = crypto.randomUUID();
+      await this.db.batch([
+        this.db.prepare(`INSERT INTO contacts
+          (id, organization_id, display_name, status, created_at, updated_at)
+          VALUES (?, ?, NULL, 'active', ?, ?)`).bind(candidateId, scope, now, now),
+        this.db.prepare(`INSERT OR IGNORE INTO contact_identities
+          (id, organization_id, contact_id, provider, external_id, created_at, updated_at)
+          VALUES (?, ?, ?, 'whatsapp', ?, ?, ?)`)
+          .bind(crypto.randomUUID(), scope, candidateId, input.externalContactId, now, now),
+      ]);
+      contact = await this.findContact(scope, input.externalContactId);
+      if (!contact) throw new Error("CONTACT_RESOLUTION_FAILED");
+      if (contact.id !== candidateId) {
+        await this.db.prepare(`DELETE FROM contacts WHERE organization_id = ? AND id = ?
+          AND NOT EXISTS (SELECT 1 FROM contact_identities
+            WHERE organization_id = ? AND contact_id = ?)`)
+          .bind(scope, candidateId, scope, candidateId).run();
+      }
+    }
+    const now = new Date().toISOString();
+    const conversation = await this.db.prepare(`INSERT INTO conversations
+      (id, organization_id, channel_id, contact_id, external_conversation_id, status,
+       attention_mode, version, last_message_at, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, 'open', 'human', 1, ?, ?, ?)
+      ON CONFLICT (organization_id, channel_id, external_conversation_id)
+      DO UPDATE SET last_message_at = MAX(last_message_at, excluded.last_message_at),
+        updated_at = excluded.updated_at, version = version + 1 RETURNING id`)
+      .bind(crypto.randomUUID(), scope, input.channelId, contact.id,
+        input.externalConversationId, input.occurredAt, now, now).first<{ id: string }>();
+    if (!conversation) throw new Error("CONVERSATION_RESOLUTION_FAILED");
+    const message = await this.db.prepare(`INSERT INTO messages
+      (id, organization_id, conversation_id, external_message_id, platform_message_id,
+       direction, sender_type, message_type, text_content, status, correlation_id,
+       occurred_at, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, 'incoming', 'customer', ?, ?, 'received', ?, ?, ?, ?)
+      ON CONFLICT DO UPDATE SET updated_at = excluded.updated_at RETURNING id`)
+      .bind(crypto.randomUUID(), scope, conversation.id, input.externalMessageId,
+        input.platformMessageId, input.messageType ?? "text", input.text,
+        input.correlationId, input.occurredAt, now, now)
+      .first<{ id: string }>();
+    if (!message) throw new Error("MESSAGE_PERSISTENCE_FAILED");
+    return { conversationId: conversation.id, messageId: message.id };
+  }
+
+  async createOutgoing(input: {
+    organizationId: string; conversationId: string; actorId: string;
+    clientRequestId: string; text: string; correlationId: string;
+  }): Promise<{ messageId: string; idempotencyKey: string }> {
+    const conversation = await this.find(input.organizationId, input.conversationId);
+    if (!conversation) throw new Error("CONVERSATION_NOT_FOUND");
+    const existing = await this.db.prepare(`SELECT m.id, m.text_content, d.idempotency_key FROM messages m
+      JOIN outbound_message_deliveries d ON d.organization_id = m.organization_id
+       AND d.message_id = m.id
+      WHERE m.organization_id = ? AND m.client_request_id = ?`)
+      .bind(input.organizationId, input.clientRequestId)
+      .first<{ id: string; text_content: string; idempotency_key: string }>();
+    if (existing) {
+      if (existing.text_content !== input.text) throw new Error("IDEMPOTENCY_KEY_REUSED");
+      return { messageId: existing.id, idempotencyKey: existing.idempotency_key };
+    }
+    const messageId = crypto.randomUUID();
+    const idempotencyKey = `${input.organizationId}:${input.clientRequestId}`;
+    const now = new Date().toISOString();
+    await this.db.batch([
+      this.db.prepare(`INSERT INTO messages
+        (id, organization_id, conversation_id, client_request_id, direction, sender_type,
+         sender_id, message_type, text_content, status, correlation_id, occurred_at,
+         created_at, updated_at)
+        VALUES (?, ?, ?, ?, 'outgoing', 'staff', ?, 'text', ?, 'queued', ?, ?, ?, ?)`)
+        .bind(messageId, input.organizationId, input.conversationId, input.clientRequestId,
+          input.actorId, input.text, input.correlationId, now, now, now),
+      this.db.prepare(`INSERT INTO outbound_message_deliveries
+        (id, organization_id, message_id, idempotency_key, status, created_at, updated_at)
+        VALUES (?, ?, ?, ?, 'pending', ?, ?)`)
+        .bind(crypto.randomUUID(), input.organizationId, messageId, idempotencyKey, now, now),
+      this.db.prepare(`UPDATE conversations SET last_message_at = ?, updated_at = ?,
+        version = version + 1 WHERE organization_id = ? AND id = ?`)
+        .bind(now, now, input.organizationId, input.conversationId),
+    ]);
+    return { messageId, idempotencyKey };
+  }
+
+  async updateState(input: {
+    organizationId: string; conversationId: string; expectedVersion: number;
+    status?: ConversationStatus; attentionMode?: "human" | "paused";
+    actorId: string; correlationId: string;
+  }): Promise<ConversationSummary | null> {
+    const current = await this.find(input.organizationId, input.conversationId);
+    if (!current || current.version !== input.expectedVersion) return null;
+    const now = new Date().toISOString();
+    const result = await this.db.prepare(`UPDATE conversations SET status = ?,
+      attention_mode = ?, version = version + 1, updated_at = ?
+      WHERE organization_id = ? AND id = ? AND version = ?`)
+      .bind(input.status ?? current.status, input.attentionMode ?? current.attentionMode,
+        now, input.organizationId, input.conversationId, input.expectedVersion).run();
+    if (result.meta.changes !== 1) return null;
+    await this.db.prepare(`INSERT INTO conversation_status_history
+      (id, organization_id, conversation_id, actor_type, actor_id, previous_status,
+       next_status, previous_attention_mode, next_attention_mode, correlation_id, occurred_at)
+      VALUES (?, ?, ?, 'staff', ?, ?, ?, ?, ?, ?, ?)`)
+      .bind(crypto.randomUUID(), input.organizationId, input.conversationId, input.actorId,
+        current.status, input.status ?? current.status, current.attentionMode,
+        input.attentionMode ?? current.attentionMode, input.correlationId, now).run();
+    return this.find(input.organizationId, input.conversationId);
+  }
+
+  private findContact(organizationId: string, externalId: string) {
+    return this.db.prepare(`SELECT contacts.id FROM contacts JOIN contact_identities
+      ON contact_identities.organization_id = contacts.organization_id
+       AND contact_identities.contact_id = contacts.id
+      WHERE contacts.organization_id = ? AND contact_identities.provider = 'whatsapp'
+       AND contact_identities.external_id = ?`)
+      .bind(organizationId, externalId).first<{ id: string }>();
+  }
+}

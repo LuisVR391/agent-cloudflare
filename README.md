@@ -51,14 +51,16 @@ forks del producto.
 | D1 en local y pruebas | Base implementada | Migraciones `0001` a `0003`, repositorios y aislamiento probado |
 | Autenticación y autorización | Implementada | Better Auth, sesión D1, instalación única, roles fijos y contexto organizacional; [PR #14](https://github.com/LuisVR391/agent-cloudflare/pull/14) |
 | Entornos y staging | Staging desplegado | Local, staging y producción conservan bindings aislados; staging está instalado y operativo en `workers.dev`, y producción sigue sin provisionar |
-| Panel de conversaciones y agentes | Planificado | Navegación reservada y deshabilitada; no existen todavía módulos operativos |
+| Panel de conversaciones | Implementado localmente | Inbox protegido con lista, historial, respuesta humana, estados y handoff; validación remota pendiente |
+| Panel de agentes | Planificado | Navegación reservada y deshabilitada |
 | WhatsApp mediante Zernio | Entrada validada en staging | [ADR-0008](./.docs/decisions/ADR-0008-zernio-whatsapp-adapter.md); un `message.received` real de la cuenta `Lia` fue aceptado con `202`, deduplicado y procesado para `Beautyplace` |
-| Queues, Workflows y Vectorize | Parcial | `INBOUND_MESSAGES` está configurada y probada localmente; Workflows y Vectorize siguen planificados |
-| CRM, inbox, agenda y pipelines | Planificados | Pendientes de las fases de producto |
+| Queues, Workflows y Vectorize | Parcial | Entrada y salida están configuradas localmente con DLQ; la salida remota, Workflows y Vectorize siguen pendientes |
+| CRM, agenda y pipelines | Planificados | El inbox mínimo pertenece a Fase 1; el enriquecimiento comercial sigue en Fase 2 |
 | Versionado, evaluación y mejora de agentes | Planificados | Fuera del prototipo actual |
 
-`CustomerSupportAgent` demuestra identidad y estado durable, pero todavía no
-implementa el runtime conversacional definido para el producto.
+`CustomerSupportAgent` coordina el estado vivo de cada conversación sin
+reemplazar el historial canónico de D1; el procesamiento automático mediante
+agentes permanece fuera de este corte.
 
 La base D1 existe en local y en pruebas con datos de organizaciones, contactos,
 identidad, sesión y autorización. Las rutas del panel validan identidad,
@@ -68,8 +70,10 @@ al contexto producen eventos operativos redactados. Staging dispone de D1, R2,
 Queue, Worker y secretos aislados en Cloudflare. La instalación empresarial y
 el canal externo están activos; un mensaje real ya recorrió el webhook y la
 Queue sin duplicarse ni fallar. Este corte todavía no crea el contacto, la
-conversación canónica ni una entrada visible en el inbox. Producción permanece
-sin recursos ni ruta pública.
+conversación canónica ni una entrada visible en el inbox en el despliegue
+vigente. El código local ya incorpora persistencia, runtime, salida e inbox,
+pero no se presenta como operativo en staging hasta provisionar y validar los
+recursos nuevos. Producción permanece sin recursos ni ruta pública.
 
 ## Arquitectura objetivo
 

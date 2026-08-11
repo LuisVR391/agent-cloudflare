@@ -47,6 +47,7 @@ describe("migraciones de D1", () => {
       "0001_initial_schema.sql",
       "0002_authentication_and_authorization.sql",
       "0003_zernio_whatsapp_channel.sql",
+      "0004_conversations_and_messages.sql",
     ]);
   });
 

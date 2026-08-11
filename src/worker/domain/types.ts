@@ -29,6 +29,17 @@ export type InboundWebhookEventStatus =
   | "processed"
   | "failed";
 
+export type ConversationStatus = "open" | "resolved";
+export type AttentionMode = "automatic" | "supervised" | "human" | "paused";
+export type MessageStatus =
+  | "received"
+  | "queued"
+  | "sent"
+  | "delivered"
+  | "read"
+  | "failed"
+  | "delivery_unknown";
+
 export type Organization = {
   id: string;
   slug: string;
@@ -84,6 +95,40 @@ export type InboundWebhookEvent = {
   enqueuedAt: string | null;
   processedAt: string | null;
   failureCode: string | null;
+};
+
+export type ConversationSummary = {
+  id: string;
+  organizationId: string;
+  channelId: string;
+  contactId: string;
+  contactDisplayName: string | null;
+  contactExternalId: string;
+  channelDisplayName: string | null;
+  status: ConversationStatus;
+  attentionMode: AttentionMode;
+  version: number;
+  lastMessageAt: string;
+  lastMessageText: string | null;
+};
+
+export type ConversationMessage = {
+  id: string;
+  organizationId: string;
+  conversationId: string;
+  direction: "incoming" | "outgoing";
+  senderType: "customer" | "staff" | "system";
+  senderId: string | null;
+  messageType: "text" | "audio" | "image" | "document";
+  text: string | null;
+  status: MessageStatus;
+  occurredAt: string;
+  attachments: Array<{
+    id: string;
+    type: "audio" | "image" | "document";
+    contentType: string;
+    byteSize: number;
+  }>;
 };
 
 export type CreateOrganizationInput = {

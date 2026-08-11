@@ -27,6 +27,7 @@ import {
 } from "react-router";
 
 import { LoginForm } from "@/components/login-form";
+import { ConversationInbox } from "@/components/conversation-inbox";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -373,7 +374,7 @@ function FullScreenLoading({ label }: { label: string }) {
 
 const navigation = [
   { label: "Resumen", icon: CircleGauge, available: true },
-  { label: "Conversaciones", icon: Inbox, available: false },
+  { label: "Conversaciones", icon: Inbox, available: true },
   { label: "Agentes", icon: Bot, available: false },
   { label: "Equipo", icon: Users, available: false },
   { label: "Configuración", icon: Settings2, available: false },
@@ -383,6 +384,7 @@ function PanelPage() {
   const navigate = useNavigate();
   const [context, setContext] = useState<AppContext | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [section, setSection] = useState<"Resumen" | "Conversaciones">("Resumen");
 
   async function loadContext() {
     try {
@@ -492,6 +494,7 @@ function PanelPage() {
               }`}
               disabled={!available}
               key={label}
+              onClick={() => available && setSection(label as "Resumen" | "Conversaciones")}
               type="button"
             >
               <Icon className="size-4" />
@@ -536,6 +539,8 @@ function PanelPage() {
             {error}
           </div>
         ) : null}
+        {section === "Conversaciones" ? <ConversationInbox /> : null}
+        <div className={section === "Resumen" ? "" : "hidden"}>
         <section className="mt-8 grid gap-4 md:grid-cols-3">
           {([
             ["Conversaciones abiertas", "—", MessageCircleMore],
@@ -589,6 +594,7 @@ function PanelPage() {
             </CardHeader>
           </Card>
         </section>
+        </div>
       </main>
     </div>
   );

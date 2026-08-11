@@ -27,7 +27,7 @@ const disconnectedAccountSchema = z
 
 const attachmentSchema = z
   .object({
-    type: z.string().min(1).max(64),
+    type: z.enum(["audio", "image", "document"]),
     url: z.url().max(8_192),
   })
   .passthrough();
@@ -136,3 +136,13 @@ export const inboundQueueMessageSchema = z.discriminatedUnion("kind", [
 
 export type ZernioWebhookEvent = z.infer<typeof zernioWebhookEventSchema>;
 export type InboundQueueMessage = z.infer<typeof inboundQueueMessageSchema>;
+
+export const outboundQueueMessageSchema = z.object({
+  kind: z.literal("sendTextMessage"),
+  organizationId: z.uuid(),
+  conversationId: z.uuid(),
+  messageId: z.uuid(),
+  correlationId: z.uuid(),
+});
+
+export type OutboundQueueMessage = z.infer<typeof outboundQueueMessageSchema>;

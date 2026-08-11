@@ -97,3 +97,67 @@ export async function selectOrganization(organizationId: string): Promise<void> 
     );
   }
 }
+
+export type ConversationSummary = {
+  id: string;
+  contactDisplayName: string | null;
+  contactExternalId: string;
+  channelDisplayName: string | null;
+  status: "open" | "resolved";
+  attentionMode: "automatic" | "supervised" | "human" | "paused";
+  version: number;
+  lastMessageAt: string;
+  lastMessageText: string | null;
+};
+
+export type ConversationMessage = {
+  id: string;
+  direction: "incoming" | "outgoing";
+  senderType: "customer" | "staff" | "system";
+  text: string | null;
+  status: "received" | "queued" | "sent" | "delivered" | "read" | "failed" | "delivery_unknown";
+  occurredAt: string;
+  attachments: Array<{
+    id: string;
+    type: "audio" | "image" | "document";
+    contentType: string;
+    byteSize: number;
+  }>;
+};
+
+export async function listConversations(status: "open" | "resolved" = "open") {
+  const response = await fetch(`/api/conversations?status=${status}`, { credentials: "same-origin" });
+  if (!response.ok) throw new Error(await parseError(response, "No fue posible cargar las conversaciones."));
+  return response.json() as Promise<{ conversations: ConversationSummary[]; nextCursor: string | null }>;
+}
+
+export async function getConversationMessages(conversationId: string) {
+  const response = await fetch(`/api/conversations/${encodeURIComponent(conversationId)}/messages`, {
+    credentials: "same-origin",
+  });
+  if (!response.ok) throw new Error(await parseError(response, "No fue posible cargar la conversación."));
+  return response.json() as Promise<{ conversation: ConversationSummary; messages: ConversationMessage[] }>;
+}
+
+export async function sendConversationMessage(conversationId: string, text: string) {
+  const response = await fetch(`/api/conversations/${encodeURIComponent(conversationId)}/messages`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ clientRequestId: crypto.randomUUID(), text }),
+  });
+  if (!response.ok) throw new Error(await parseError(response, "No fue posible enviar el mensaje."));
+}
+
+export async function updateConversation(
+  conversationId: string,
+  input: { expectedVersion: number; status?: "open" | "resolved"; attentionMode?: "human" | "paused" },
+) {
+  const response = await fetch(`/api/conversations/${encodeURIComponent(conversationId)}`, {
+    method: "PATCH",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error(await parseError(response, "No fue posible actualizar la conversación."));
+}
