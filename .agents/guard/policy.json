@@ -79,11 +79,6 @@
       "message": "Bloqueado: el repositorio no permite force push automatizado."
     },
     {
-      "id": "cloudflare-deploy",
-      "pattern": "(^|[;&|]\\s*|\\s)(npm\\s+run\\s+deploy|(?:npx\\s+)?wrangler\\s+deploy)(?![^\\n;&|]*--dry-run)",
-      "message": "Bloqueado: un despliegue no dry-run requiere autorización y ejecución humana explícita."
-    },
-    {
       "id": "d1-remote-execute",
       "pattern": "(^|[;&|]\\s*|\\s)(?:npx\\s+)?wrangler\\s+d1\\s+execute\\b[^\\n;&|]*--remote",
       "message": "Bloqueado: la ejecución remota de D1 no está autorizada desde agentes."

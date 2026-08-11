@@ -140,8 +140,10 @@ function toQueueMessage(
     externalMessageId: payload.message.id,
     platformMessageId: payload.message.platformMessageId,
     status:
-      payload.event === "message.delivered"
-        ? "delivered"
+      payload.event === "message.sent"
+        ? "sent"
+        : payload.event === "message.delivered"
+          ? "delivered"
         : payload.event === "message.read"
           ? "read"
           : "failed",

@@ -13,7 +13,6 @@ const sendResponseSchema = z.object({
     messageId: z.string().min(1),
     conversationId: z.string().min(1),
     sentAt: z.iso.datetime({ offset: true }),
-    message: z.string(),
   }),
 });
 
@@ -23,6 +22,27 @@ export type ZernioFetch = (
   input: RequestInfo | URL,
   init?: RequestInit,
 ) => Promise<Response>;
+export type ZernioTransportFailureCategory =
+  | "illegal_invocation"
+  | "request_context"
+  | "unknown";
+
+function classifyTransportFailure(
+  caught: unknown,
+): ZernioTransportFailureCategory {
+  if (!(caught instanceof Error)) return "unknown";
+  const description = `${caught.name} ${caught.message}`.toLowerCase();
+  if (description.includes("illegal invocation")) {
+    return "illegal_invocation";
+  }
+  if (
+    description.includes("request context") ||
+    description.includes("different request")
+  ) {
+    return "request_context";
+  }
+  return "unknown";
+}
 
 export class ZernioApiError extends Error {
   readonly status: number;
@@ -31,6 +51,23 @@ export class ZernioApiError extends Error {
     super(`Zernio API respondió con estado ${status}.`);
     this.name = "ZernioApiError";
     this.status = status;
+  }
+}
+
+export class ZernioResponseError extends Error {
+  constructor() {
+    super("Zernio API devolvió una respuesta inválida.");
+    this.name = "ZernioResponseError";
+  }
+}
+
+export class ZernioTransportError extends Error {
+  readonly category: ZernioTransportFailureCategory;
+
+  constructor(category: ZernioTransportFailureCategory) {
+    super("No fue posible confirmar la respuesta de Zernio.");
+    this.name = "ZernioTransportError";
+    this.category = category;
   }
 }
 
@@ -51,31 +88,41 @@ export class ZernioClient {
       /\/$/,
       "",
     );
-    this.#fetch = options.fetch ?? fetch;
+    const fetchImplementation = options.fetch ?? globalThis.fetch;
+    this.#fetch = (input, init) => fetchImplementation(input, init);
   }
 
   async sendTextMessage(
     input: SendZernioTextMessageInput,
   ): Promise<SendZernioTextMessageResult> {
     const validated = sendInputSchema.parse(input);
-    const response = await this.#fetch(
-      `${this.#baseUrl}/inbox/conversations/${encodeURIComponent(validated.conversationId)}/messages`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${this.#apiKey}`,
-          "Content-Type": "application/json",
-          "Idempotency-Key": validated.idempotencyKey,
+    let response: Response;
+    try {
+      response = await this.#fetch(
+        `${this.#baseUrl}/inbox/conversations/${encodeURIComponent(validated.conversationId)}/messages`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${this.#apiKey}`,
+            "Content-Type": "application/json",
+            "Idempotency-Key": validated.idempotencyKey,
+          },
+          body: JSON.stringify({
+            accountId: validated.accountId,
+            message: validated.message,
+          }),
         },
-        body: JSON.stringify({
-          accountId: validated.accountId,
-          message: validated.message,
-        }),
-      },
-    );
+      );
+    } catch (caught) {
+      throw new ZernioTransportError(classifyTransportFailure(caught));
+    }
     if (!response.ok) {
       throw new ZernioApiError(response.status);
     }
-    return sendResponseSchema.parse(await response.json()).data;
+    const parsed = sendResponseSchema.safeParse(
+      await response.json().catch(() => null),
+    );
+    if (!parsed.success) throw new ZernioResponseError();
+    return parsed.data.data;
   }
 }

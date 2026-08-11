@@ -11,8 +11,8 @@ definida en [ADR-0008](../decisions/ADR-0008-zernio-whatsapp-adapter.md).
   crudo limitado a 256 KiB.
 - `X-Zernio-Event-Id`, cuando existe, debe coincidir con `payload.id`.
 - Los schemas aceptados son `webhook.test`, `message.received`,
-  `message.delivered`, `message.read`, `message.failed` y
-  `account.disconnected`, únicamente para `whatsapp`.
+  `message.sent`, `message.delivered`, `message.read`, `message.failed`
+  y `account.disconnected`, únicamente para `whatsapp`.
 - D1 resuelve `external_account_id` hacia un canal activo y una organización.
 - `inbound_webhook_events` deduplica por adaptador e ID estable del evento.
 - `INBOUND_MESSAGES` transporta el contrato normalizado y el consumidor marca
@@ -34,24 +34,30 @@ definida en [ADR-0008](../decisions/ADR-0008-zernio-whatsapp-adapter.md).
 | Schema, plataforma o canal inválido | `422` | Falla de forma cerrada |
 | Queue no disponible | `503` | El evento queda fallido y Zernio reintenta |
 
-No se suscribe `message.sent`: la operación humana se realizará desde Agent
-Cloudflare. Si esa política cambia, debe incorporarse el evento y reconciliar
-los envíos externos antes de permitir el uso paralelo del inbox de Zernio.
+`message.sent` reconcilia una entrega creada por Agent Cloudflare mediante el
+ID externo devuelto por Zernio. Un evento de un mensaje desconocido se conserva
+sin reconciliar; nunca se vincula por texto, teléfono ni similitud.
 
 ## Datos y seguridad
 
 `communication_channels` conserva identificadores opacos, nombre visible y
 estado; no guarda tokens. `inbound_webhook_events` conserva recepción,
-correlación y resultado técnico, no el payload completo. El contenido mínimo
-necesario viaja en Queue hacia el procesamiento de conversación futuro.
+correlación y resultado técnico, no el payload completo. Queue transporta
+referencias mínimas y D1 conserva mensajes e intentos canónicos.
 
 La identidad preferida de un remitente de WhatsApp es
 `businessScopedUserId`; se usa `phoneNumber` o `sender.id` únicamente como
 fallback. Ninguno de estos valores aparece en logs operativos.
 
-## Pendiente de validación de Fase 1
+## Estado de validación de Fase 1
 
-- Provisionar Queue de salida y DLQ en staging.
-- Aplicar la migración D1 nueva y desplegar el Worker autorizado.
-- Verificar entrada, inbox, respuesta humana, entrega y lectura con WhatsApp
-  real sin duplicados.
+- Entrada real, persistencia, inbox y actualización en vivo están verificados
+  en staging.
+- Queue de entrada, Queue de salida y sus DLQ están provisionadas en staging.
+- [Issue #25](https://github.com/LuisVR391/agent-cloudflare/issues/25) corrige
+  el estado saliente observado y agrega `message.sent`; ambos están desplegados
+  en staging.
+- Falta activar `message.sent` en Zernio y verificar envío, entrega y lectura
+  reales.
+- La conservación y validación integral de medios permanece en
+  [Issue #20](https://github.com/LuisVR391/agent-cloudflare/issues/20).

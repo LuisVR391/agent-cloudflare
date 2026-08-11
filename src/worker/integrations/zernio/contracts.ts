@@ -85,6 +85,16 @@ export const zernioWebhookEventSchema = z.discriminatedUnion("event", [
   z
     .object({
       id: z.string().min(1).max(512),
+      event: z.literal("message.sent"),
+      message: messageSchema.extend({ direction: z.literal("outgoing") }),
+      account: webhookAccountSchema,
+      conversation: conversationSchema,
+      timestamp: timestampSchema,
+    })
+    .passthrough(),
+  z
+    .object({
+      id: z.string().min(1).max(512),
       event: z.enum(["message.delivered", "message.read", "message.failed"]),
       message: messageSchema,
       statusAt: timestampSchema,
@@ -127,7 +137,7 @@ export const inboundQueueMessageSchema = z.discriminatedUnion("kind", [
     externalConversationId: z.string().min(1).max(512),
     externalMessageId: z.string().min(1).max(512),
     platformMessageId: z.string().min(1).max(1_024),
-    status: z.enum(["delivered", "read", "failed"]),
+    status: z.enum(["sent", "delivered", "read", "failed"]),
   }),
   queueBaseSchema.extend({
     kind: z.literal("accountDisconnected"),

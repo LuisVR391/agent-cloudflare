@@ -70,7 +70,8 @@ asíncrona y durable, con visibilidad operativa e intervención humana.
 **Seguimiento:** [Issue #19](https://github.com/LuisVR391/agent-cloudflare/issues/19),
 con cortes de persistencia e inbox [#22](https://github.com/LuisVR391/agent-cloudflare/issues/22),
 runtime durable [#23](https://github.com/LuisVR391/agent-cloudflare/issues/23),
-salida humana [#21](https://github.com/LuisVR391/agent-cloudflare/issues/21) y
+salida humana inicial [#21](https://github.com/LuisVR391/agent-cloudflare/issues/21),
+corrección y reconciliación de salida [#25](https://github.com/LuisVR391/agent-cloudflare/issues/25) y
 medios/validación [#20](https://github.com/LuisVR391/agent-cloudflare/issues/20).
 
 **Entregables resumidos:** adaptador bidireccional de Zernio, webhook con firma

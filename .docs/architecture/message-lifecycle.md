@@ -20,20 +20,38 @@ límites.
 Un reintento encuentra las restricciones únicas de evento, identidad,
 conversación y mensaje antes de producir un segundo efecto.
 
-## Salida
+## Salida humana
 
 1. `POST /api/conversations/:id/messages` valida sesión, organización,
-   `conversations.manage`, texto y `clientRequestId`.
-2. D1 crea un mensaje `queued` y una entrega con clave estable.
+   `conversations.manage`, conversación abierta, modo `human`, texto y
+   `clientRequestId`.
+2. D1 crea un mensaje `queued` y una entrega con clave estable. Un reintento
+   del frontend conserva el mismo `clientRequestId`.
 3. `OUTBOUND_MESSAGES` transporta solo identificadores y correlación.
-4. El consumidor carga cuenta y conversación canónicas, llama a Zernio con
-   `Idempotency-Key` y persiste el resultado.
-5. Webhooks posteriores reconcilian `delivered`, `read` o `failed`.
+4. El consumidor carga cuenta y conversación canónicas, llama a Zernio con la
+   misma `Idempotency-Key` en cada intento y persiste el resultado.
+5. La respuesta del proveedor o los webhooks `message.sent`,
+   `message.delivered`, `message.read` y `message.failed` reconcilian D1.
+6. El Durable Object difunde el cambio y el inbox vuelve a consultar D1.
 
-Los fallos agotados llegan a DLQ. Una entrega incierta nunca se reenvía con una
-clave nueva de forma automática.
+Los rechazos definitivos quedan `failed`. Una respuesta HTTP ambigua, un
+fallo de transporte o una respuesta exitosa inválida queda
+`delivery_unknown` y se reintenta con la misma clave. Los fallos agotados
+llegan a DLQ; nunca se genera automáticamente una clave nueva.
+
+## Estados visibles
+
+| Estado D1 | Significado |
+| --- | --- |
+| `queued` | D1 aceptó la respuesta y la Queue debe transportarla |
+| `sent` | Zernio confirmó que aceptó el envío |
+| `delivered` | WhatsApp informó entrega al destinatario |
+| `read` | WhatsApp informó lectura |
+| `failed` | Existe un rechazo definitivo |
+| `delivery_unknown` | El efecto puede haber ocurrido y debe reconciliarse |
 
 ## Observabilidad
 
-Los eventos técnicos incluyen resultado, `correlationId` e identificadores
-opacos. No registran mensajes, teléfonos, URLs temporales, tokens o secretos.
+Los eventos técnicos incluyen resultado, categoría segura, `correlationId`,
+número de intento e identificadores opacos. No registran mensajes, teléfonos,
+URLs temporales, cuerpos del proveedor, tokens o secretos.

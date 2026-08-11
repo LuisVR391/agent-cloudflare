@@ -5,12 +5,11 @@ construido sobre Cloudflare. Su primera edición estará enfocada en salones de
 belleza y automatizará atención, ventas, agenda, seguimiento y mejora continua
 desde una sola interfaz.
 
-> El repositorio se encuentra en una etapa inicial. Actualmente contiene la
-> base técnica del Worker, un agente durable, autenticación cerrada y la base
-> del panel administrativo. Staging ya recibe eventos reales de WhatsApp desde
-> Zernio, pero todavía no es un CRM funcional ni expone esas conversaciones en
-> un inbox.
-
+> El repositorio se encuentra en Fase 1. Staging recibe mensajes reales de
+> WhatsApp, persiste contactos y conversaciones, y actualiza el inbox en vivo.
+> La corrección del Issue #25 está desplegada en staging y vuelve observable
+> el fallo de salida; falta validar una respuesta humana real de extremo a
+> extremo.
 ## Objetivo del producto
 
 Agent Cloudflare debe permitir que una empresa administre desde un solo panel:
@@ -44,17 +43,17 @@ forks del producto.
 | --- | --- | --- |
 | Worker y API HTTP | Implementada | `src/worker/index.ts` y `GET /api/health` |
 | SPA React servida por el Worker | Implementada | Landing, `/setup`, `/login`, `/app`, React 19, Tailwind y shadcn/ui |
-| Agente durable | Base implementada | `CustomerSupportAgent` con estado inicial |
+| Agente durable | Base implementada | `CustomerSupportAgent` coordina cada conversación y sus conexiones en vivo |
 | Workers AI | Binding preparado | Binding `AI` declarado, sin flujo de inferencia |
-| R2 | Binding preparado | `MEDIA_BUCKET` declarado, sin ingestión de medios |
+| R2 | Parcial | `MEDIA_BUCKET` y persistencia de adjuntos implementados; validación integral pendiente en #20 |
 | Observabilidad | Configurada | Logs y trazas habilitados en Wrangler |
-| D1 en local y pruebas | Base implementada | Migraciones `0001` a `0003`, repositorios y aislamiento probado |
+| D1 en local y pruebas | Implementada para Fase 1 | Migraciones `0001` a `0005`, repositorios, mensajes, entregas y aislamiento probado |
 | Autenticación y autorización | Implementada | Better Auth, sesión D1, instalación única, roles fijos y contexto organizacional; [PR #14](https://github.com/LuisVR391/agent-cloudflare/pull/14) |
-| Entornos y staging | Staging desplegado | Local, staging y producción conservan bindings aislados; staging está instalado y operativo en `workers.dev`, y producción sigue sin provisionar |
-| Panel de conversaciones | Implementado localmente | Inbox protegido con lista, historial, respuesta humana, estados y handoff; validación remota pendiente |
+| Entornos y staging | Staging desplegado | Recursos aislados; producción sigue sin provisionar |
+| Panel de conversaciones | Salida desplegada en staging | Inbox protegido, historial, recepción en vivo, estados y handoff; falta validar una respuesta humana real |
 | Panel de agentes | Planificado | Navegación reservada y deshabilitada |
-| WhatsApp mediante Zernio | Entrada validada en staging | [ADR-0008](./.docs/decisions/ADR-0008-zernio-whatsapp-adapter.md); un `message.received` real de la cuenta `Lia` fue aceptado con `202`, deduplicado y procesado para `Beautyplace` |
-| Queues, Workflows y Vectorize | Parcial | Entrada y salida están configuradas localmente con DLQ; la salida remota, Workflows y Vectorize siguen pendientes |
+| WhatsApp mediante Zernio | En progreso | Entrada real deduplicada y visible; corrección de salida humana y `message.sent` desplegada desde [Issue #25](https://github.com/LuisVR391/agent-cloudflare/issues/25) |
+| Queues, Workflows y Vectorize | Parcial | Queues de entrada/salida y DLQ provisionadas en staging; Workflows y Vectorize permanecen planificados |
 | CRM, agenda y pipelines | Planificados | El inbox mínimo pertenece a Fase 1; el enriquecimiento comercial sigue en Fase 2 |
 | Versionado, evaluación y mejora de agentes | Planificados | Fuera del prototipo actual |
 
@@ -62,18 +61,16 @@ forks del producto.
 reemplazar el historial canónico de D1; el procesamiento automático mediante
 agentes permanece fuera de este corte.
 
-La base D1 existe en local y en pruebas con datos de organizaciones, contactos,
-identidad, sesión y autorización. Las rutas del panel validan identidad,
-membresía, organización activa, origen público y permisos en backend. Los
-rechazos con contexto empresarial quedan en auditoría D1; los rechazos previos
-al contexto producen eventos operativos redactados. Staging dispone de D1, R2,
-Queue, Worker y secretos aislados en Cloudflare. La instalación empresarial y
-el canal externo están activos; un mensaje real ya recorrió el webhook y la
-Queue sin duplicarse ni fallar. Este corte todavía no crea el contacto, la
-conversación canónica ni una entrada visible en el inbox en el despliegue
-vigente. El código local ya incorpora persistencia, runtime, salida e inbox,
-pero no se presenta como operativo en staging hasta provisionar y validar los
-recursos nuevos. Producción permanece sin recursos ni ruta pública.
+La base D1 conserva organizaciones, autenticación, canales, contactos,
+conversaciones, mensajes e intentos de entrega con aislamiento por organización.
+Las rutas del panel recalculan identidad, membresía y permisos en backend.
+Staging dispone de D1, R2, Durable Object, Queues de entrada/salida, DLQ,
+Worker y secretos aislados. La recepción real y el inbox en vivo están
+verificados. Una respuesta humana histórica llegó al consumidor saliente, pero agotó sus
+reintentos sin llegar a WhatsApp. La corrección #25 está desplegada: clasifica
+el fallo, evita dejarla en `queued` y reconcilia mediante `message.sent`; falta
+repetir la prueba real sin reproducir el mensaje anterior. Producción
+permanece sin recursos ni ruta pública.
 
 ## Arquitectura objetivo
 
@@ -212,7 +209,7 @@ está en [base de datos local](./.docs/operations/local-database.md).
 | `npm run db:migrations:list` | Muestra las migraciones de D1 pendientes en local |
 | `npm run check` | Ejecuta guardrails, tipos, pruebas, build y dry-run de staging |
 | `npm run check:staging` | Construye y valida `env.staging` sin publicar |
-| `npm run deploy:staging` | Construye y despliega únicamente a staging; requiere operación humana autorizada |
+| `npm run deploy:staging` | Construye y despliega únicamente a staging; requiere autorización explícita para el artefacto actual |
 
 ## Recursos y secretos actuales
 

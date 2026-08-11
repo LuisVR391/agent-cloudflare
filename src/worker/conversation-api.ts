@@ -105,26 +105,105 @@ export async function routeConversationApi(
     return agent.fetch(request);
   }
   if (request.method === "POST" && action === "messages") {
-    if (!permissions.includes("conversations.manage")) return error(403, "FORBIDDEN", "No tienes permiso para responder conversaciones.", correlationId);
+    if (!permissions.includes("conversations.manage")) {
+      return error(
+        403,
+        "FORBIDDEN",
+        "No tienes permiso para responder conversaciones.",
+        correlationId,
+      );
+    }
+    if (conversation.status !== "open" || conversation.attentionMode !== "human") {
+      return error(
+        409,
+        "CONVERSATION_NOT_IN_HUMAN_MODE",
+        "Reabre la conversación y toma control antes de responder.",
+        correlationId,
+      );
+    }
     const parsed = sendSchema.safeParse(await request.json().catch(() => null));
-    if (!parsed.success) return error(400, "INVALID_MESSAGE", "El mensaje no es válido.", correlationId);
-    let outgoing: { messageId: string; idempotencyKey: string };
+    if (!parsed.success) {
+      return error(
+        400,
+        "INVALID_MESSAGE",
+        "El mensaje no es válido.",
+        correlationId,
+      );
+    }
+    let outgoing: Awaited<ReturnType<ConversationRepository["createOutgoing"]>>;
     try {
       outgoing = await repository.createOutgoing({
-        organizationId, conversationId, actorId: context.user.id,
-        clientRequestId: parsed.data.clientRequestId, text: parsed.data.text, correlationId,
+        organizationId,
+        conversationId,
+        actorId: context.user.id,
+        clientRequestId: parsed.data.clientRequestId,
+        text: parsed.data.text,
+        correlationId,
       });
     } catch (caught) {
       if (caught instanceof Error && caught.message === "IDEMPOTENCY_KEY_REUSED") {
-        return error(409, "IDEMPOTENCY_KEY_REUSED", "La operación ya existe con otro contenido.", correlationId);
+        return error(
+          409,
+          "IDEMPOTENCY_KEY_REUSED",
+          "La operación ya existe con otro contenido.",
+          correlationId,
+        );
       }
       throw caught;
     }
-    await env.OUTBOUND_MESSAGES.send({
-      kind: "sendTextMessage", organizationId, conversationId,
-      messageId: outgoing.messageId, correlationId,
+
+    if (!outgoing.created) {
+      const canRetryEnqueue =
+        outgoing.deliveryStatus === "failed" &&
+        outgoing.lastErrorCode === "QUEUE_ENQUEUE_FAILED" &&
+        await repository.prepareEnqueueRetry(organizationId, outgoing.messageId);
+      if (!canRetryEnqueue) {
+        const responseStatus = outgoing.messageStatus === "queued" ? 202 : 200;
+        return json({
+          messageId: outgoing.messageId,
+          status: outgoing.messageStatus,
+          correlationId: outgoing.correlationId,
+        }, responseStatus);
+      }
+    }
+
+    try {
+      await env.OUTBOUND_MESSAGES.send({
+        kind: "sendTextMessage",
+        organizationId,
+        conversationId,
+        messageId: outgoing.messageId,
+        correlationId: outgoing.correlationId,
+      }, { contentType: "json" });
+    } catch {
+      await repository.markEnqueueFailed(organizationId, outgoing.messageId);
+      await repository.recordHumanSendAudit({
+        organizationId,
+        actorId: context.user.id,
+        messageId: outgoing.messageId,
+        result: "failed",
+        correlationId: outgoing.correlationId,
+      });
+      return error(
+        503,
+        "OUTBOUND_QUEUE_UNAVAILABLE",
+        "No fue posible encolar la respuesta. Intenta nuevamente.",
+        outgoing.correlationId,
+      );
+    }
+
+    await repository.recordHumanSendAudit({
+      organizationId,
+      actorId: context.user.id,
+      messageId: outgoing.messageId,
+      result: "allowed",
+      correlationId: outgoing.correlationId,
     });
-    return json({ messageId: outgoing.messageId, status: "queued", correlationId }, 202);
+    return json({
+      messageId: outgoing.messageId,
+      status: "queued",
+      correlationId: outgoing.correlationId,
+    }, 202);
   }
   if (request.method === "PATCH" && action === undefined) {
     if (!permissions.includes("conversations.manage")) return error(403, "FORBIDDEN", "No tienes permiso para gestionar conversaciones.", correlationId);

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { LoaderCircle, MessageCircleMore, Pause, RefreshCw, Send, UserRoundCheck } from "lucide-react";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
@@ -11,14 +11,32 @@ import {
   type ConversationSummary,
 } from "../lib/api";
 
+const messageStatusLabels: Record<ConversationMessage["status"], string> = {
+  received: "Recibido",
+  queued: "En cola",
+  sent: "Enviado",
+  delivered: "Entregado",
+  read: "Leído",
+  failed: "No enviado",
+  delivery_unknown: "Confirmación pendiente",
+};
+
+function statusTone(status: ConversationMessage["status"]): string {
+  if (status === "failed") return "font-medium text-red-200";
+  if (status === "delivery_unknown") return "font-medium text-amber-200";
+  return "";
+}
+
 export function ConversationInbox() {
   const [status, setStatus] = useState<"open" | "resolved">("open");
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [selected, setSelected] = useState<ConversationSummary | null>(null);
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [text, setText] = useState("");
+  const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const pendingSend = useRef<{ text: string; clientRequestId: string } | null>(null);
 
   async function refreshList() {
     setError(null);
@@ -68,16 +86,43 @@ export function ConversationInbox() {
     return () => socket?.close();
   }, [selected?.id]);
 
+  useEffect(() => {
+    if (!selected) return;
+    const interval = window.setInterval(
+      () => void openConversation(selected),
+      10_000,
+    );
+    return () => window.clearInterval(interval);
+  }, [selected?.id]);
+
   async function send() {
-    if (!selected || !text.trim()) return;
+    if (
+      !selected ||
+      !text.trim() ||
+      selected.status !== "open" ||
+      selected.attentionMode !== "human"
+    ) return;
     const nextText = text.trim();
+    const request = pendingSend.current?.text === nextText
+      ? pendingSend.current
+      : { text: nextText, clientRequestId: crypto.randomUUID() };
+    pendingSend.current = request;
+    setSending(true);
     setText("");
+    setError(null);
     try {
-      await sendConversationMessage(selected.id, nextText);
+      await sendConversationMessage(
+        selected.id,
+        nextText,
+        request.clientRequestId,
+      );
+      pendingSend.current = null;
       await openConversation(selected);
     } catch (caught) {
       setText(nextText);
       setError(caught instanceof Error ? caught.message : "No fue posible enviar el mensaje.");
+    } finally {
+      setSending(false);
     }
   }
 
@@ -91,6 +136,18 @@ export function ConversationInbox() {
       setError(caught instanceof Error ? caught.message : "No fue posible actualizar la conversación.");
     }
   }
+
+  const composerDisabled =
+    !selected ||
+    selected.status !== "open" ||
+    selected.attentionMode !== "human" ||
+    sending;
+  const composerPlaceholder =
+    selected?.status === "resolved"
+      ? "Reabre la conversación para responder"
+      : selected?.attentionMode !== "human"
+        ? "Toma control para responder"
+        : "Escribe una respuesta…";
 
   return (
     <section className="mt-8">
@@ -154,16 +211,41 @@ export function ConversationInbox() {
                             Abrir {attachment.type} · {Math.ceil(attachment.byteSize / 1024)} KiB
                           </a>
                         ))}
-                        <p className="mt-1 text-[10px] opacity-70">{message.status} · {new Date(message.occurredAt).toLocaleString()}</p>
+                        <p className={"mt-1 text-[10px] opacity-80 " + statusTone(message.status)}>{messageStatusLabels[message.status]} · {new Date(message.occurredAt).toLocaleString()}</p>
                       </div>
                     </div>
                   ))}
                 </div>
                 <div className="border-t p-4">
                   <div className="flex gap-2">
-                    <textarea aria-label="Mensaje" className="min-h-11 flex-1 resize-none rounded-md border bg-background px-3 py-2 text-sm" disabled={selected.attentionMode === "paused"}
-                      onChange={(event) => setText(event.target.value)} placeholder={selected.attentionMode === "paused" ? "Toma control para responder" : "Escribe una respuesta…"} value={text} />
-                    <Button aria-label="Enviar mensaje" disabled={!text.trim() || selected.attentionMode === "paused"} onClick={() => void send()} size="icon"><Send /></Button>
+                    <textarea
+                      aria-label="Mensaje"
+                      className="min-h-11 flex-1 resize-none rounded-md border bg-background px-3 py-2 text-sm"
+                      disabled={composerDisabled}
+                      onChange={(event) => {
+                        setText(event.target.value);
+                        if (
+                          pendingSend.current &&
+                          pendingSend.current.text !== event.target.value.trim()
+                        ) {
+                          pendingSend.current = null;
+                        }
+                      }}
+                      placeholder={composerPlaceholder}
+                      value={text}
+                    />
+                    <Button
+                      aria-label="Enviar mensaje"
+                      disabled={composerDisabled || !text.trim()}
+                      onClick={() => void send()}
+                      size="icon"
+                    >
+                      {sending ? (
+                        <LoaderCircle className="animate-spin" />
+                      ) : (
+                        <Send />
+                      )}
+                    </Button>
                   </div>
                 </div>
               </CardContent>

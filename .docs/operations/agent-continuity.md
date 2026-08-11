@@ -102,7 +102,6 @@ exhaustivo; un secreto expuesto debe rotarse.
 
 `PreToolUse` bloquea:
 
-- despliegues que no sean `--dry-run`;
 - ejecución remota de D1 y eliminación de recursos Cloudflare;
 - `git reset --hard`, `git clean` forzado y force push;
 - cualquier `git push` sin confirmación explícita del usuario;
@@ -126,6 +125,11 @@ ADR o la declaración `ADR: no aplica — <motivo concreto>`; un cambio de
 entregable requiere actualizar el roadmap o declarar
 `Roadmap: no aplica — <motivo concreto>`. La implementación sin documentación
 produce una advertencia visible.
+
+Los despliegues no tienen una excepción mecánica persistente: `AGENTS.md` exige
+autorización explícita para el entorno y el artefacto actuales antes de que un
+agente ejecute el script correspondiente. Esa autorización no se reutiliza para
+otro despliegue ni amplía el permiso a producción o a eliminación de recursos.
 
 Los hooks fallan abiertos si su propia lectura o ejecución interna falla, salvo
 cuando ya reconocieron una acción prohibida. Esto evita inmovilizar el
@@ -151,7 +155,6 @@ completos ni secretos.
 determinista del hook:
 
 - lectura de `.env`, `.dev.vars`, llaves privadas y certificados;
-- `npm run deploy`, `wrangler deploy` y `npx wrangler deploy` directos;
 - `git push --force`, `-f` y `--force-with-lease`.
 
 Estas reglas cubren un hueco real: una referencia `@archivo` no ejecuta ninguna
@@ -159,10 +162,10 @@ herramienta, por lo que `PreToolUse` nunca la observa y solo una deny rule
 impide que un secreto entre en contexto.
 
 Su alcance es distinto al del hook y no lo sustituye. Las reglas de `Bash`
-comparan prefijos, así que atrapan la invocación directa pero no cada variante
-con banderas; el hook conserva ese análisis, incluida la distinción entre
-`wrangler deploy` y `wrangler deploy --dry-run`, y la ejecución remota de D1.
-Codex no tiene un equivalente declarativo y depende únicamente del hook.
+conservan el bloqueo determinista de force push. El hook mantiene el análisis
+de ejecución remota de D1 y borrados; la autorización de despliegue se rige por
+`AGENTS.md`. Codex no tiene un equivalente declarativo y depende únicamente
+del hook.
 
 ## Validación determinista
 

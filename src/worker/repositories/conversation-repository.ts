@@ -161,21 +161,54 @@ export class ConversationRepository {
   async createOutgoing(input: {
     organizationId: string; conversationId: string; actorId: string;
     clientRequestId: string; text: string; correlationId: string;
-  }): Promise<{ messageId: string; idempotencyKey: string }> {
-    const conversation = await this.find(input.organizationId, input.conversationId);
+  }): Promise<{
+    messageId: string;
+    idempotencyKey: string;
+    correlationId: string;
+    created: boolean;
+    messageStatus: ConversationMessage["status"];
+    deliveryStatus: "pending" | "sending" | "sent" | "failed" | "delivery_unknown";
+    lastErrorCode: string | null;
+  }> {
+    const scope = requireOrganizationScope(
+      input.organizationId,
+      "ConversationRepository.createOutgoing",
+    );
+    const conversation = await this.find(scope, input.conversationId);
     if (!conversation) throw new Error("CONVERSATION_NOT_FOUND");
-    const existing = await this.db.prepare(`SELECT m.id, m.text_content, d.idempotency_key FROM messages m
+    const existing = await this.db.prepare(`SELECT m.id, m.text_content,
+      m.status AS message_status, m.correlation_id, d.idempotency_key,
+      d.status AS delivery_status, d.last_error_code
+      FROM messages m
       JOIN outbound_message_deliveries d ON d.organization_id = m.organization_id
        AND d.message_id = m.id
       WHERE m.organization_id = ? AND m.client_request_id = ?`)
-      .bind(input.organizationId, input.clientRequestId)
-      .first<{ id: string; text_content: string; idempotency_key: string }>();
+      .bind(scope, input.clientRequestId)
+      .first<{
+        id: string;
+        text_content: string;
+        message_status: ConversationMessage["status"];
+        correlation_id: string;
+        idempotency_key: string;
+        delivery_status: "pending" | "sending" | "sent" | "failed" | "delivery_unknown";
+        last_error_code: string | null;
+      }>();
     if (existing) {
-      if (existing.text_content !== input.text) throw new Error("IDEMPOTENCY_KEY_REUSED");
-      return { messageId: existing.id, idempotencyKey: existing.idempotency_key };
+      if (existing.text_content !== input.text) {
+        throw new Error("IDEMPOTENCY_KEY_REUSED");
+      }
+      return {
+        messageId: existing.id,
+        idempotencyKey: existing.idempotency_key,
+        correlationId: existing.correlation_id,
+        created: false,
+        messageStatus: existing.message_status,
+        deliveryStatus: existing.delivery_status,
+        lastErrorCode: existing.last_error_code,
+      };
     }
     const messageId = crypto.randomUUID();
-    const idempotencyKey = `${input.organizationId}:${input.clientRequestId}`;
+    const idempotencyKey = `${scope}:${input.clientRequestId}`;
     const now = new Date().toISOString();
     await this.db.batch([
       this.db.prepare(`INSERT INTO messages
@@ -183,17 +216,92 @@ export class ConversationRepository {
          sender_id, message_type, text_content, status, correlation_id, occurred_at,
          created_at, updated_at)
         VALUES (?, ?, ?, ?, 'outgoing', 'staff', ?, 'text', ?, 'queued', ?, ?, ?, ?)`)
-        .bind(messageId, input.organizationId, input.conversationId, input.clientRequestId,
+        .bind(messageId, scope, input.conversationId, input.clientRequestId,
           input.actorId, input.text, input.correlationId, now, now, now),
       this.db.prepare(`INSERT INTO outbound_message_deliveries
         (id, organization_id, message_id, idempotency_key, status, created_at, updated_at)
         VALUES (?, ?, ?, ?, 'pending', ?, ?)`)
-        .bind(crypto.randomUUID(), input.organizationId, messageId, idempotencyKey, now, now),
+        .bind(crypto.randomUUID(), scope, messageId, idempotencyKey, now, now),
       this.db.prepare(`UPDATE conversations SET last_message_at = ?, updated_at = ?,
         version = version + 1 WHERE organization_id = ? AND id = ?`)
-        .bind(now, now, input.organizationId, input.conversationId),
+        .bind(now, now, scope, input.conversationId),
     ]);
-    return { messageId, idempotencyKey };
+    return {
+      messageId,
+      idempotencyKey,
+      correlationId: input.correlationId,
+      created: true,
+      messageStatus: "queued",
+      deliveryStatus: "pending",
+      lastErrorCode: null,
+    };
+  }
+
+  async prepareEnqueueRetry(
+    organizationId: string,
+    messageId: string,
+  ): Promise<boolean> {
+    const scope = requireOrganizationScope(
+      organizationId,
+      "ConversationRepository.prepareEnqueueRetry",
+    );
+    const now = new Date().toISOString();
+    const delivery = await this.db.prepare(`UPDATE outbound_message_deliveries
+      SET status = 'pending', last_error_code = NULL, updated_at = ?
+      WHERE organization_id = ? AND message_id = ?
+        AND status = 'failed' AND last_error_code = 'QUEUE_ENQUEUE_FAILED'`)
+      .bind(now, scope, messageId).run();
+    if (delivery.meta.changes !== 1) return false;
+    await this.db.prepare(`UPDATE messages SET status = 'queued', updated_at = ?
+      WHERE organization_id = ? AND id = ?`)
+      .bind(now, scope, messageId).run();
+    return true;
+  }
+
+  async markEnqueueFailed(
+    organizationId: string,
+    messageId: string,
+  ): Promise<void> {
+    const scope = requireOrganizationScope(
+      organizationId,
+      "ConversationRepository.markEnqueueFailed",
+    );
+    const now = new Date().toISOString();
+    await this.db.batch([
+      this.db.prepare(`UPDATE outbound_message_deliveries SET status = 'failed',
+        last_error_code = 'QUEUE_ENQUEUE_FAILED', updated_at = ?
+        WHERE organization_id = ? AND message_id = ?`)
+        .bind(now, scope, messageId),
+      this.db.prepare(`UPDATE messages SET status = 'failed', updated_at = ?
+        WHERE organization_id = ? AND id = ?`)
+        .bind(now, scope, messageId),
+    ]);
+  }
+
+  async recordHumanSendAudit(input: {
+    organizationId: string;
+    actorId: string;
+    messageId: string;
+    result: "allowed" | "failed";
+    correlationId: string;
+  }): Promise<void> {
+    const scope = requireOrganizationScope(
+      input.organizationId,
+      "ConversationRepository.recordHumanSendAudit",
+    );
+    await this.db.prepare(`INSERT INTO audit_logs
+      (id, organization_id, actor_type, actor_id, action, resource_type,
+       resource_id, result, correlation_id, occurred_at)
+      VALUES (?, ?, 'staff', ?, 'conversation.message.send', 'message', ?, ?, ?, ?)`)
+      .bind(
+        crypto.randomUUID(),
+        scope,
+        input.actorId,
+        input.messageId,
+        input.result,
+        input.correlationId,
+        new Date().toISOString(),
+      ).run();
   }
 
   async updateState(input: {

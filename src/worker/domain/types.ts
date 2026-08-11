@@ -18,6 +18,7 @@ export type ChannelStatus = "active" | "disconnected";
 
 export type InboundWebhookEventType =
   | "message.received"
+  | "message.sent"
   | "message.delivered"
   | "message.read"
   | "message.failed"
