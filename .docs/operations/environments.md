@@ -9,18 +9,17 @@ fuente de verdad conforme a
 
 ## Estado actual
 
-El repositorio está preparado para validar y desplegar a staging, pero no se
-ha creado ni modificado ningún recurso remoto. Los IDs y orígenes `.invalid` de
-`wrangler.jsonc` son marcadores deliberados: deben impedir que una operación
-incompleta produzca una aplicación autenticable o conectada a una base real.
+Staging fue provisionado y desplegado el 2026-08-10 bajo `workers.dev`. Sus
+recursos, secretos y datos están aislados de local y producción. Los marcadores
+`.invalid` de producción permanecen deliberadamente cerrados.
 
 | Entorno | Responsabilidad | Estado remoto |
 | --- | --- | --- |
 | Local | Desarrollo y pruebas con estado de Miniflare bajo `.wrangler/` | No usa recursos remotos |
-| Staging | Validación integrada con datos sintéticos antes de producción | No provisionado |
+| Staging | Validación integrada con datos sintéticos antes de producción | Desplegado e instalado; canal Zernio activo |
 | Producción | Datos y tráfico reales después de aprobación explícita | No provisionado y sin ruta pública |
 
-Staging usará `workers.dev` para evitar introducir DNS o dominios propios en
+Staging usa `workers.dev` para evitar introducir DNS o dominios propios en
 esta fase. Producción tiene `workers_dev: false`, no declara rutas y no dispone
 de un script de despliegue.
 
@@ -33,7 +32,7 @@ de un script de despliegue.
 | R2 `MEDIA_BUCKET` | `agent-cloudflare-media` local | `agent-cloudflare-staging-media` | `agent-cloudflare-production-media` |
 | Durable Object | Namespace local | Namespace del Worker de staging | Namespace del Worker de producción |
 | Queue `INBOUND_MESSAGES` | `agent-cloudflare-inbound` | `agent-cloudflare-staging-inbound` | `agent-cloudflare-production-inbound` planificada |
-| `BETTER_AUTH_URL` | `http://localhost:5190` | Origen exacto de staging en `workers.dev` | Origen HTTPS autorizado |
+| `BETTER_AUTH_URL` | `http://localhost:5190` | `https://agent-cloudflare-staging.luisvr391.workers.dev` | Origen HTTPS autorizado |
 | Secretos | `.dev.vars`, nunca Git | Secretos del Worker de staging | Secretos distintos del Worker de producción |
 
 `DB`, `MEDIA_BUCKET`, `INBOUND_MESSAGES`, `AI` y `CustomerSupportAgent` conservan los mismos
@@ -68,9 +67,17 @@ recursos; su salida debe mostrar únicamente bindings de staging.
 
 ## Bootstrap humano de staging
 
-Esta sección es un procedimiento operativo pendiente, no una autorización
-para que un agente lo ejecute. Usa una cuenta de Cloudflare correcta y no
-incluyas secretos en argumentos, archivos versionados, logs o capturas.
+Los pasos 1 a 8 se completaron el 2026-08-10 con D1
+`b3eaa1ce-1dbb-46dd-90b9-0aea49ee87f3`, R2
+`agent-cloudflare-staging-media`, Queue `agent-cloudflare-staging-inbound` y
+Worker `agent-cloudflare-staging`. La versión verificada es
+`a59cd299-5dc2-4546-a033-3c92b5796e59`; `/api/health`, `/api/setup/status` y
+la SPA respondieron correctamente. La instalación mediante `/setup` fue completada y el panel
+autenticado quedó verificado.
+
+Esta sección conserva el procedimiento reproducible y no autoriza producción.
+Usa una cuenta de Cloudflare correcta y no incluyas secretos en argumentos,
+archivos versionados, logs o capturas.
 
 1. Confirma la cuenta y el subdominio `workers.dev`:
 

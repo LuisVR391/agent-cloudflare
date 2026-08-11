@@ -7,8 +7,9 @@ desde una sola interfaz.
 
 > El repositorio se encuentra en una etapa inicial. Actualmente contiene la
 > base técnica del Worker, un agente durable, autenticación cerrada y la base
-> del panel administrativo; todavía no es un CRM funcional ni recibe mensajes
-> reales de WhatsApp.
+> del panel administrativo. Staging ya recibe eventos reales de WhatsApp desde
+> Zernio, pero todavía no es un CRM funcional ni expone esas conversaciones en
+> un inbox.
 
 ## Objetivo del producto
 
@@ -49,9 +50,9 @@ forks del producto.
 | Observabilidad | Configurada | Logs y trazas habilitados en Wrangler |
 | D1 en local y pruebas | Base implementada | Migraciones `0001` a `0003`, repositorios y aislamiento probado |
 | Autenticación y autorización | Implementada | Better Auth, sesión D1, instalación única, roles fijos y contexto organizacional; [PR #14](https://github.com/LuisVR391/agent-cloudflare/pull/14) |
-| Entornos y staging | Configuración preparada | Local, staging y producción tienen bindings aislados y runbook; no existen recursos remotos |
+| Entornos y staging | Staging desplegado | Local, staging y producción conservan bindings aislados; staging está instalado y operativo en `workers.dev`, y producción sigue sin provisionar |
 | Panel de conversaciones y agentes | Planificado | Navegación reservada y deshabilitada; no existen todavía módulos operativos |
-| WhatsApp mediante Zernio | Base de entrada implementada | [ADR-0008](./.docs/decisions/ADR-0008-zernio-whatsapp-adapter.md); webhook firmado, deduplicación, Queue y cliente de salida probados en local, sin staging ni flujo conversacional |
+| WhatsApp mediante Zernio | Entrada validada en staging | [ADR-0008](./.docs/decisions/ADR-0008-zernio-whatsapp-adapter.md); un `message.received` real de la cuenta `Lia` fue aceptado con `202`, deduplicado y procesado para `Beautyplace` |
 | Queues, Workflows y Vectorize | Parcial | `INBOUND_MESSAGES` está configurada y probada localmente; Workflows y Vectorize siguen planificados |
 | CRM, inbox, agenda y pipelines | Planificados | Pendientes de las fases de producto |
 | Versionado, evaluación y mejora de agentes | Planificados | Fuera del prototipo actual |
@@ -63,8 +64,12 @@ La base D1 existe en local y en pruebas con datos de organizaciones, contactos,
 identidad, sesión y autorización. Las rutas del panel validan identidad,
 membresía, organización activa, origen público y permisos en backend. Los
 rechazos con contexto empresarial quedan en auditoría D1; los rechazos previos
-al contexto producen eventos operativos redactados. No hay ninguna base creada
-en Cloudflare ni un entorno remoto configurado.
+al contexto producen eventos operativos redactados. Staging dispone de D1, R2,
+Queue, Worker y secretos aislados en Cloudflare. La instalación empresarial y
+el canal externo están activos; un mensaje real ya recorrió el webhook y la
+Queue sin duplicarse ni fallar. Este corte todavía no crea el contacto, la
+conversación canónica ni una entrada visible en el inbox. Producción permanece
+sin recursos ni ruta pública.
 
 ## Arquitectura objetivo
 
@@ -209,9 +214,10 @@ está en [base de datos local](./.docs/operations/local-database.md).
 
 La configuración base declara `agent-cloudflare-db` y
 `agent-cloudflare-media` para simulación local. `env.staging` y
-`env.production` repiten los bindings sobre nombres de recursos separados. Sus
-IDs y orígenes `.invalid` son marcadores deliberados: actualmente no existe
-ninguna base, bucket, Worker o ruta remota creada por este proyecto.
+`env.production` repiten los bindings sobre nombres de recursos separados. Staging
+usa recursos reales y el origen
+`https://agent-cloudflare-staging.luisvr391.workers.dev`; los marcadores
+`.invalid` permanecen únicamente en producción.
 
 El bootstrap reproducible, los nombres exactos y los gates de despliegue están
 en [entornos y staging](./.docs/operations/environments.md). Producción no tiene
@@ -229,9 +235,9 @@ npx wrangler secret put BETTER_AUTH_SECRET --env staging
 npx wrangler secret put AUTH_SETUP_TOKEN --env staging
 ```
 
-`ZERNIO_API_KEY` y `ZERNIO_WEBHOOK_SECRET` permanecen planificados y no son
-consumidos por el runtime actual. No se cargan remotamente hasta implementar el
-canal ni se usan para conectar cuentas desde el producto. No pases secretos
+`ZERNIO_API_KEY` y `ZERNIO_WEBHOOK_SECRET` son consumidos por el adaptador de
+Zernio y están cargados como secretos exclusivos de staging. Las cuentas siguen conectándose manualmente desde Zernio; sus credenciales
+nunca se guardan en D1. No pases secretos
 como argumentos ni los agregues a `wrangler.jsonc`. `BETTER_AUTH_URL` es un
 valor público obligatorio y debe contener el origen exacto de cada entorno,
 sin ruta. Mientras conserve un marcador `.invalid`, la autenticación remota

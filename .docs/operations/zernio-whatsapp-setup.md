@@ -1,8 +1,14 @@
 # Configuración operativa de WhatsApp mediante Zernio
 
 Este runbook prepara staging. No autoriza recursos de producción ni contiene
-valores de secretos. El canal no se considera activo hasta completar la prueba
-firmada y un mensaje real de entrada.
+valores de secretos. Staging está desplegado en
+`https://agent-cloudflare-staging.luisvr391.workers.dev`; la prueba HMAC directa
+respondió `204` y el rechazo sin firma respondió `401`. `/setup` está
+completo, la cuenta `Lia` está vinculada a `Beautyplace` y el webhook de Zernio está activo.
+La prueba oficial de Zernio fue exitosa en el primer intento con `204`. Un
+`message.received` real fue aceptado con `202` y quedó procesado una sola vez en
+D1 para la organización correcta. La validación cubre el transporte de entrada;
+no implica que ya existan el contacto, la conversación canónica o el inbox.
 
 ## Prerrequisitos
 
@@ -10,8 +16,11 @@ firmada y un mensaje real de entrada.
 - Fila de organización creada mediante `/setup` en Agent Cloudflare.
 - D1, R2, Queue y Worker de staging provisionados según
   [entornos y staging](./environments.md).
-- API key dedicada de Zernio, limitada al perfil conectado y al grupo
-  `messages`; la clave general `Default Key` no se usa en el Worker.
+- API key dedicada de Zernio, con alcance `profiles`, limitada al perfil
+  conectado y permiso `read-write`; la clave general `Default Key` no se usa
+  en el Worker. La API pública documentada no permite restringirla además por
+  grupo de recursos, por lo que el perfil dedicado es el límite mínimo
+  verificable actualmente.
 
 El MCP de Zernio no es necesario. Puede usarse como herramienta administrativa
 de desarrollo mediante OAuth, pero no forma parte del runtime ni recibe los
@@ -71,7 +80,7 @@ Después de desplegar el Worker, crea manualmente:
 | Campo | Valor |
 | --- | --- |
 | Name | `Agent Cloudflare - Staging` |
-| URL | `https://agent-cloudflare-staging.<subdominio>.workers.dev/webhooks/zernio` |
+| URL | `https://agent-cloudflare-staging.luisvr391.workers.dev/webhooks/zernio` |
 | Secret Key | Mismo valor de `ZERNIO_WEBHOOK_SECRET` de staging |
 | Custom Headers | Ninguno |
 
@@ -95,6 +104,12 @@ operativa de envío.
    organización correcta y ausencia de contenido personal en logs.
 5. Reentrega el mismo evento y confirma `200` sin segundo efecto.
 6. Comprueba que `account.disconnected` marca el canal como desconectado.
+
+En la validación de staging del 2026-08-10, el evento real
+`message.received` fue entregado por Zernio en el primer intento, recibió `202`
+y terminó con estado `processed`; D1 conservó una sola fila, asociada al canal
+`Lia` y a `Beautyplace`, sin código de fallo. No se crearon contactos ni
+identidades porque esa persistencia pertenece a un corte posterior de Fase 1.
 
 El cliente de salida está probado en repositorio, pero no se realiza una prueba
 real hasta que exista Queue de salida, persistencia de mensajes y una operación
