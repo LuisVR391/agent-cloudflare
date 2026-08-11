@@ -18,6 +18,8 @@ assert.equal(Object.hasOwn(config, "env"), false);
 assert.deepEqual(config.secrets?.required, [
   "BETTER_AUTH_SECRET",
   "AUTH_SETUP_TOKEN",
+  "ZERNIO_WEBHOOK_SECRET",
+  "ZERNIO_API_KEY",
 ]);
 
 const database = config.d1_databases?.find(({ binding }) => binding === "DB");
@@ -29,6 +31,16 @@ const bucket = config.r2_buckets?.find(
   ({ binding }) => binding === "MEDIA_BUCKET",
 );
 assert.equal(bucket?.bucket_name, "agent-cloudflare-staging-media");
+
+const inboundProducer = config.queues?.producers?.find(
+  ({ binding }) => binding === "INBOUND_MESSAGES",
+);
+assert.equal(inboundProducer?.queue, "agent-cloudflare-staging-inbound");
+const inboundConsumer = config.queues?.consumers?.find(
+  ({ queue }) => queue === "agent-cloudflare-staging-inbound",
+);
+assert.equal(inboundConsumer?.max_batch_size, 10);
+assert.equal(inboundConsumer?.max_retries, 5);
 
 const authOrigin = new URL(config.vars?.BETTER_AUTH_URL);
 assert.equal(authOrigin.protocol, "https:");

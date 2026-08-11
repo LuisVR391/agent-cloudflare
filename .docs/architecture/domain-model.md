@@ -85,9 +85,11 @@ de D1.
 
 ### Canales y contactos
 
-- **Channel** identifica una cuenta de proveedor, su modo de atención y las
-  referencias a sus credenciales. Los secretos no forman parte del dominio
-  persistido.
+- **Channel** identifica una cuenta del canal empresarial, su adaptador de
+  transporte, modo de atención y referencias a credenciales. Para el primer
+  canal, `whatsapp` describe el canal y Zernio es el adaptador bidireccional.
+  Los identificadores externos son opacos y los secretos no forman parte del
+  dominio persistido.
 - **Contact** consolida el perfil empresarial de la persona atendida.
 - **ContactIdentity** resuelve una identidad externa hacia un contacto dentro
   de la misma organización y canal.
@@ -99,6 +101,8 @@ de D1.
 - **Conversation** pertenece a una organización, un canal y un contacto.
 - **Message** conserva la representación normalizada de una entrada o salida,
   su dirección, proveedor, identificador externo y estado de entrega.
+- Los objetos de inbox, contacto o conversación de Zernio son referencias de
+  transporte; no sustituyen estas entidades canónicas del producto.
 - La conversación referencia el modo de atención y las asignaciones vigentes;
   su historial se registra por separado cuando sea necesario.
 - El runtime no sustituye el historial consultable de conversación ni los

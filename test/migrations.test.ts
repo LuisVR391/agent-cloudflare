@@ -18,10 +18,12 @@ describe("migraciones de D1", () => {
     expect(await objectNames("table")).toEqual(
       expect.arrayContaining([
         "audit_logs",
+        "communication_channels",
         "auth_rate_limits",
         "auth_verifications",
         "contact_identities",
         "contacts",
+        "inbound_webhook_events",
         "installation_state",
         "membership_roles",
         "memberships",
@@ -44,6 +46,7 @@ describe("migraciones de D1", () => {
     expect(results.map((row) => row.name)).toEqual([
       "0001_initial_schema.sql",
       "0002_authentication_and_authorization.sql",
+      "0003_zernio_whatsapp_channel.sql",
     ]);
   });
 
@@ -52,6 +55,9 @@ describe("migraciones de D1", () => {
       expect.arrayContaining([
         "contact_identities_contact_idx",
         "contact_identities_scope_unique",
+        "communication_channels_organization_status_idx",
+        "inbound_webhook_events_organization_received_idx",
+        "inbound_webhook_events_organization_status_idx",
         "contacts_organization_created_idx",
         "organizations_slug_unique",
       ]),

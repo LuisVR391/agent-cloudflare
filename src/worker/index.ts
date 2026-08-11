@@ -7,6 +7,9 @@ import {
   routeAuthRequest,
 } from "./auth/http";
 import type { WorkerEnv } from "./auth/types";
+import type { InboundQueueMessage } from "./integrations/zernio/contracts";
+import { handleInboundQueue } from "./integrations/zernio/inbound-queue";
+import { handleZernioWebhook } from "./integrations/zernio/webhook";
 import { AuthorizationRepository } from "./repositories/auth/authorization-repository";
 
 export { CustomerSupportAgent } from "./customer-support-agent";
@@ -20,6 +23,10 @@ export default {
   async fetch(request, env): Promise<Response> {
     const url = new URL(request.url);
     const workerEnv = env as WorkerEnv;
+
+    if (url.pathname === "/webhooks/zernio") {
+      return handleZernioWebhook(request, env);
+    }
 
     if (url.pathname === "/api/health") {
       return new Response(
@@ -97,4 +104,8 @@ export default {
 
     return env.ASSETS.fetch(request);
   },
-} satisfies ExportedHandler<Env>;
+
+  async queue(batch, env): Promise<void> {
+    await handleInboundQueue(batch, env.DB);
+  },
+} satisfies ExportedHandler<Env, InboundQueueMessage>;

@@ -10,6 +10,25 @@ export type ContactStatus = "active" | "archived";
 /** Proveedores de identidad soportados hoy. Crece con cada canal integrado. */
 export type IdentityProvider = "whatsapp";
 
+export type ChannelProvider = "whatsapp";
+
+export type ChannelAdapter = "zernio";
+
+export type ChannelStatus = "active" | "disconnected";
+
+export type InboundWebhookEventType =
+  | "message.received"
+  | "message.delivered"
+  | "message.read"
+  | "message.failed"
+  | "account.disconnected";
+
+export type InboundWebhookEventStatus =
+  | "received"
+  | "enqueued"
+  | "processed"
+  | "failed";
+
 export type Organization = {
   id: string;
   slug: string;
@@ -38,6 +57,35 @@ export type ContactIdentity = {
   updatedAt: string;
 };
 
+export type CommunicationChannel = {
+  id: string;
+  organizationId: string;
+  provider: ChannelProvider;
+  adapter: ChannelAdapter;
+  externalAccountId: string;
+  externalProfileId: string | null;
+  displayName: string | null;
+  status: ChannelStatus;
+  disconnectedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type InboundWebhookEvent = {
+  id: string;
+  organizationId: string;
+  channelId: string;
+  adapter: ChannelAdapter;
+  externalEventId: string;
+  eventType: InboundWebhookEventType;
+  status: InboundWebhookEventStatus;
+  correlationId: string;
+  receivedAt: string;
+  enqueuedAt: string | null;
+  processedAt: string | null;
+  failureCode: string | null;
+};
+
 export type CreateOrganizationInput = {
   slug: string;
   displayName: string;
@@ -53,4 +101,21 @@ export type LinkContactIdentityInput = {
   contactId: string;
   provider: IdentityProvider;
   externalId: string;
+};
+
+export type CreateCommunicationChannelInput = {
+  provider: ChannelProvider;
+  adapter: ChannelAdapter;
+  externalAccountId: string;
+  externalProfileId?: string | null;
+  displayName?: string | null;
+};
+
+export type RegisterInboundWebhookEventInput = {
+  channelId: string;
+  adapter: ChannelAdapter;
+  externalEventId: string;
+  eventType: InboundWebhookEventType;
+  correlationId: string;
+  receivedAt: string;
 };

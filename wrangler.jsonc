@@ -2,7 +2,7 @@
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "agent-cloudflare",
   "main": "src/worker/index.ts",
-  "compatibility_date": "2026-07-29",
+  "compatibility_date": "2026-08-10",
   "compatibility_flags": ["nodejs_compat"],
   "durable_objects": {
     "bindings": [
@@ -28,6 +28,22 @@
       "migrations_dir": "migrations"
     }
   ],
+  "queues": {
+    "producers": [
+      {
+        "binding": "INBOUND_MESSAGES",
+        "queue": "agent-cloudflare-inbound"
+      }
+    ],
+    "consumers": [
+      {
+        "queue": "agent-cloudflare-inbound",
+        "max_batch_size": 10,
+        "max_batch_timeout": 1,
+        "max_retries": 5
+      }
+    ]
+  },
   "ai": {
     "binding": "AI"
   },
@@ -61,10 +77,15 @@
       "name": "agent-cloudflare-staging",
       "workers_dev": true,
       "vars": {
-        "BETTER_AUTH_URL": "https://staging.invalid"
+        "BETTER_AUTH_URL": "https://agent-cloudflare-staging.luisvr391.workers.dev"
       },
       "secrets": {
-        "required": ["BETTER_AUTH_SECRET", "AUTH_SETUP_TOKEN"]
+        "required": [
+          "BETTER_AUTH_SECRET",
+          "AUTH_SETUP_TOKEN",
+          "ZERNIO_WEBHOOK_SECRET",
+          "ZERNIO_API_KEY"
+        ]
       },
       "durable_objects": {
         "bindings": [
@@ -78,10 +99,26 @@
         {
           "binding": "DB",
           "database_name": "agent-cloudflare-staging-db",
-          "database_id": "staging-not-provisioned",
+          "database_id": "b3eaa1ce-1dbb-46dd-90b9-0aea49ee87f3",
           "migrations_dir": "migrations"
         }
       ],
+      "queues": {
+        "producers": [
+          {
+            "binding": "INBOUND_MESSAGES",
+            "queue": "agent-cloudflare-staging-inbound"
+          }
+        ],
+        "consumers": [
+          {
+            "queue": "agent-cloudflare-staging-inbound",
+            "max_batch_size": 10,
+            "max_batch_timeout": 1,
+            "max_retries": 5
+          }
+        ]
+      },
       "ai": {
         "binding": "AI"
       },
@@ -101,7 +138,12 @@
         "BETTER_AUTH_URL": "https://production.invalid"
       },
       "secrets": {
-        "required": ["BETTER_AUTH_SECRET", "AUTH_SETUP_TOKEN"]
+        "required": [
+          "BETTER_AUTH_SECRET",
+          "AUTH_SETUP_TOKEN",
+          "ZERNIO_WEBHOOK_SECRET",
+          "ZERNIO_API_KEY"
+        ]
       },
       "durable_objects": {
         "bindings": [
@@ -119,6 +161,22 @@
           "migrations_dir": "migrations"
         }
       ],
+      "queues": {
+        "producers": [
+          {
+            "binding": "INBOUND_MESSAGES",
+            "queue": "agent-cloudflare-production-inbound"
+          }
+        ],
+        "consumers": [
+          {
+            "queue": "agent-cloudflare-production-inbound",
+            "max_batch_size": 10,
+            "max_batch_timeout": 1,
+            "max_retries": 5
+          }
+        ]
+      },
       "ai": {
         "binding": "AI"
       },
