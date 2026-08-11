@@ -16,6 +16,22 @@ type InboundQueueEnv = {
   MEDIA_BUCKET: R2Bucket;
 };
 
+async function notifyMessageChanged(
+  env: InboundQueueEnv,
+  input: {
+    organizationId: string;
+    conversationId: string;
+    messageId: string;
+    occurredAt: string;
+  },
+): Promise<void> {
+  const agent = await getAgentByName(
+    env.CustomerSupportAgent,
+    `${input.organizationId}:${input.conversationId}`,
+  );
+  await agent.notifyMessageChanged(input);
+}
+
 export async function processInboundQueueMessage(
   env: InboundQueueEnv,
   body: InboundQueueMessage,
@@ -49,7 +65,8 @@ export async function processInboundQueueMessage(
     });
     const channel = await env.DB.prepare(
       "SELECT buffer_seconds FROM communication_channels WHERE organization_id = ? AND id = ?",
-    ).bind(parsed.organizationId, parsed.channelId).first<{ buffer_seconds: number }>();
+    ).bind(parsed.organizationId, parsed.channelId)
+      .first<{ buffer_seconds: number }>();
     const agent = await getAgentByName(
       env.CustomerSupportAgent,
       `${parsed.organizationId}:${persisted.conversationId}`,
@@ -68,12 +85,72 @@ export async function processInboundQueueMessage(
        message_external_id, status, occurred_at, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT (organization_id, external_event_id) DO NOTHING`)
-      .bind(crypto.randomUUID(), parsed.organizationId, parsed.eventId,
-        parsed.externalConversationId, parsed.externalMessageId, parsed.status,
-        parsed.occurredAt, now).run();
-    await env.DB.prepare(`UPDATE messages SET status = ?, updated_at = ?
-      WHERE organization_id = ? AND external_message_id = ?`)
-      .bind(parsed.status, now, parsed.organizationId, parsed.externalMessageId).run();
+      .bind(
+        crypto.randomUUID(),
+        parsed.organizationId,
+        parsed.eventId,
+        parsed.externalConversationId,
+        parsed.externalMessageId,
+        parsed.status,
+        parsed.occurredAt,
+        now,
+      ).run();
+
+    const message = await env.DB.prepare(`UPDATE messages SET
+      platform_message_id = COALESCE(platform_message_id, ?),
+      status = CASE
+        WHEN ? = 'read' THEN 'read'
+        WHEN ? = 'delivered' AND status != 'read' THEN 'delivered'
+        WHEN ? = 'sent' AND status NOT IN ('delivered', 'read') THEN 'sent'
+        WHEN ? = 'failed' AND status NOT IN ('delivered', 'read') THEN 'failed'
+        ELSE status
+      END,
+      updated_at = ?
+      WHERE organization_id = ? AND external_message_id = ?
+      RETURNING id, conversation_id`)
+      .bind(
+        parsed.platformMessageId,
+        parsed.status,
+        parsed.status,
+        parsed.status,
+        parsed.status,
+        now,
+        parsed.organizationId,
+        parsed.externalMessageId,
+      )
+      .first<{ id: string; conversation_id: string }>();
+
+    if (parsed.status === "sent") {
+      await env.DB.prepare(`UPDATE outbound_message_deliveries SET
+        status = 'sent', external_message_id = ?, last_error_code = NULL,
+        sent_at = COALESCE(sent_at, ?), updated_at = ?
+        WHERE organization_id = ? AND external_message_id = ?`)
+        .bind(
+          parsed.externalMessageId,
+          parsed.occurredAt,
+          now,
+          parsed.organizationId,
+          parsed.externalMessageId,
+        ).run();
+    } else if (parsed.status === "failed") {
+      await env.DB.prepare(`UPDATE outbound_message_deliveries SET
+        status = 'failed', last_error_code = 'ZERNIO_DELIVERY_FAILED',
+        updated_at = ?
+        WHERE organization_id = ? AND external_message_id = ?`)
+        .bind(now, parsed.organizationId, parsed.externalMessageId).run();
+    }
+
+    if (message) {
+      await env.DB.prepare(`UPDATE message_status_events SET reconciled_at = ?
+        WHERE organization_id = ? AND external_event_id = ?`)
+        .bind(now, parsed.organizationId, parsed.eventId).run();
+      await notifyMessageChanged(env, {
+        organizationId: parsed.organizationId,
+        conversationId: message.conversation_id,
+        messageId: message.id,
+        occurredAt: parsed.occurredAt,
+      });
+    }
   }
   await new InboundWebhookEventRepository(env.DB).markProcessed(
     parsed.organizationId,

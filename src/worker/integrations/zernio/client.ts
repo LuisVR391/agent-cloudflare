@@ -13,7 +13,6 @@ const sendResponseSchema = z.object({
     messageId: z.string().min(1),
     conversationId: z.string().min(1),
     sentAt: z.iso.datetime({ offset: true }),
-    message: z.string(),
   }),
 });
 
@@ -31,6 +30,20 @@ export class ZernioApiError extends Error {
     super(`Zernio API respondió con estado ${status}.`);
     this.name = "ZernioApiError";
     this.status = status;
+  }
+}
+
+export class ZernioResponseError extends Error {
+  constructor() {
+    super("Zernio API devolvió una respuesta inválida.");
+    this.name = "ZernioResponseError";
+  }
+}
+
+export class ZernioTransportError extends Error {
+  constructor() {
+    super("No fue posible confirmar la respuesta de Zernio.");
+    this.name = "ZernioTransportError";
   }
 }
 
@@ -58,24 +71,33 @@ export class ZernioClient {
     input: SendZernioTextMessageInput,
   ): Promise<SendZernioTextMessageResult> {
     const validated = sendInputSchema.parse(input);
-    const response = await this.#fetch(
-      `${this.#baseUrl}/inbox/conversations/${encodeURIComponent(validated.conversationId)}/messages`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${this.#apiKey}`,
-          "Content-Type": "application/json",
-          "Idempotency-Key": validated.idempotencyKey,
+    let response: Response;
+    try {
+      response = await this.#fetch(
+        `${this.#baseUrl}/inbox/conversations/${encodeURIComponent(validated.conversationId)}/messages`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${this.#apiKey}`,
+            "Content-Type": "application/json",
+            "Idempotency-Key": validated.idempotencyKey,
+          },
+          body: JSON.stringify({
+            accountId: validated.accountId,
+            message: validated.message,
+          }),
         },
-        body: JSON.stringify({
-          accountId: validated.accountId,
-          message: validated.message,
-        }),
-      },
-    );
+      );
+    } catch {
+      throw new ZernioTransportError();
+    }
     if (!response.ok) {
       throw new ZernioApiError(response.status);
     }
-    return sendResponseSchema.parse(await response.json()).data;
+    const parsed = sendResponseSchema.safeParse(
+      await response.json().catch(() => null),
+    );
+    if (!parsed.success) throw new ZernioResponseError();
+    return parsed.data.data;
   }
 }

@@ -15,7 +15,6 @@ describe("ZernioClient", () => {
           messageId: "message-123",
           conversationId: "conversation/123",
           sentAt: "2026-08-10T18:00:00Z",
-          message: "Hola",
         },
       }),
     );
@@ -67,5 +66,29 @@ describe("ZernioClient", () => {
 
     expect(error).toBeInstanceOf(ZernioApiError);
     expect((error as Error).message).not.toContain("personal data");
+  });
+  it("clasifica transporte y respuesta inválida sin exponer contenido", async () => {
+    const transportClient = new ZernioClient("test-api-key", {
+      fetch: async () => {
+        throw new TypeError("network detail");
+      },
+    });
+    const responseClient = new ZernioClient("test-api-key", {
+      fetch: async () => Response.json({
+        success: true,
+        data: { messageId: "incomplete" },
+      }),
+    });
+    const input = {
+      conversationId: "conversation-123",
+      accountId: "account-123",
+      message: "Hola",
+      idempotencyKey: "outbound-message-1",
+    };
+
+    await expect(transportClient.sendTextMessage(input))
+      .rejects.toMatchObject({ name: "ZernioTransportError" });
+    await expect(responseClient.sendTextMessage(input))
+      .rejects.toMatchObject({ name: "ZernioResponseError" });
   });
 });

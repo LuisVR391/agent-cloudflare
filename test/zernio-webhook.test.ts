@@ -75,6 +75,19 @@ function messageEvent(eventId = crypto.randomUUID()) {
   };
 }
 
+function sentEvent(eventId = crypto.randomUUID()) {
+  const payload = messageEvent(eventId);
+  return {
+    ...payload,
+    event: "message.sent",
+    message: {
+      ...payload.message,
+      direction: "outgoing",
+      sender: { id: "business-123" },
+    },
+  };
+}
+
 function signedRequest(payload: unknown, signatureSecret = secret): Request {
   const body = JSON.stringify(payload);
   const signature = createHmac("sha256", signatureSecret)
@@ -160,6 +173,30 @@ describe("POST /webhooks/zernio", () => {
     expect((await handleZernioWebhook(signedRequest(payload), webhookEnv)).status).toBe(202);
     expect((await handleZernioWebhook(signedRequest(payload), webhookEnv)).status).toBe(200);
     expect(queue.messages).toHaveLength(1);
+  });
+
+  it("acepta y deduplica message.sent para reconciliar una salida", async () => {
+    const queue = new CapturingQueue();
+    const payload = sentEvent();
+    const webhookEnv = {
+      DB: env.DB,
+      INBOUND_MESSAGES: queue,
+      ZERNIO_WEBHOOK_SECRET: secret,
+    };
+
+    expect((await handleZernioWebhook(signedRequest(payload), webhookEnv)).status)
+      .toBe(202);
+    expect((await handleZernioWebhook(signedRequest(payload), webhookEnv)).status)
+      .toBe(200);
+    expect(queue.messages).toEqual([
+      expect.objectContaining({
+        kind: "messageStatus",
+        organizationId,
+        channelId,
+        externalMessageId: payload.message.id,
+        status: "sent",
+      }),
+    ]);
   });
 
   it("rechaza firma inválida sin persistir ni encolar", async () => {

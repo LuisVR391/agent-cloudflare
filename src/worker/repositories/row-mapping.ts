@@ -89,6 +89,7 @@ const channelAdapters: readonly ChannelAdapter[] = ["zernio"];
 const channelStatuses: readonly ChannelStatus[] = ["active", "disconnected"];
 const inboundWebhookEventTypes: readonly InboundWebhookEventType[] = [
   "message.received",
+  "message.sent",
   "message.delivered",
   "message.read",
   "message.failed",

@@ -48,6 +48,7 @@ describe("migraciones de D1", () => {
       "0002_authentication_and_authorization.sql",
       "0003_zernio_whatsapp_channel.sql",
       "0004_conversations_and_messages.sql",
+      "0005_message_sent_reconciliation.sql",
     ]);
   });
 
@@ -63,6 +64,48 @@ describe("migraciones de D1", () => {
         "organizations_slug_unique",
       ]),
     );
+  });
+
+  it("acepta message.sent en recepción y ciclo de estado", async () => {
+    const now = new Date().toISOString();
+    const organizationId = crypto.randomUUID();
+    const channelId = crypto.randomUUID();
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO organizations
+        (id, slug, display_name, status, created_at, updated_at)
+        VALUES (?, ?, 'Migración sent', 'active', ?, ?)`)
+        .bind(organizationId, `migration-sent-${organizationId}`, now, now),
+      env.DB.prepare(`INSERT INTO communication_channels
+        (id, organization_id, provider, adapter, external_account_id,
+         status, created_at, updated_at)
+        VALUES (?, ?, 'whatsapp', 'zernio', ?, 'active', ?, ?)`)
+        .bind(channelId, organizationId, `account-${organizationId}`, now, now),
+    ]);
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO inbound_webhook_events
+        (id, organization_id, channel_id, adapter, external_event_id,
+         event_type, status, correlation_id, received_at)
+        VALUES (?, ?, ?, 'zernio', ?, 'message.sent', 'received', ?, ?)`)
+        .bind(
+          crypto.randomUUID(),
+          organizationId,
+          channelId,
+          `event-${organizationId}`,
+          crypto.randomUUID(),
+          now,
+        ),
+      env.DB.prepare(`INSERT INTO message_status_events
+        (id, organization_id, external_event_id, conversation_external_id,
+         message_external_id, status, occurred_at, created_at)
+        VALUES (?, ?, ?, 'conversation', 'message', 'sent', ?, ?)`)
+        .bind(
+          crypto.randomUUID(),
+          organizationId,
+          `status-${organizationId}`,
+          now,
+          now,
+        ),
+    ]);
   });
 
   it("rechaza una fila empresarial sin organización", async () => {

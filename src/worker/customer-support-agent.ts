@@ -35,12 +35,7 @@ export class CustomerSupportAgent extends Agent<
     occurredAt: string;
     bufferSeconds: number;
   }): Promise<void> {
-    if (
-      (this.state.organizationId && this.state.organizationId !== input.organizationId) ||
-      (this.state.conversationId && this.state.conversationId !== input.conversationId)
-    ) {
-      throw new Error("CONVERSATION_RUNTIME_SCOPE_MISMATCH");
-    }
+    this.#assertScope(input.organizationId, input.conversationId);
     const pendingMessageIds = this.state.pendingMessageIds.includes(input.messageId)
       ? this.state.pendingMessageIds
       : [...this.state.pendingMessageIds, input.messageId];
@@ -48,33 +43,81 @@ export class CustomerSupportAgent extends Agent<
       ...this.state,
       organizationId: input.organizationId,
       conversationId: input.conversationId,
-      messagesReceived: this.state.messagesReceived + (pendingMessageIds === this.state.pendingMessageIds ? 0 : 1),
+      messagesReceived:
+        this.state.messagesReceived +
+        (pendingMessageIds === this.state.pendingMessageIds ? 0 : 1),
       lastMessageAt: input.occurredAt,
       pendingMessageIds,
     });
-    await this.schedule(Math.max(0, Math.min(input.bufferSeconds, 30)), "flushPendingMessages");
-    this.broadcast(JSON.stringify({
-      type: "conversation.changed",
-      conversationId: input.conversationId,
-      messageId: input.messageId,
-      occurredAt: input.occurredAt,
-    }));
+    await this.schedule(
+      Math.max(0, Math.min(input.bufferSeconds, 30)),
+      "flushPendingMessages",
+    );
+    this.broadcast(
+      JSON.stringify({
+        type: "conversation.changed",
+        conversationId: input.conversationId,
+        messageId: input.messageId,
+        occurredAt: input.occurredAt,
+      }),
+    );
   }
 
   async flushPendingMessages(): Promise<void> {
-    const lastProcessedMessageId = this.state.pendingMessageIds.at(-1) ?? this.state.lastProcessedMessageId;
-    this.setState({ ...this.state, pendingMessageIds: [], lastProcessedMessageId });
+    const lastProcessedMessageId =
+      this.state.pendingMessageIds.at(-1) ??
+      this.state.lastProcessedMessageId;
+    this.setState({
+      ...this.state,
+      pendingMessageIds: [],
+      lastProcessedMessageId,
+    });
   }
 
   async updateAttentionMode(mode: "human" | "paused"): Promise<void> {
     this.setState({ ...this.state, attentionMode: mode });
     if (this.state.conversationId) {
-      this.broadcast(JSON.stringify({
-        type: "conversation.mode.changed",
-        conversationId: this.state.conversationId,
-        attentionMode: mode,
-        occurredAt: new Date().toISOString(),
-      }));
+      this.broadcast(
+        JSON.stringify({
+          type: "conversation.mode.changed",
+          conversationId: this.state.conversationId,
+          attentionMode: mode,
+          occurredAt: new Date().toISOString(),
+        }),
+      );
+    }
+  }
+
+  async notifyMessageChanged(input: {
+    organizationId: string;
+    conversationId: string;
+    messageId: string;
+    occurredAt: string;
+  }): Promise<void> {
+    this.#assertScope(input.organizationId, input.conversationId);
+    this.setState({
+      ...this.state,
+      organizationId: input.organizationId,
+      conversationId: input.conversationId,
+    });
+    this.broadcast(
+      JSON.stringify({
+        type: "conversation.message.changed",
+        conversationId: input.conversationId,
+        messageId: input.messageId,
+        occurredAt: input.occurredAt,
+      }),
+    );
+  }
+
+  #assertScope(organizationId: string, conversationId: string): void {
+    if (
+      (this.state.organizationId &&
+        this.state.organizationId !== organizationId) ||
+      (this.state.conversationId &&
+        this.state.conversationId !== conversationId)
+    ) {
+      throw new Error("CONVERSATION_RUNTIME_SCOPE_MISMATCH");
     }
   }
 }

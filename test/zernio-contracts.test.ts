@@ -63,7 +63,7 @@ describe("contratos de webhook de Zernio", () => {
     ).toBe(true);
   });
 
-  it("rechaza message.sent porque no está suscrito", () => {
+  it("acepta message.sent para reconciliar respuestas humanas", () => {
     expect(
       zernioWebhookEventSchema.safeParse({
         id: crypto.randomUUID(),
