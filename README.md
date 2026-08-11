@@ -208,7 +208,7 @@ está en [base de datos local](./.docs/operations/local-database.md).
 | `npm run db:migrations:list` | Muestra las migraciones de D1 pendientes en local |
 | `npm run check` | Ejecuta guardrails, tipos, pruebas, build y dry-run de staging |
 | `npm run check:staging` | Construye y valida `env.staging` sin publicar |
-| `npm run deploy:staging` | Construye y despliega únicamente a staging; requiere operación humana autorizada |
+| `npm run deploy:staging` | Construye y despliega únicamente a staging; requiere autorización explícita para el artefacto actual |
 
 ## Recursos y secretos actuales
 

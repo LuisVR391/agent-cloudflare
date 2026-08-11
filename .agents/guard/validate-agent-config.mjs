@@ -191,11 +191,6 @@ for (const rule of ["Read(./.dev.vars)", "Read(./.env)"]) {
     fail(`${claudeSettingsPath}: permissions.deny debe incluir ${rule}`);
   }
 }
-if (!denyRules.some((rule) => /deploy/i.test(rule))) {
-  fail(
-    `${claudeSettingsPath}: permissions.deny debe bloquear un despliegue directo`,
-  );
-}
 
 // Los adaptadores solo declaran identidad; la lógica pertenece al núcleo.
 for (const adapter of [codexAdapterPath, claudeAdapterPath]) {

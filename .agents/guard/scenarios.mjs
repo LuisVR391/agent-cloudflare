@@ -97,10 +97,8 @@ test("git push requiere confirmación explícita y conserva el bloqueo de force 
   );
 });
 
-test("bloquea despliegues, D1 remoto, borrados y force push", () => {
+test("bloquea D1 remoto, borrados y force push", () => {
   const commands = [
-    "npx wrangler deploy",
-    "npm run deploy:staging",
     "npx wrangler d1 execute app --remote --file migrations/0001.sql",
     "npx wrangler r2 bucket delete customer-files",
     "git push --force-with-lease origin feature",

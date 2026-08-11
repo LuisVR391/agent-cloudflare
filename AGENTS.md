@@ -138,6 +138,11 @@ usuario para la rama y los commits actuales. Después de recibirla, el comando
 usa `AGENT_PUSH_CONFIRMED=1 git push`; una autorización anterior no se
 reutiliza. El force push permanece prohibido.
 
+Los agentes solo despliegan después de recibir autorización explícita para el
+entorno y el artefacto actuales. Esa autorización no se reutiliza para otra
+versión o entorno. Producción y las operaciones destructivas requieren una
+autorización separada.
+
 ## Documentación y ADRs
 
 - La guía rectora conserva la visión; el roadmap conserva el estado aceptado.

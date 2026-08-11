@@ -135,8 +135,9 @@ archivos versionados, logs o capturas.
    npx wrangler d1 migrations apply agent-cloudflare-staging-db --remote --env staging
    ```
 
-7. Despliega desde una terminal humana después de revisar el diff y las
-   validaciones:
+7. Despliega después de revisar el diff y las validaciones. Un agente solo
+   puede hacerlo tras recibir autorización explícita para staging y el artefacto
+   actuales:
 
    ```bash
    npm run deploy:staging
