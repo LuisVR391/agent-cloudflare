@@ -22,6 +22,27 @@ export type ZernioFetch = (
   input: RequestInfo | URL,
   init?: RequestInit,
 ) => Promise<Response>;
+export type ZernioTransportFailureCategory =
+  | "illegal_invocation"
+  | "request_context"
+  | "unknown";
+
+function classifyTransportFailure(
+  caught: unknown,
+): ZernioTransportFailureCategory {
+  if (!(caught instanceof Error)) return "unknown";
+  const description = `${caught.name} ${caught.message}`.toLowerCase();
+  if (description.includes("illegal invocation")) {
+    return "illegal_invocation";
+  }
+  if (
+    description.includes("request context") ||
+    description.includes("different request")
+  ) {
+    return "request_context";
+  }
+  return "unknown";
+}
 
 export class ZernioApiError extends Error {
   readonly status: number;
@@ -41,9 +62,12 @@ export class ZernioResponseError extends Error {
 }
 
 export class ZernioTransportError extends Error {
-  constructor() {
+  readonly category: ZernioTransportFailureCategory;
+
+  constructor(category: ZernioTransportFailureCategory) {
     super("No fue posible confirmar la respuesta de Zernio.");
     this.name = "ZernioTransportError";
+    this.category = category;
   }
 }
 
@@ -64,7 +88,8 @@ export class ZernioClient {
       /\/$/,
       "",
     );
-    this.#fetch = options.fetch ?? fetch;
+    const fetchImplementation = options.fetch ?? globalThis.fetch;
+    this.#fetch = (input, init) => fetchImplementation(input, init);
   }
 
   async sendTextMessage(
@@ -88,8 +113,8 @@ export class ZernioClient {
           }),
         },
       );
-    } catch {
-      throw new ZernioTransportError();
+    } catch (caught) {
+      throw new ZernioTransportError(classifyTransportFailure(caught));
     }
     if (!response.ok) {
       throw new ZernioApiError(response.status);

@@ -1,8 +1,12 @@
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ConversationRepository } from "../src/worker/repositories/conversation-repository";
+import type { OutboundQueueMessage } from "../src/worker/integrations/zernio/contracts";
 import { processInboundQueueMessage } from "../src/worker/integrations/zernio/inbound-queue";
-import { processOutboundQueueMessage } from "../src/worker/integrations/zernio/outbound-queue";
+import {
+  handleOutboundQueue,
+  processOutboundQueueMessage,
+} from "../src/worker/integrations/zernio/outbound-queue";
 import { persistInboundAttachments } from "../src/worker/integrations/zernio/media";
 
 const organizationId = "11111111-1111-4111-8111-111111111111";
@@ -187,6 +191,36 @@ describe.sequential("conversaciones canónicas", () => {
       delivery_status: "failed",
       last_error_code: "ZERNIO_HTTP_422",
     });
+
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const ack = vi.fn();
+    const retry = vi.fn();
+    await handleOutboundQueue({
+      queue: "outbound-test",
+      messages: [{
+        id: "queue-message-rejected",
+        timestamp: new Date(),
+        body: {
+          kind: "sendTextMessage",
+          organizationId,
+          conversationId: inbound.conversationId,
+          messageId: outgoing.messageId,
+          correlationId: outgoing.correlationId,
+        },
+        attempts: 1,
+        ack,
+        retry,
+      }],
+    } as unknown as MessageBatch<OutboundQueueMessage>, {
+      DB: env.DB,
+      CustomerSupportAgent: env.CustomerSupportAgent,
+      ZERNIO_API_KEY: "test-only-zernio-key",
+    });
+    expect(ack).toHaveBeenCalledOnce();
+    expect(retry).not.toHaveBeenCalled();
+    expect(consoleError).toHaveBeenCalled();
+    expect(JSON.stringify(consoleError.mock.calls)).not.toContain("provider detail");
+    consoleError.mockRestore();
     vi.unstubAllGlobals();
   });
 
@@ -257,6 +291,89 @@ describe.sequential("conversaciones canónicas", () => {
       delivery_status: "delivery_unknown",
       last_error_code: "ZERNIO_CONVERSATION_MISMATCH",
       attempt_count: 1,
+    });
+    vi.unstubAllGlobals();
+  });
+
+  it("reutiliza idempotencia al reintentar y no reenvía después de sent", async () => {
+    const repository = new ConversationRepository(env.DB);
+    const inbound = await repository.upsertInbound({
+      organizationId,
+      channelId,
+      externalConversationId: "z-conversation-retry",
+      externalContactId: "wa-contact-retry",
+      externalMessageId: "z-message-retry",
+      platformMessageId: "wamid-retry",
+      text: "Hola",
+      occurredAt,
+      correlationId: "11111111-aaaa-4111-8111-111111111111",
+    });
+    const outgoing = await repository.createOutgoing({
+      organizationId,
+      conversationId: inbound.conversationId,
+      actorId: "staff-1",
+      clientRequestId: "22222222-aaaa-4222-8222-222222222222",
+      text: "Respuesta",
+      correlationId: "33333333-aaaa-4333-8333-333333333333",
+    });
+    const fetchMock = vi.fn()
+      .mockRejectedValueOnce(new TypeError("Illegal invocation: private detail"))
+      .mockResolvedValueOnce(Response.json({
+        success: true,
+        data: {
+          messageId: "z-outbound-retry",
+          conversationId: "z-conversation-retry",
+          sentAt: "2026-08-11T18:05:00.000Z",
+        },
+      }));
+    vi.stubGlobal("fetch", fetchMock);
+    const queueMessage = {
+      kind: "sendTextMessage" as const,
+      organizationId,
+      conversationId: inbound.conversationId,
+      messageId: outgoing.messageId,
+      correlationId: outgoing.correlationId,
+    };
+    const outboundEnv = {
+      DB: env.DB,
+      CustomerSupportAgent: env.CustomerSupportAgent,
+      ZERNIO_API_KEY: "test-only-zernio-key",
+    };
+
+    await expect(processOutboundQueueMessage(outboundEnv, queueMessage))
+      .resolves.toEqual({
+        action: "retry",
+        result: "delivery_unknown",
+        errorCode: "ZERNIO_TRANSPORT_ILLEGAL_INVOCATION",
+      });
+    await expect(processOutboundQueueMessage(outboundEnv, queueMessage))
+      .resolves.toEqual({ action: "ack", result: "sent" });
+    await expect(processOutboundQueueMessage(outboundEnv, queueMessage))
+      .resolves.toEqual({ action: "ack", result: "sent" });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const idempotencyKeys = fetchMock.mock.calls.map(([, init]) =>
+      (init?.headers as Record<string, string>)["Idempotency-Key"]
+    );
+    expect(new Set(idempotencyKeys)).toHaveLength(1);
+    const state = await env.DB.prepare(`SELECT status, attempt_count,
+      idempotency_key, external_message_id, last_error_code
+      FROM outbound_message_deliveries
+      WHERE organization_id = ? AND message_id = ?`)
+      .bind(organizationId, outgoing.messageId)
+      .first<{
+        status: string;
+        attempt_count: number;
+        idempotency_key: string;
+        external_message_id: string;
+        last_error_code: string | null;
+      }>();
+    expect(state).toEqual({
+      status: "sent",
+      attempt_count: 2,
+      idempotency_key: idempotencyKeys[0],
+      external_message_id: "z-outbound-retry",
+      last_error_code: null,
     });
     vi.unstubAllGlobals();
   });

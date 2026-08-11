@@ -59,7 +59,9 @@ function classifyFailure(caught: unknown): {
   }
   if (caught instanceof ZernioTransportError) {
     return {
-      errorCode: "ZERNIO_TRANSPORT_FAILED",
+      errorCode: caught.category === "unknown"
+        ? "ZERNIO_TRANSPORT_FAILED"
+        : `ZERNIO_TRANSPORT_${caught.category.toUpperCase()}`,
       status: "delivery_unknown",
       retry: true,
     };

@@ -98,6 +98,12 @@ Selecciona solamente:
 - `message.failed`
 - `account.disconnected`
 
+Los eventos generales `message.*` son los eventos de inbox que Zernio aplica
+también a WhatsApp. No actives `whatsapp.template.*`,
+`whatsapp.automatic_event`, `whatsapp.number.*`, `verification.*` ni otros
+eventos: este Worker no los implementa y los rechazará con
+`422 INVALID_EVENT`, lo que provocaría reintentos innecesarios.
+
 Activa `message.sent` únicamente después de desplegar el contrato que lo valida y reconcilia. Agent Cloudflare sigue siendo la única interfaz operativa de envío.
 
 ## 5. Validar

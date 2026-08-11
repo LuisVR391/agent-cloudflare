@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   ZernioApiError,
   ZernioClient,
+  ZernioTransportError,
   type ZernioFetch,
 } from "../src/worker/integrations/zernio/client";
 
@@ -87,8 +88,78 @@ describe("ZernioClient", () => {
     };
 
     await expect(transportClient.sendTextMessage(input))
-      .rejects.toMatchObject({ name: "ZernioTransportError" });
+      .rejects.toMatchObject({
+        name: "ZernioTransportError",
+        category: "unknown",
+      });
     await expect(responseClient.sendTextMessage(input))
       .rejects.toMatchObject({ name: "ZernioResponseError" });
   });
+
+  it.each([
+    {
+      failure: new TypeError("Illegal invocation: sensitive runtime detail"),
+      category: "illegal_invocation",
+    },
+    {
+      failure: new Error("Cannot perform I/O on behalf of a different request"),
+      category: "request_context",
+    },
+  ] as const)(
+    "clasifica $category sin exponer detalles del runtime",
+    async ({ failure, category }) => {
+      const client = new ZernioClient("test-api-key", {
+        fetch: async () => {
+          throw failure;
+        },
+      });
+
+      const error = await client.sendTextMessage({
+        conversationId: "conversation-123",
+        accountId: "account-123",
+        message: "Hola",
+        idempotencyKey: "outbound-message-1",
+      }).catch((reason: unknown) => reason);
+
+      expect(error).toBeInstanceOf(ZernioTransportError);
+      expect(error).toMatchObject({ category });
+      expect((error as Error).message).not.toContain(failure.message);
+    },
+  );
+
+  it.each(["global", "injected"] as const)(
+    "invoca el fetch $case sin usar ZernioClient como contexto",
+    async (fetchSource) => {
+      let receivedThis: unknown = "not-called";
+      const contextSensitiveFetch = async function (
+        this: unknown,
+      ): Promise<Response> {
+        receivedThis = this;
+        if (this !== undefined) throw new TypeError("Illegal invocation");
+        return Response.json({
+          success: true,
+          data: {
+            messageId: "message-123",
+            conversationId: "conversation-123",
+            sentAt: "2026-08-11T18:00:00Z",
+          },
+        });
+      } satisfies ZernioFetch;
+      if (fetchSource === "global") {
+        vi.stubGlobal("fetch", contextSensitiveFetch);
+      }
+      const client = new ZernioClient("test-api-key", fetchSource === "global"
+        ? {}
+        : { fetch: contextSensitiveFetch });
+
+      await expect(client.sendTextMessage({
+        conversationId: "conversation-123",
+        accountId: "account-123",
+        message: "Hola",
+        idempotencyKey: "outbound-message-1",
+      })).resolves.toMatchObject({ messageId: "message-123" });
+      expect(receivedThis).toBeUndefined();
+      vi.unstubAllGlobals();
+    },
+  );
 });
