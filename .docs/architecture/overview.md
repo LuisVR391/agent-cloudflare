@@ -19,9 +19,9 @@ WhatsApp
   -> D1: cuenta, organización y deduplicación
   -> INBOUND_MESSAGES Queue
   -> consumidor de entrada
-  -> Durable Object por conversación (pendiente)
+  -> Durable Object por conversación
   -> D1 / R2 / Workers AI / Workflows según su responsabilidad
-  -> Queue de salida (pendiente)
+  -> Queue de salida
   -> API de Zernio
 ```
 
@@ -59,15 +59,15 @@ mensajes completos ni datos personales innecesarios.
 
 ## Estado del recorrido de WhatsApp
 
-El repositorio contiene la base del adaptador de entrada: ruta firmada,
-validación, resolución de canal, recepción idempotente, Queue y manejo de
-desconexiones. También existe un cliente de salida con `Idempotency-Key`, aún
-sin un productor de salida ni conversación durable. Staging no está
-provisionado y ningún webhook externo está activo.
+El repositorio contiene el adaptador de entrada firmado, persistencia canónica
+de conversaciones y mensajes, coordinación durable, Queue de salida e inbox
+humano. Staging dispone de D1, R2, Queue inbound, Worker y webhook activo; los
+recursos nuevos de salida y el recorrido bidireccional todavía requieren
+provisionamiento y validación operativa.
 
-El recorrido completo de Fase 1 sigue pendiente hasta incorporar persistencia
-de conversaciones y mensajes, Durable Object, salida por Queue, inbox y
-handoff humano.
+Fase 1 permanece en progreso hasta demostrar en staging que una respuesta
+humana llega a WhatsApp, que los estados se reconcilian y que reintentos no
+duplican efectos.
 
 ## Referencias
 

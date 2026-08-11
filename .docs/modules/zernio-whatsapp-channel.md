@@ -17,8 +17,10 @@ definida en [ADR-0008](../decisions/ADR-0008-zernio-whatsapp-adapter.md).
 - `inbound_webhook_events` deduplica por adaptador e ID estable del evento.
 - `INBOUND_MESSAGES` transporta el contrato normalizado y el consumidor marca
   el evento procesado; una desconexión cambia el estado del canal.
-- `ZernioClient.sendTextMessage` llama a la API de inbox con bearer token e
-  `Idempotency-Key`, pero todavía no está conectado a una Queue de salida.
+- `OUTBOUND_MESSAGES` entrega respuestas humanas a
+  `ZernioClient.sendTextMessage` con una clave estable y resultado persistido.
+- El inbox autenticado consulta D1 y nunca adopta el inbox de Zernio como
+  autoridad.
 
 ## Respuestas del webhook
 
@@ -47,10 +49,9 @@ La identidad preferida de un remitente de WhatsApp es
 `businessScopedUserId`; se usa `phoneNumber` o `sender.id` únicamente como
 fallback. Ninguno de estos valores aparece en logs operativos.
 
-## Pendiente de Fase 1
+## Pendiente de validación de Fase 1
 
-- Persistir conversación, mensaje y estado canónicos.
-- Entregar al Durable Object y conservar orden y buffer.
-- Crear Queue y consumidor de salida que usen `ZernioClient`.
-- Descargar medios autorizados y copiarlos a R2.
-- Exponer inbox y handoff con permisos en backend.
+- Provisionar Queue de salida y DLQ en staging.
+- Aplicar la migración D1 nueva y desplegar el Worker autorizado.
+- Verificar entrada, inbox, respuesta humana, entrega y lectura con WhatsApp
+  real sin duplicados.

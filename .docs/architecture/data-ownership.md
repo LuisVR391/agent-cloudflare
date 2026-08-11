@@ -14,6 +14,8 @@ pero no competir por la autoridad del mismo dato.
 | Canales y referencias de credenciales | D1 | Configuración del canal, nunca el secreto |
 | Contactos e identidades externas | D1 | Perfil empresarial y resolución de identidad |
 | Conversaciones, mensajes e historial | D1 | Registro canónico consultable |
+| Intentos y estados de entrega saliente | D1 | Idempotencia y reconciliación empresarial |
+| Metadatos de adjuntos y clave opaca | D1 | Autorización y referencia al binario |
 | Agentes, versiones, asignaciones y permisos | D1 | Configuración publicada y trazabilidad |
 | Pipeline, citas, tareas y automatizaciones | D1 | Estado empresarial durable |
 | Buffer, debounce, orden y exclusión mutua | Durable Object | Coordinación viva de una conversación |
@@ -22,6 +24,7 @@ pero no competir por la autoridad del mismo dato.
 | Metadatos, permisos y referencias de archivos | D1 | Descubrimiento y control de acceso |
 | Chunks y embeddings | Vectorize | Índice derivado para recuperación semántica |
 | Entrega de trabajos | Queues | Transporte, reintentos y desacoplamiento |
+| Binarios validados de conversaciones | R2 | Contenido original; D1 conserva metadatos |
 | Ejecución larga y checkpoints técnicos | Workflows | Recuperación y progreso de procesos |
 | Resultados empresariales de un Workflow | D1 | Estado final consultable y auditable |
 | Inferencia, clasificación y embeddings | Workers AI o proveedor | Cómputo; no es almacén empresarial |

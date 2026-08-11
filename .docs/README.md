@@ -72,10 +72,10 @@ estructura y proceso de sustitución.
 
 | Documento planificado | Estado | Contenido |
 | --- | --- | --- |
-| `architecture/message-lifecycle.md` | Pendiente | Webhook, normalización, colas, runtime y salida |
+| [Ciclo de vida de mensajes](./architecture/message-lifecycle.md) | Vigente | Webhook, normalización, colas, runtime y salida |
 | [Canal de WhatsApp mediante Zernio](./modules/zernio-whatsapp-channel.md) | Vigente | Firma, payloads, estados y adaptador bidireccional de Zernio |
-| `modules/conversation-runtime.md` | Pendiente | Identidad, buffer, orden, modos y concurrencia |
-| `modules/inbox-and-handoff.md` | Pendiente | Actualización en tiempo real e intervención humana |
+| [Runtime de conversación](./modules/conversation-runtime.md) | Vigente | Identidad, buffer, orden, modos y concurrencia |
+| [Inbox y handoff](./modules/inbox-and-handoff.md) | Vigente | Actualización en tiempo real e intervención humana |
 | [Configuración operativa de Zernio](./operations/zernio-whatsapp-setup.md) | Vigente | Conexión manual de cuentas, webhook y secretos por entorno |
 
 ### Fase 2 — CRM

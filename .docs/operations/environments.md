@@ -32,10 +32,13 @@ de un script de despliegue.
 | R2 `MEDIA_BUCKET` | `agent-cloudflare-media` local | `agent-cloudflare-staging-media` | `agent-cloudflare-production-media` |
 | Durable Object | Namespace local | Namespace del Worker de staging | Namespace del Worker de producción |
 | Queue `INBOUND_MESSAGES` | `agent-cloudflare-inbound` | `agent-cloudflare-staging-inbound` | `agent-cloudflare-production-inbound` planificada |
+| Queue `OUTBOUND_MESSAGES` | `agent-cloudflare-outbound` | `agent-cloudflare-staging-outbound` pendiente de provisión | `agent-cloudflare-production-outbound` planificada |
+| DLQ de entrada/salida | sufijo `-dlq` | pendientes de provisión | planificadas |
 | `BETTER_AUTH_URL` | `http://localhost:5190` | `https://agent-cloudflare-staging.luisvr391.workers.dev` | Origen HTTPS autorizado |
 | Secretos | `.dev.vars`, nunca Git | Secretos del Worker de staging | Secretos distintos del Worker de producción |
 
-`DB`, `MEDIA_BUCKET`, `INBOUND_MESSAGES`, `AI` y `CustomerSupportAgent` conservan los mismos
+`DB`, `MEDIA_BUCKET`, `INBOUND_MESSAGES`, `OUTBOUND_MESSAGES`, `AI` y
+`CustomerSupportAgent` conservan los mismos
 nombres de binding para no cambiar el contrato del Worker. Los recursos detrás
 de esos bindings son distintos por entorno. Assets, migraciones del Durable
 Object y observabilidad se heredan de la configuración común.
