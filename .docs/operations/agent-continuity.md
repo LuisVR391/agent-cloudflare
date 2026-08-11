@@ -102,11 +102,21 @@ exhaustivo; un secreto expuesto debe rotarse.
 
 `PreToolUse` bloquea:
 
+- cualquier despliegue que no sea `--dry-run` sin autorización explícita;
 - ejecución remota de D1 y eliminación de recursos Cloudflare;
+- escritura o borrado de secretos con `wrangler secret`;
+- mutación del repositorio remoto con `gh` (`pr merge`, `pr close`,
+  `release create`, `repo delete`, `secret set`, `workflow run`) y `gh api` con
+  un método `POST`, `PUT`, `PATCH` o `DELETE`;
+- `npm publish`;
 - `git reset --hard`, `git clean` forzado y force push;
 - cualquier `git push` sin confirmación explícita del usuario;
 - publicación de `.env`, `.dev.vars`, llaves privadas y archivos equivalentes;
 - edición o eliminación de migraciones existentes.
+
+La inspección remota sigue permitida: `gh pr view`, `gh api` en lectura,
+`wrangler secret list` y `gh pr create` no se bloquean, porque no producen un
+efecto irreversible y el hook ya audita el diff antes de crear un PR.
 
 Los agentes pueden crear commits locales atómicos sin una aprobación adicional.
 Antes de publicar, deben mostrar la rama, los commits y las validaciones,
@@ -126,10 +136,26 @@ entregable requiere actualizar el roadmap o declarar
 `Roadmap: no aplica — <motivo concreto>`. La implementación sin documentación
 produce una advertencia visible.
 
-Los despliegues no tienen una excepción mecánica persistente: `AGENTS.md` exige
-autorización explícita para el entorno y el artefacto actuales antes de que un
-agente ejecute el script correspondiente. Esa autorización no se reutiliza para
-otro despliegue ni amplía el permiso a producción o a eliminación de recursos.
+El despliegue sigue la misma forma que la publicación. `AGENTS.md` exige
+autorización explícita para el entorno y el artefacto actuales; una vez
+recibida, el comando la declara en sí mismo:
+
+```bash
+AGENT_DEPLOY_CONFIRMED=1 npm run deploy:staging
+```
+
+La marca libera únicamente ese comando. No se reutiliza para otro despliegue,
+no amplía el permiso a producción ni a la eliminación de recursos, y no levanta
+ningún otro bloqueo: `wrangler secret`, los borrados de recursos y el force push
+siguen denegados aunque la marca esté presente. `--dry-run` y
+`npm run check:staging` nunca se bloquean, porque son parte del gate de
+validación.
+
+Esta marca sustituye la ausencia deliberada de excepción mecánica que tenía el
+guardrail antes de habilitar la red en el sandbox del agente. Mientras la red
+estaba restringida, un despliegue escalaba a una aprobación externa; sin esa
+escalada, la marca es el único punto en que la autorización queda registrada
+antes del efecto remoto.
 
 Los hooks fallan abiertos si su propia lectura o ejecución interna falla, salvo
 cuando ya reconocieron una acción prohibida. Esto evita inmovilizar el
@@ -148,6 +174,41 @@ pide en todos los turnos, incluidos los conversacionales.
 Los marcadores de deduplicación se guardan bajo el directorio temporal del
 sistema, separados por agente. No se persisten prompts, respuestas, comandos
 completos ni secretos.
+
+## Entorno de ejecución del agente
+
+Los guardrails de este repositorio son deterministas y locales: se evalúan en
+`.agents/guard/` y no dependen de que un servicio remoto responda. Conviene que
+la CLI del agente tampoco dependa de uno.
+
+El gate obligatorio `npm run check` termina en `check:staging`, que ejecuta
+`wrangler types` y `wrangler deploy --dry-run`. Ambos necesitan red. Con un
+sandbox que la restringe, cada entrega escala a una aprobación externa; si ese
+revisor no está disponible, la entrega se detiene por indisponibilidad y no por
+política.
+
+Codex se configura en `~/.codex/config.toml`, fuera del repositorio y por
+máquina:
+
+```toml
+approvals_reviewer = "user"
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+
+[sandbox_workspace_write]
+network_access = true
+```
+
+`codex doctor` debe reportar `restricted fs + enabled network · approval
+OnRequest`. `approvals_reviewer = "user"` evita enrutar cada aprobación al
+modelo remoto `codex-auto-review`, que deniega la acción cuando está saturado.
+`trust_level = "trusted"` en la entrada `[projects]` solo omite el diálogo de
+confianza del proyecto; no altera las aprobaciones.
+
+Habilitar la red elimina la escalada implícita que antes frenaba a `gh`,
+`wrangler` y `npm`. Esa protección se repone con los patrones bloqueados de la
+sección anterior, que se evalúan localmente y no pueden fallar por la capacidad
+de un servicio.
 
 ## Permisos denegados en Claude Code
 

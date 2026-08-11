@@ -139,9 +139,10 @@ usa `AGENT_PUSH_CONFIRMED=1 git push`; una autorización anterior no se
 reutiliza. El force push permanece prohibido.
 
 Los agentes solo despliegan después de recibir autorización explícita para el
-entorno y el artefacto actuales. Esa autorización no se reutiliza para otra
-versión o entorno. Producción y las operaciones destructivas requieren una
-autorización separada.
+entorno y el artefacto actuales. Después de recibirla, el comando usa
+`AGENT_DEPLOY_CONFIRMED=1` como prefijo. Esa autorización no se reutiliza para
+otra versión o entorno, y no habilita ninguna otra operación bloqueada.
+Producción y las operaciones destructivas requieren una autorización separada.
 
 ## Documentación y ADRs
 
