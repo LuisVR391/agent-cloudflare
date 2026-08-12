@@ -113,6 +113,18 @@ export type ConversationSummary = {
   lastMessageText: string | null;
 };
 
+// Tipos que el canal emite realmente; `unsupported` cubre lo que no
+// reconocemos sin rechazar el mensaje que lo acompaña.
+export type AttachmentContentType =
+  | "image"
+  | "video"
+  | "audio"
+  | "file"
+  | "sticker"
+  | "share"
+  | "unsupported";
+export type MessageContentType = "text" | AttachmentContentType;
+
 export type ConversationMessage = {
   id: string;
   organizationId: string;
@@ -120,15 +132,18 @@ export type ConversationMessage = {
   direction: "incoming" | "outgoing";
   senderType: "customer" | "staff" | "system";
   senderId: string | null;
-  messageType: "text" | "audio" | "image" | "document";
+  messageType: MessageContentType;
   text: string | null;
   status: MessageStatus;
   occurredAt: string;
   attachments: Array<{
     id: string;
-    type: "audio" | "image" | "document";
-    contentType: string;
-    byteSize: number;
+    type: AttachmentContentType;
+    // Nulos cuando el adjunto no pudo conservarse: `status` explica el motivo.
+    contentType: string | null;
+    byteSize: number | null;
+    status: "stored" | "rejected";
+    failureReason: string | null;
   }>;
 };
 

@@ -5,11 +5,11 @@ construido sobre Cloudflare. Su primera edición estará enfocada en salones de
 belleza y automatizará atención, ventas, agenda, seguimiento y mejora continua
 desde una sola interfaz.
 
-> El repositorio se encuentra en Fase 1. Staging recibe mensajes reales de
-> WhatsApp, persiste contactos y conversaciones, y actualiza el inbox en vivo.
-> La corrección del Issue #25 está desplegada en staging y vuelve observable
-> el fallo de salida; falta validar una respuesta humana real de extremo a
-> extremo.
+> Fase 1 está completada y validada en staging con tráfico real: los mensajes
+> de WhatsApp se reciben una sola vez y en orden, una persona autorizada
+> responde desde el inbox y la respuesta recorre `Enviado → Entregado → Leído`,
+> y los medios entrantes se conservan en R2 y se abren desde la conversación.
+> El trabajo siguiente pertenece a Fase 2.
 ## Objetivo del producto
 
 Agent Cloudflare debe permitir que una empresa administre desde un solo panel:
@@ -45,14 +45,14 @@ forks del producto.
 | SPA React servida por el Worker | Implementada | Landing, `/setup`, `/login`, `/app`, React 19, Tailwind y shadcn/ui |
 | Agente durable | Base implementada | `CustomerSupportAgent` coordina cada conversación y sus conexiones en vivo |
 | Workers AI | Binding preparado | Binding `AI` declarado, sin flujo de inferencia |
-| R2 | Parcial | `MEDIA_BUCKET` y persistencia de adjuntos implementados; validación integral pendiente en #20 |
+| R2 | Implementada para Fase 1 | `MEDIA_BUCKET` conserva imágenes, audio y archivos con estado por adjunto; validado con medios reales en staging |
 | Observabilidad | Configurada | Logs y trazas habilitados en Wrangler |
-| D1 en local y pruebas | Implementada para Fase 1 | Migraciones `0001` a `0006`, repositorios, mensajes, entregas y aislamiento probado |
+| D1 en local y pruebas | Implementada para Fase 1 | Migraciones `0001` a `0009`, repositorios, mensajes, entregas, adjuntos y aislamiento probado |
 | Autenticación y autorización | Implementada | Better Auth, sesión D1, instalación única, roles fijos y contexto organizacional; [PR #14](https://github.com/LuisVR391/agent-cloudflare/pull/14) |
 | Entornos y staging | Staging desplegado | Recursos aislados; producción sigue sin provisionar |
-| Panel de conversaciones | Reconciliación desplegada en staging | Inbox protegido, historial, recepción en vivo y handoff; falta validar la actualización final de estado con un envío nuevo |
+| Panel de conversaciones | Implementado para Fase 1 | Inbox protegido, historial, recepción en vivo, handoff, estados de entrega y descarga de adjuntos |
 | Panel de agentes | Planificado | Navegación reservada y deshabilitada |
-| WhatsApp mediante Zernio | En progreso | Entrada y salida reales confirmadas; reconciliación fuera de orden desplegada y pendiente de prueba humana |
+| WhatsApp mediante Zernio | Implementado para Fase 1 | Recorrido bidireccional validado con tráfico real, incluidos estados de entrega y medios entrantes |
 | Queues, Workflows y Vectorize | Parcial | Queues de entrada/salida y DLQ provisionadas en staging; Workflows y Vectorize permanecen planificados |
 | CRM, agenda y pipelines | Planificados | El inbox mínimo pertenece a Fase 1; el enriquecimiento comercial sigue en Fase 2 |
 | Versionado, evaluación y mejora de agentes | Planificados | Fuera del prototipo actual |
@@ -65,14 +65,18 @@ La base D1 conserva organizaciones, autenticación, canales, contactos,
 conversaciones, mensajes e intentos de entrega con aislamiento por organización.
 Las rutas del panel recalculan identidad, membresía y permisos en backend.
 Staging dispone de D1, R2, Durable Object, Queues de entrada/salida, DLQ,
-Worker y secretos aislados. La recepción real y el inbox en vivo están
-verificados. La corrección #25 permitió que una respuesta humana real llegara
-una sola vez a WhatsApp; Zernio confirmó envío, entrega y lectura. La UI
-permaneció en `delivery_unknown` porque esos estados podían procesarse antes
-de enlazar el identificador externo. La migración `0006` y el repositorio de
-reconciliación corrigen ese orden y están desplegados en staging; falta una
-prueba nueva sin reproducir mensajes históricos. Producción permanece sin
-recursos ni ruta pública.
+Worker y secretos aislados. El recorrido bidireccional está verificado con
+tráfico real: un mensaje se recibe una sola vez y en orden, una respuesta
+humana llega a WhatsApp y recorre `Enviado → Entregado → Leído`, y los medios
+entrantes se copian a R2 y se descargan desde el inbox. Un adjunto que no puede
+conservarse queda registrado con su motivo y no impide que el mensaje aparezca.
+
+El producto no emite acuses de lectura hacia el contacto: la cuenta operada es
+de coexistencia y el proveedor no sobrescribe el estado de lectura que posee la
+app de WhatsApp Business. Los mensajes salientes anteriores a la corrección del
+contrato de envío permanecen en `delivery_unknown`, porque no conservan el
+identificador del proveedor y vincularlos por contenido está prohibido.
+Producción permanece sin recursos ni ruta pública.
 
 ## Arquitectura objetivo
 

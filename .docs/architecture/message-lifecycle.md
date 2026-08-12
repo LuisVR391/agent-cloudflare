@@ -11,11 +11,14 @@ límites.
 2. D1 deduplica el evento antes de responder `202`.
 3. `INBOUND_MESSAGES` transporta el contrato normalizado.
 4. El consumidor resuelve idempotentemente contacto, conversación y mensaje.
-5. Los adjuntos HTTPS permitidos se validan hasta 16 MiB, se copian a R2 y D1
-   conserva solo metadatos y la clave opaca.
-6. `CustomerSupportAgent`, identificado por
+5. `CustomerSupportAgent`, identificado por
    `organizationId:conversationId`, recibe la referencia y coordina orden,
    buffer y actualización en vivo.
+6. Los adjuntos se descargan del canal con credencial, se validan hasta 16 MiB
+   y se copian a R2; D1 conserva metadatos, estado y la clave opaca, nunca la
+   URL externa. Ocurre después del paso anterior a propósito: un medio
+   irrecuperable no puede impedir que el mensaje aparezca en el inbox, y queda
+   registrado con su motivo en vez de desaparecer.
 
 Un reintento encuentra las restricciones únicas de evento, identidad,
 conversación y mensaje antes de producir un segundo efecto.

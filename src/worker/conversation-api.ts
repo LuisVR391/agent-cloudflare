@@ -65,19 +65,43 @@ export async function routeConversationApi(
   const attachmentMatch = suffix.match(/^\/([^/]+)\/attachments\/([^/]+)$/);
   if (attachmentMatch && request.method === "GET") {
     if (!permissions.includes("conversations.read")) return error(403, "FORBIDDEN", "No tienes permiso para consultar conversaciones.", correlationId);
-    const row = await env.DB.prepare(`SELECT a.r2_key, a.content_type
+    // El identificador del adjunto contiene `:`, que la interfaz codifica al
+    // construir el enlace. Sin decodificarlo, la búsqueda usa el literal
+    // escapado y ningún adjunto conservado llega a encontrarse.
+    let attachmentId: string;
+    try {
+      attachmentId = decodeURIComponent(attachmentMatch[2]);
+    } catch {
+      return error(400, "INVALID_ATTACHMENT_ID", "El adjunto solicitado no es válido.", correlationId);
+    }
+    const row = await env.DB.prepare(`SELECT a.r2_key, a.content_type, a.status,
+      a.failure_reason
       FROM message_attachments a JOIN messages m
         ON m.organization_id = a.organization_id AND m.id = a.message_id
       WHERE a.organization_id = ? AND m.conversation_id = ? AND a.id = ?`)
-      .bind(organizationId, attachmentMatch[1], attachmentMatch[2])
-      .first<{ r2_key: string; content_type: string }>();
+      .bind(organizationId, decodeURIComponent(attachmentMatch[1]), attachmentId)
+      .first<{
+        r2_key: string | null; content_type: string | null;
+        status: string; failure_reason: string | null;
+      }>();
     if (!row) return error(404, "NOT_FOUND", "El adjunto solicitado no existe.", correlationId);
+    // El adjunto existe pero no se conservó: distinguirlo de un identificador
+    // inexistente evita diagnosticar como pérdida de datos lo que el canal
+    // rechazó o ya no puede servir.
+    if (row.status !== "stored" || !row.r2_key) {
+      return error(
+        409,
+        row.failure_reason ?? "ATTACHMENT_NOT_STORED",
+        "El adjunto no pudo conservarse desde el canal.",
+        correlationId,
+      );
+    }
     const object = await env.MEDIA_BUCKET.get(row.r2_key);
     if (!object) return error(404, "NOT_FOUND", "El adjunto solicitado no existe.", correlationId);
     return new Response(object.body, {
       headers: {
         "Cache-Control": "private, no-store",
-        "Content-Type": row.content_type,
+        "Content-Type": row.content_type ?? "application/octet-stream",
         "X-Content-Type-Options": "nosniff",
       },
     });

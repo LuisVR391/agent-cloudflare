@@ -119,9 +119,11 @@ export type ConversationMessage = {
   occurredAt: string;
   attachments: Array<{
     id: string;
-    type: "audio" | "image" | "document";
-    contentType: string;
-    byteSize: number;
+    type: "image" | "video" | "audio" | "file" | "sticker" | "share" | "unsupported";
+    contentType: string | null;
+    byteSize: number | null;
+    status: "stored" | "rejected";
+    failureReason: string | null;
   }>;
 };
 

@@ -52,6 +52,7 @@ describe("migraciones de D1", () => {
       "0006_outbound_status_reconciliation.sql",
       "0007_conversation_read_receipts.sql",
       "0008_drop_conversation_read_receipts.sql",
+      "0009_message_attachment_recovery.sql",
     ]);
   });
 

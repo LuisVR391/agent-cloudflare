@@ -14,6 +14,7 @@ import {
   processOutboundQueueMessage,
 } from "../src/worker/integrations/zernio/outbound-queue";
 import { persistInboundAttachments } from "../src/worker/integrations/zernio/media";
+import { ZernioClient, type ZernioFetch } from "../src/worker/integrations/zernio/client";
 
 const organizationId = "11111111-1111-4111-8111-111111111111";
 const otherOrganizationId = "22222222-2222-4222-8222-222222222222";
@@ -767,7 +768,7 @@ describe.sequential("conversaciones canónicas", () => {
     })).resolves.toBeNull();
   });
 
-  it("valida y conserva adjuntos sin persistir la URL externa", async () => {
+  it("copia el adjunto autenticado y rechaza un host ajeno sin enviar la credencial", async () => {
     const objects = new Map<string, ArrayBuffer>();
     const bucket = {
       put: vi.fn(async (key: string, value: ArrayBuffer) => {
@@ -782,23 +783,144 @@ describe.sequential("conversaciones canónicas", () => {
       platformMessageId: "wamid-media", text: null, messageType: "image", occurredAt,
       correlationId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
     });
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(new Uint8Array([1, 2, 3]), {
-      headers: { "Content-Type": "image/png", "Content-Length": "3" },
-    })));
-    await persistInboundAttachments({
-      db: env.DB, bucket, organizationId, messageId: inbound.messageId,
-      attachments: [{ type: "image", url: "https://media.example.com/image.png" }],
-    });
-    const attachment = await env.DB.prepare(`SELECT r2_key, byte_size
-      FROM message_attachments WHERE organization_id = ? AND message_id = ?`)
-      .bind(organizationId, inbound.messageId)
-      .first<{ r2_key: string; byte_size: number }>();
-    expect(attachment?.byte_size).toBe(3);
-    expect(objects.get(attachment!.r2_key)?.byteLength).toBe(3);
+    // El endpoint de medios streamea el binario, así que no declara
+    // `Content-Length`: exigirlo rechazaría toda descarga legítima.
+    const fetchMock = vi.fn<ZernioFetch>(async () =>
+      new Response(new Uint8Array([1, 2, 3]), {
+        headers: { "Content-Type": "image/png" },
+      }),
+    );
+    const client = new ZernioClient("test-only-zernio-key", { fetch: fetchMock });
+
     await expect(persistInboundAttachments({
-      db: env.DB, bucket, organizationId, messageId: inbound.messageId,
-      attachments: [{ type: "image", url: "http://127.0.0.1/private" }],
-    })).rejects.toThrow("ATTACHMENT_URL_REJECTED");
+      client, db: env.DB, bucket, organizationId,
+      externalAccountId: "account-beautyplace", messageId: inbound.messageId,
+      attachments: [{
+        type: "image",
+        url: "https://zernio.com/api/v1/whatsapp/media/media-1",
+      }],
+    })).resolves.toEqual([{ status: "stored" }]);
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(init?.headers).toMatchObject({
+      Authorization: "Bearer test-only-zernio-key",
+    });
+    expect(new URL(String(url)).searchParams.get("accountId"))
+      .toBe("account-beautyplace");
+
+    const stored = await env.DB.prepare(`SELECT r2_key, byte_size, status,
+      attachment_type FROM message_attachments
+      WHERE organization_id = ? AND message_id = ?`)
+      .bind(organizationId, inbound.messageId)
+      .first<{ r2_key: string; byte_size: number; status: string; attachment_type: string }>();
+    expect(stored).toMatchObject({ byte_size: 3, status: "stored", attachment_type: "image" });
+    expect(objects.get(stored!.r2_key)?.byteLength).toBe(3);
+
+    // Un host ajeno al proveedor nunca debe recibir la credencial: la URL llega
+    // dentro del payload del webhook, que es entrada no confiable.
+    const foreignFetch = vi.fn<ZernioFetch>();
+    await expect(persistInboundAttachments({
+      client: new ZernioClient("test-only-zernio-key", { fetch: foreignFetch }),
+      db: env.DB, bucket, organizationId,
+      externalAccountId: "account-beautyplace", messageId: inbound.messageId,
+      attachments: [{ type: "image", url: "https://atacante.example.com/media/1" }],
+    })).resolves.toEqual([{ status: "rejected", reason: "ATTACHMENT_HOST_REJECTED" }]);
+    expect(foreignFetch).not.toHaveBeenCalled();
+  });
+
+  it("entrega el mensaje al inbox aunque su adjunto no pueda conservarse", async () => {
+    // El criterio de salida de Fase 1 exige que un mensaje real aparezca en el
+    // inbox. Antes, un adjunto irrecuperable propagaba su error, impedía
+    // notificar al runtime y mandaba el evento a la DLQ: el mensaje existía en
+    // D1 pero nunca llegaba a verse.
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
+      new Response("", { status: 400 }),
+    ));
+    await processInboundQueueMessage(
+      {
+        DB: env.DB,
+        CustomerSupportAgent: env.CustomerSupportAgent,
+        MEDIA_BUCKET: env.MEDIA_BUCKET,
+        ZERNIO_API_KEY: "test-only-zernio-key",
+      },
+      {
+        kind: "messageReceived",
+        eventId: "event-media-blocking",
+        correlationId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        organizationId,
+        channelId,
+        externalAccountId: "account-beautyplace",
+        externalConversationId: "z-conversation-blocking",
+        externalMessageId: "z-message-blocking",
+        platformMessageId: "wamid-blocking",
+        externalContactId: "wa-contact-blocking",
+        text: null,
+        attachments: [{
+          type: "image",
+          url: "https://zernio.com/api/v1/whatsapp/media/expirado",
+        }],
+        occurredAt: "2026-08-12T08:00:00.000Z",
+      },
+    );
+
+    const repository = new ConversationRepository(env.DB);
+    const conversations = await repository.list(organizationId, { limit: 30 });
+    const conversation = conversations.find(
+      (item) => item.lastMessageAt === "2026-08-12T08:00:00.000Z",
+    );
+    expect(conversation).toBeDefined();
+    const messages = await repository.listMessages(
+      organizationId, conversation!.id, { limit: 50 },
+    );
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toMatchObject({ status: "received", messageType: "image" });
+    expect(messages[0].attachments).toEqual([
+      expect.objectContaining({
+        type: "image",
+        status: "rejected",
+        failureReason: "ATTACHMENT_UNAVAILABLE_400",
+        contentType: null,
+        byteSize: null,
+      }),
+    ]);
     vi.unstubAllGlobals();
+  });
+
+  it("registra el adjunto irrecuperable y el tipo no soportado sin reintentar", async () => {
+    const bucket = { put: vi.fn() } as unknown as R2Bucket;
+    const repository = new ConversationRepository(env.DB);
+    const inbound = await repository.upsertInbound({
+      organizationId, channelId, externalConversationId: "z-conversation-media-2",
+      externalContactId: "wa-contact-media-2", externalMessageId: "z-message-media-2",
+      platformMessageId: "wamid-media-2", text: null, messageType: "sticker", occurredAt,
+      correlationId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+    });
+    // `400` es la respuesta permanente cuando WhatsApp ya descartó el medio.
+    const client = new ZernioClient("test-only-zernio-key", {
+      fetch: async () => new Response("", { status: 400 }),
+    });
+
+    await expect(persistInboundAttachments({
+      client, db: env.DB, bucket, organizationId,
+      externalAccountId: "account-beautyplace", messageId: inbound.messageId,
+      attachments: [
+        { type: "image", url: "https://zernio.com/api/v1/whatsapp/media/expirado" },
+        { type: "sticker", url: "https://zernio.com/api/v1/whatsapp/media/sticker" },
+      ],
+    })).resolves.toEqual([
+      { status: "rejected", reason: "ATTACHMENT_UNAVAILABLE_400" },
+      { status: "rejected", reason: "ATTACHMENT_TYPE_UNSUPPORTED" },
+    ]);
+
+    const rows = await env.DB.prepare(`SELECT attachment_type, status, failure_reason,
+      r2_key FROM message_attachments WHERE organization_id = ? AND message_id = ?
+      ORDER BY id`).bind(organizationId, inbound.messageId).all<{
+        attachment_type: string; status: string; failure_reason: string; r2_key: string | null;
+      }>();
+    expect(rows.results).toEqual([
+      { attachment_type: "image", status: "rejected", failure_reason: "ATTACHMENT_UNAVAILABLE_400", r2_key: null },
+      { attachment_type: "sticker", status: "rejected", failure_reason: "ATTACHMENT_TYPE_UNSUPPORTED", r2_key: null },
+    ]);
+    expect(bucket.put).not.toHaveBeenCalled();
   });
 });

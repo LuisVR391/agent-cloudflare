@@ -27,5 +27,14 @@
       "database_id": "test-placeholder",
       "migrations_dir": "migrations"
     }
+  ],
+  // Bucket simulado por Miniflare, aislado por archivo de prueba. Permite
+  // ejercitar la descarga de adjuntos contra el Worker real en vez de sustituir
+  // el binding, que es como un identificador sin decodificar pasó inadvertido.
+  "r2_buckets": [
+    {
+      "binding": "MEDIA_BUCKET",
+      "bucket_name": "agent-cloudflare-test-media"
+    }
   ]
 }

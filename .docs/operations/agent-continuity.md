@@ -100,19 +100,34 @@ exhaustivo; un secreto expuesto debe rotarse.
 
 ### Antes de usar herramientas
 
-`PreToolUse` bloquea:
+`PreToolUse` distingue dos clases de bloqueo. Los **autorizables** esperan una
+decisión del usuario y se liberan con la marca de su clase:
 
-- cualquier despliegue que no sea `--dry-run` sin autorización explícita;
-- ejecución remota de D1 y eliminación de recursos Cloudflare;
-- escritura o borrado de secretos con `wrangler secret`;
-- mutación del repositorio remoto con `gh` (`pr merge`, `pr close`,
-  `release create`, `repo delete`, `secret set`, `workflow run`) y `gh api` con
-  un método `POST`, `PUT`, `PATCH` o `DELETE`;
+| Operación | Marca |
+| --- | --- |
+| Despliegue que no sea `--dry-run` | `AGENT_DEPLOY_CONFIRMED=1` |
+| `wrangler d1 migrations apply --remote` | `AGENT_MIGRATION_CONFIRMED=1` |
+| `git push` de la rama y commits actuales | `AGENT_PUSH_CONFIRMED=1` |
+| `gh pr`/`gh issue` `merge`, `close` o `reopen` | `AGENT_MERGE_CONFIRMED=1` |
+| Eliminación de un recurso Cloudflare | `AGENT_DESTRUCTIVE_CONFIRMED=1` |
+
+Las **prohibiciones permanentes** no se liberan con ninguna marca, porque no
+existe autorización que las habilite:
+
+- escritura o borrado de secretos con `wrangler secret` o `gh secret`;
+- ejecución remota arbitraria sobre D1 con `wrangler d1 execute --remote`;
+- publicación de releases, alteración del repositorio remoto y `gh workflow run`,
+  además de `gh api` con método `POST`, `PUT`, `PATCH` o `DELETE`;
 - `npm publish`;
 - `git reset --hard`, `git clean` forzado y force push;
-- cualquier `git push` sin confirmación explícita del usuario;
 - publicación de `.env`, `.dev.vars`, llaves privadas y archivos equivalentes;
 - edición o eliminación de migraciones existentes.
+
+Un agente con canal para consultar al usuario dentro de la entrega recibe además,
+en el propio motivo del bloqueo autorizable, la instrucción de pedir esa decisión
+sin interrumpir el trabajo. El adaptador lo declara con `inlineApprovalTool`; los
+que no lo declaran conservan el motivo neutral. Las prohibiciones permanentes
+nunca reciben esa invitación, para no sugerir una autorización inexistente.
 
 La inspección remota sigue permitida: `gh pr view`, `gh api` en lectura,
 `wrangler secret list` y `gh pr create` no se bloquean, porque no producen un
@@ -144,11 +159,11 @@ recibida, el comando la declara en sí mismo:
 AGENT_DEPLOY_CONFIRMED=1 npm run deploy:staging
 ```
 
-La marca libera únicamente ese comando. No se reutiliza para otro despliegue,
-no amplía el permiso a producción ni a la eliminación de recursos, y no levanta
-ningún otro bloqueo: `wrangler secret`, los borrados de recursos y el force push
-siguen denegados aunque la marca esté presente. `--dry-run` y
-`npm run check:staging` nunca se bloquean, porque son parte del gate de
+La marca libera únicamente ese comando. No se reutiliza para otro despliegue, no
+amplía el permiso a producción y no levanta ningún bloqueo de otra clase: una
+migración remota, una fusión o un borrado exigen la suya, y `wrangler secret` o
+el force push siguen denegados aunque cualquier marca esté presente. `--dry-run`
+y `npm run check:staging` nunca se bloquean, porque son parte del gate de
 validación.
 
 Esta marca sustituye la ausencia deliberada de excepción mecánica que tenía el
