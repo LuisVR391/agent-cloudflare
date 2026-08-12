@@ -1,4 +1,5 @@
 import { cleanup, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "../../src/client/App";
@@ -43,7 +44,10 @@ function navigationState() {
   });
 }
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 beforeEach(() => {
   vi.mocked(api.getAppContext).mockResolvedValue(context);
@@ -76,6 +80,23 @@ describe("shell del panel", () => {
       ["Resumen", "false"],
       ["Conversaciones", "true"],
     ]);
+  });
+
+  it("guarda la navegación tras el disparador en ancho móvil", async () => {
+    // El sidebar se convierte en un panel lateral bajo el punto de corte, así
+    // que la navegación no ocupa espacio hasta que se pide. `useIsMobile`
+    // decide por `innerWidth`, no por el resultado de la media query.
+    vi.stubGlobal("innerWidth", 500);
+    window.history.replaceState({}, "", "/app");
+    const browserUser = userEvent.setup();
+
+    render(<App />);
+    await screen.findByText("Hola, Ana");
+    expect(screen.queryByRole("link", { name: "Conversaciones" })).not.toBeInTheDocument();
+
+    await browserUser.click(screen.getByRole("button", { name: "Toggle Sidebar" }));
+
+    expect(await screen.findByRole("link", { name: "Conversaciones" })).toBeInTheDocument();
   });
 
   it("anuncia las secciones planeadas sin permitir abrirlas", async () => {
