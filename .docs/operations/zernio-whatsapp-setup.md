@@ -150,7 +150,9 @@ tanto la firma ausente como la inválida. Con esa versión el envío se confirm�
 como `sent`, pero los estados posteriores no avanzaron: el envío guardaba el
 `platformMessageId` y la búsqueda solo lo contrastaba contra el ID interno de
 Zernio, de modo que los eventos quedaban sin reconciliar. El cruce de
-identificadores corrige el vínculo.
+identificadores corrige el vínculo y quedó desplegado como versión
+`7bc15db8-03eb-4e68-b8cb-96ad0a328b6d`, con `/api/health`, `/api/setup/status`
+y la SPA en `200` y el webhook sin firma en `401`.
 
 Ejecuta nuevamente los pasos anteriores con un mensaje nuevo. Registra versión,
 IDs opacos y estados, sin copiar texto, teléfono, tokens ni payloads.

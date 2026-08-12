@@ -101,6 +101,7 @@ fallback. Ninguno de estos valores aparece en logs operativos.
   `read` llegaron, pero ninguno se reconcilió, porque el envío había guardado el
   `platformMessageId` y la búsqueda solo lo contrastaba contra el ID interno de
   Zernio. El cruce de identificadores corrige ese vínculo y habilita
-  `Entregado` y `Leído`; requiere una prueba humana nueva.
+  `Entregado` y `Leído`; está desplegado como versión
+  `7bc15db8-03eb-4e68-b8cb-96ad0a328b6d` y requiere una prueba humana nueva.
 - La conservación y validación integral de medios permanece en
   [Issue #20](https://github.com/LuisVR391/agent-cloudflare/issues/20).
