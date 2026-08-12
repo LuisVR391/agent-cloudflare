@@ -1,7 +1,6 @@
 import { Outlet, Link, useLocation } from "react-router";
 
 import { AppSidebar, activeSection } from "@/components/app-sidebar";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -25,11 +24,9 @@ export type PanelContext = AppContext & {
  */
 export function PanelShell({
   context,
-  error,
   onSignOut,
 }: {
   context: PanelContext;
-  error: string | null;
   onSignOut: () => void;
 }) {
   const { pathname } = useLocation();
@@ -56,16 +53,8 @@ export function PanelShell({
             </BreadcrumbList>
           </Breadcrumb>
         </header>
-        {error ? (
-          <div className="shrink-0 p-4 pb-0">
-            <Alert variant="destructive">
-              <AlertTitle>No pudimos completar la acción</AlertTitle>
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          </div>
-        ) : null}
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <Outlet context={context satisfies PanelContext} />
+          <Outlet context={context} />
         </div>
       </SidebarInset>
     </SidebarProvider>

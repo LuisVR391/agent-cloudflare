@@ -463,7 +463,6 @@ function PanelPage() {
   return (
     <PanelShell
       context={{ ...context, activeOrganization: context.activeOrganization }}
-      error={error}
       onSignOut={() => void leave()}
     />
   );

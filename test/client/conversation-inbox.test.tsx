@@ -80,6 +80,19 @@ describe("inbox de conversaciones", () => {
     expect(secondRequestId).toBe(firstRequestId);
   });
 
+  it("anuncia el inbox vacío según el filtro activo", async () => {
+    vi.mocked(listConversations).mockResolvedValue({
+      conversations: [],
+      nextCursor: null,
+    });
+    const user = userEvent.setup();
+    render(<ConversationInbox />);
+
+    expect(await screen.findByText("Sin conversaciones abiertas")).toBeInTheDocument();
+    await user.click(screen.getByRole("tab", { name: "Resueltas" }));
+    expect(await screen.findByText("Sin conversaciones resueltas")).toBeInTheDocument();
+  });
+
   it("identifica un adjunto conservado por su nombre y ofrece abrirlo", async () => {
     vi.mocked(getConversationMessages).mockResolvedValue({
       conversation,

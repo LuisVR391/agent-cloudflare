@@ -33,7 +33,7 @@ import type { ConversationMessage } from "@/lib/api";
 
 type MessageAttachment = ConversationMessage["attachments"][number];
 
-export const messageStatusLabels: Record<ConversationMessage["status"], string> = {
+const messageStatusLabels: Record<ConversationMessage["status"], string> = {
   received: "Recibido",
   queued: "En cola",
   sent: "Enviado",
@@ -43,7 +43,7 @@ export const messageStatusLabels: Record<ConversationMessage["status"], string> 
   delivery_unknown: "Confirmación pendiente",
 };
 
-export const attachmentTypeLabels: Record<MessageAttachment["type"], string> = {
+const attachmentTypeLabels: Record<MessageAttachment["type"], string> = {
   image: "Imagen",
   video: "Video",
   audio: "Audio",
@@ -63,7 +63,7 @@ const attachmentIcons: Record<MessageAttachment["type"], ComponentType<{ classNa
   unsupported: Paperclip,
 };
 
-export function formatBytes(byteSize: number | null): string {
+function formatBytes(byteSize: number | null): string {
   if (byteSize === null) return "tamaño desconocido";
   if (byteSize < 1024) return `${byteSize} B`;
   const kib = byteSize / 1024;
@@ -113,31 +113,31 @@ function ConversationAttachment({
   const isImage = attachment.type === "image" || attachment.type === "sticker";
 
   return (
-    <div className="flex min-w-0 flex-col gap-2">
-      <Attachment state="done">
-        <AttachmentMedia variant={isImage ? "image" : "icon"}>
-          {isImage ? <img alt={title} src={href} /> : <Icon />}
-        </AttachmentMedia>
-        <AttachmentContent>
-          <AttachmentTitle>{title}</AttachmentTitle>
-          <AttachmentDescription>
-            {label} · {formatBytes(attachment.byteSize)}
-          </AttachmentDescription>
-        </AttachmentContent>
-        <AttachmentActions>
-          <AttachmentAction aria-label={`Abrir ${title}`} asChild>
-            <a href={href} rel="noreferrer" target="_blank">
-              <Download />
-            </a>
-          </AttachmentAction>
-        </AttachmentActions>
-      </Attachment>
-      {attachment.type === "audio" ? (
-        <audio className="w-full max-w-72" controls src={href}>
-          {label}
-        </audio>
-      ) : null}
-    </div>
+    <Attachment state="done">
+      <AttachmentMedia variant={isImage ? "image" : "icon"}>
+        {isImage ? <img alt={title} src={href} /> : <Icon />}
+      </AttachmentMedia>
+      <AttachmentContent>
+        <AttachmentTitle>{title}</AttachmentTitle>
+        <AttachmentDescription>
+          {label} · {formatBytes(attachment.byteSize)}
+        </AttachmentDescription>
+        {/* El reproductor vive dentro de la tarjeta para que cada hijo del
+            grupo siga siendo un adjunto y conserve su ancho al desplazarse. */}
+        {attachment.type === "audio" ? (
+          <audio className="mt-1.5 w-full max-w-64" controls src={href}>
+            {label}
+          </audio>
+        ) : null}
+      </AttachmentContent>
+      <AttachmentActions>
+        <AttachmentAction aria-label={`Abrir ${title}`} asChild>
+          <a href={href} rel="noreferrer" target="_blank">
+            <Download />
+          </a>
+        </AttachmentAction>
+      </AttachmentActions>
+    </Attachment>
   );
 }
 

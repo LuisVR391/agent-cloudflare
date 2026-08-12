@@ -37,7 +37,7 @@ type ThreadRow =
  * Intercala una marca por cada cambio de día para que el hilo se lea sin
  * repetir la fecha completa en cada mensaje.
  */
-export function threadRows(messages: ConversationMessage[]): ThreadRow[] {
+function threadRows(messages: ConversationMessage[]): ThreadRow[] {
   const rows: ThreadRow[] = [];
   let currentDay: string | null = null;
   for (const message of messages) {
