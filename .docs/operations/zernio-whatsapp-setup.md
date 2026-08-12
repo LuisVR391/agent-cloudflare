@@ -157,6 +157,14 @@ y la SPA en `200` y el webhook sin firma en `401`.
 Ejecuta nuevamente los pasos anteriores con un mensaje nuevo. Registra versión,
 IDs opacos y estados, sin copiar texto, teléfono, tokens ni payloads.
 
+El acuse de lectura hacia el contacto quedó desplegado como versión
+`3f8b56e1-cfd7-4a22-9cf4-5393f78cdf0b`, con la migración `0007` aplicada en la
+D1 remota de staging. Para validarlo, abre una conversación con entrantes sin
+leer y comprueba que las palomitas del contacto pasan a azul; reabrirla no debe
+generar una segunda llamada al proveedor. Si el proveedor responde correctamente
+y las palomitas no cambian, la cuenta es de coexistencia y el estado de lectura
+lo conserva la app del cliente.
+
 
 ## Recuperación
 
