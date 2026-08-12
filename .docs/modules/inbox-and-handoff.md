@@ -9,14 +9,30 @@ de la organización activa.
 - `GET /api/conversations/:id/messages`: resumen e historial cronológico.
 - `POST /api/conversations/:id/messages`: respuesta humana idempotente.
 - `PATCH /api/conversations/:id`: modo o estado con control optimista.
+- `POST /api/conversations/:id/read`: acuse de lectura hacia el canal.
 - `GET /api/conversations/:id/live`: WebSocket derivado y autorizado en
   backend.
 
 `conversations.read` permite consulta; `conversations.manage` permite
-responder, pausar, tomar control, resolver y reabrir. El backend solo acepta una
-respuesta cuando la conversación está abierta y en modo `human`; una
-conversación resuelta debe reabrirse y un modo pausado debe volver a control
+responder, pausar, tomar control, resolver, reabrir y acusar lectura. El backend
+solo acepta una respuesta cuando la conversación está abierta y en modo `human`;
+una conversación resuelta debe reabrirse y un modo pausado debe volver a control
 humano.
+
+## Acuse de lectura
+
+Marcar leída una conversación avisa al contacto en su canal, así que es una
+acción con efecto externo y no una consecuencia de consultar el historial:
+`GET /api/conversations/:id/messages` permanece sin efectos y una consulta con
+solo `conversations.read` nunca la dispara. La interfaz la invoca al abrir el
+hilo, que es la vista humana real.
+
+`conversations.last_read_at` registra la última lectura y evita repetir el acuse
+mientras no lleguen entrantes nuevos. Solo se actualiza después de que el canal
+acepta el acuse, de modo que un fallo del proveedor conserva la conversación
+pendiente y la siguiente apertura vuelve a intentarlo sin intervención. Cada
+acuse aceptado deja una entrada `conversation.read` en `audit_logs` con actor,
+conversación y correlación, sin texto ni teléfono.
 
 ## Interfaz
 

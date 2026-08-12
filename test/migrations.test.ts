@@ -50,6 +50,7 @@ describe("migraciones de D1", () => {
       "0004_conversations_and_messages.sql",
       "0005_message_sent_reconciliation.sql",
       "0006_outbound_status_reconciliation.sql",
+      "0007_conversation_read_receipts.sql",
     ]);
   });
 

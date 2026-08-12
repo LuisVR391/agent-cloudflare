@@ -4,12 +4,14 @@ import { error, resolveAuthorizationContext } from "./auth/http";
 import type { WorkerEnv } from "./auth/types";
 import type { CustomerSupportAgent } from "./customer-support-agent";
 import type { OutboundQueueMessage } from "./integrations/zernio/contracts";
+import { ZernioClient } from "./integrations/zernio/client";
 import { ConversationRepository } from "./repositories/conversation-repository";
 
 type ConversationEnv = WorkerEnv & {
   CustomerSupportAgent: DurableObjectNamespace<CustomerSupportAgent>;
   OUTBOUND_MESSAGES: Queue<OutboundQueueMessage>;
   MEDIA_BUCKET: R2Bucket;
+  ZERNIO_API_KEY?: string;
 };
 const updateSchema = z.object({
   expectedVersion: z.number().int().positive(),
@@ -83,7 +85,7 @@ export async function routeConversationApi(
     });
   }
 
-  const match = suffix.match(/^\/([^/]+)(?:\/(messages|live))?$/);
+  const match = suffix.match(/^\/([^/]+)(?:\/(messages|live|read))?$/);
   if (!match) return error(404, "NOT_FOUND", "La conversación solicitada no existe.", correlationId);
   const conversationId = match[1];
   const action = match[2];
@@ -103,6 +105,42 @@ export async function routeConversationApi(
     if (!permissions.includes("conversations.read")) return error(403, "FORBIDDEN", "No tienes permiso para consultar conversaciones.", correlationId);
     const agent = await getAgentByName(env.CustomerSupportAgent, `${organizationId}:${conversationId}`);
     return agent.fetch(request);
+  }
+  if (request.method === "POST" && action === "read") {
+    // Acción humana explícita: el `GET .../messages` permanece sin efectos, tal
+    // como exige el contrato del canal. Marcar leído avisa al contacto, así que
+    // requiere permiso de atención y no basta con poder consultar el hilo.
+    if (!permissions.includes("conversations.manage")) {
+      return error(403, "FORBIDDEN", "No tienes permiso para atender conversaciones.", correlationId);
+    }
+    const pending = await repository.findUnreadInbound(organizationId, conversationId);
+    if (!pending) return json({ marked: false });
+    if (!env.ZERNIO_API_KEY) return json({ marked: false });
+
+    try {
+      await new ZernioClient(env.ZERNIO_API_KEY).markConversationRead({
+        conversationId: pending.externalConversationId,
+        accountId: pending.externalAccountId,
+      });
+    } catch {
+      // El acuse es accesorio a la vista del operador: un fallo conserva la
+      // conversación pendiente y la próxima apertura vuelve a intentarlo.
+      console.error(JSON.stringify({
+        event: "conversation.read.acknowledge",
+        result: "failed",
+        correlationId,
+      }));
+      return json({ marked: false });
+    }
+
+    await repository.markRead({
+      organizationId,
+      conversationId,
+      actorId: context.user.id,
+      readAt: new Date().toISOString(),
+      correlationId,
+    });
+    return json({ marked: true });
   }
   if (request.method === "POST" && action === "messages") {
     if (!permissions.includes("conversations.manage")) {

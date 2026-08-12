@@ -20,6 +20,22 @@ const sendResponseSchema = z.object({
   }),
 });
 
+const markReadInputSchema = z.object({
+  conversationId: z.string().min(1).max(512),
+  accountId: z.string().min(1).max(512),
+});
+
+// `markedCount` es informativo: puede valer 0 si el proveedor ya consideraba
+// leídos los mensajes. Exigirlo repetiría el error de contrato que dejaba cada
+// operación correcta clasificada como respuesta inválida.
+const markReadResponseSchema = z.object({
+  success: z.literal(true),
+  markedCount: z.number().int().nonnegative().nullish(),
+});
+
+export type MarkZernioConversationReadInput = z.infer<
+  typeof markReadInputSchema
+>;
 export type SendZernioTextMessageInput = z.infer<typeof sendInputSchema>;
 export type SendZernioTextMessageResult = z.infer<typeof sendResponseSchema>["data"];
 export type ZernioFetch = (
@@ -128,5 +144,37 @@ export class ZernioClient {
     );
     if (!parsed.success) throw new ZernioResponseError();
     return parsed.data.data;
+  }
+
+  // Emite el acuse de lectura del canal. No crea nada y repetirlo es inocuo, por
+  // lo que no lleva `Idempotency-Key`.
+  async markConversationRead(
+    input: MarkZernioConversationReadInput,
+  ): Promise<{ markedCount: number | null }> {
+    const validated = markReadInputSchema.parse(input);
+    let response: Response;
+    try {
+      response = await this.#fetch(
+        `${this.#baseUrl}/inbox/conversations/${encodeURIComponent(validated.conversationId)}/read`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${this.#apiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ accountId: validated.accountId }),
+        },
+      );
+    } catch (caught) {
+      throw new ZernioTransportError(classifyTransportFailure(caught));
+    }
+    if (!response.ok) {
+      throw new ZernioApiError(response.status);
+    }
+    const parsed = markReadResponseSchema.safeParse(
+      await response.json().catch(() => null),
+    );
+    if (!parsed.success) throw new ZernioResponseError();
+    return { markedCount: parsed.data.markedCount ?? null };
   }
 }

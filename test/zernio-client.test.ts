@@ -72,6 +72,41 @@ describe("ZernioClient", () => {
     },
   );
 
+  it("marca la conversación como leída con bearer y accountId", async () => {
+    const fetchMock = vi.fn<ZernioFetch>(async () =>
+      Response.json({ success: true, markedCount: 2 }),
+    );
+    const client = new ZernioClient("test-api-key", { fetch: fetchMock });
+
+    await expect(
+      client.markConversationRead({
+        conversationId: "conversation/123",
+        accountId: "account-123",
+      }),
+    ).resolves.toEqual({ markedCount: 2 });
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe(
+      "https://zernio.com/api/v1/inbox/conversations/conversation%2F123/read",
+    );
+    expect(init?.method).toBe("POST");
+    expect(init?.headers).toMatchObject({ Authorization: "Bearer test-api-key" });
+    expect(JSON.parse(String(init?.body))).toEqual({ accountId: "account-123" });
+  });
+
+  it("acepta el acuse de lectura sin markedCount", async () => {
+    const client = new ZernioClient("test-api-key", {
+      fetch: async () => Response.json({ success: true }),
+    });
+
+    await expect(
+      client.markConversationRead({
+        conversationId: "conversation-123",
+        accountId: "account-123",
+      }),
+    ).resolves.toEqual({ markedCount: null });
+  });
+
   it("no expone el cuerpo de error del proveedor", async () => {
     const client = new ZernioClient("test-api-key", {
       fetch: async () =>

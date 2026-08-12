@@ -58,6 +58,15 @@ del contenido. La conversación devuelta solo se contrasta cuando el proveedor
 la incluye; en WhatsApp la confirman el destino de la ruta de envío y el
 webhook posterior.
 
+El acuse de lectura usa `POST /v1/inbox/conversations/{id}/read` con la cuenta
+del canal. En WhatsApp emite las palomitas azules hacia el contacto, salvo en
+cuentas de coexistencia: ahí la app de WhatsApp Business del cliente conserva el
+estado de lectura y el proveedor no lo sobrescribe, por lo que la ausencia de
+palomita azul en esas cuentas es una limitación del canal y no un defecto
+propio. La operación no crea nada y repetirla es inocua, así que no lleva clave
+de idempotencia; `markedCount` es informativo y puede valer `0` cuando el
+proveedor ya los consideraba leídos.
+
 El proveedor decide cuál de los dos identificadores opacos devuelve en ese
 campo: en WhatsApp es el `platformMessageId`, mientras el webhook identifica el
 mensaje por el ID interno de Zernio y lleva el de plataforma aparte. La
