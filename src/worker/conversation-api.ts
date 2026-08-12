@@ -65,12 +65,21 @@ export async function routeConversationApi(
   const attachmentMatch = suffix.match(/^\/([^/]+)\/attachments\/([^/]+)$/);
   if (attachmentMatch && request.method === "GET") {
     if (!permissions.includes("conversations.read")) return error(403, "FORBIDDEN", "No tienes permiso para consultar conversaciones.", correlationId);
+    // El identificador del adjunto contiene `:`, que la interfaz codifica al
+    // construir el enlace. Sin decodificarlo, la búsqueda usa el literal
+    // escapado y ningún adjunto conservado llega a encontrarse.
+    let attachmentId: string;
+    try {
+      attachmentId = decodeURIComponent(attachmentMatch[2]);
+    } catch {
+      return error(400, "INVALID_ATTACHMENT_ID", "El adjunto solicitado no es válido.", correlationId);
+    }
     const row = await env.DB.prepare(`SELECT a.r2_key, a.content_type, a.status,
       a.failure_reason
       FROM message_attachments a JOIN messages m
         ON m.organization_id = a.organization_id AND m.id = a.message_id
       WHERE a.organization_id = ? AND m.conversation_id = ? AND a.id = ?`)
-      .bind(organizationId, attachmentMatch[1], attachmentMatch[2])
+      .bind(organizationId, decodeURIComponent(attachmentMatch[1]), attachmentId)
       .first<{
         r2_key: string | null; content_type: string | null;
         status: string; failure_reason: string | null;
