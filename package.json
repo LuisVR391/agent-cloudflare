@@ -28,6 +28,7 @@
     "check": "npm run check:agents && npm run typecheck && npm run test && npm run build && npm run check:staging"
   },
   "dependencies": {
+    "@shadcn/react": "0.3.0",
     "@tailwindcss/vite": "^4.3.3",
     "agents": "^0.20.1",
     "better-auth": "^1.6.25",
@@ -54,6 +55,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.4",
     "jsdom": "^29.0.1",
+    "shadcn": "4.17.0",
     "typescript": "^7.0.2",
     "vite": "^8.1.5",
     "vitest": "^4.1.10",
