@@ -1,59 +1,153 @@
-const maximumBytes = 16 * 1024 * 1024;
-const allowedContentTypes = {
-  audio: ["audio/"],
-  image: ["image/"],
-  document: ["application/pdf"],
-} as const;
+import {
+  ZernioClient,
+  ZernioMediaUnavailableError,
+} from "./client";
+import type { AttachmentType } from "./contracts";
 
-function validateUrl(value: string): URL {
-  const url = new URL(value);
-  const host = url.hostname.toLowerCase();
-  if (
-    url.protocol !== "https:" ||
-    host === "localhost" ||
-    host.endsWith(".localhost") ||
-    host === "127.0.0.1" ||
-    host === "::1"
-  ) {
-    throw new Error("ATTACHMENT_URL_REJECTED");
-  }
-  return url;
+const maximumBytes = 16 * 1024 * 1024;
+
+// Solo se conservan los tipos con contenido descargable y verificable. `sticker`
+// y `share` se registran sin copiar: el primero no aporta contenido operativo y
+// el segundo referencia material externo cuya autoría y permisos no podemos
+// demostrar.
+const allowedContentTypes: Partial<Record<AttachmentType, readonly string[]>> = {
+  image: ["image/"],
+  video: ["video/"],
+  audio: ["audio/"],
+  file: ["application/", "text/"],
+};
+
+export type AttachmentOutcome =
+  | { status: "stored" }
+  | { status: "rejected"; reason: string }
+  | { status: "retryable"; reason: string };
+
+function matches(contentType: string, allowed: readonly string[]): boolean {
+  return allowed.some((prefix) =>
+    prefix.endsWith("/") ? contentType.startsWith(prefix) : contentType === prefix,
+  );
 }
 
-export async function persistInboundAttachments(input: {
+async function persistAttachment(input: {
+  client: ZernioClient;
   db: D1Database;
   bucket: R2Bucket;
   organizationId: string;
+  externalAccountId: string;
   messageId: string;
-  attachments: Array<{ type: "audio" | "image" | "document"; url: string }>;
-}): Promise<void> {
-  for (const [index, attachment] of input.attachments.entries()) {
-    const url = validateUrl(attachment.url);
-    const response = await fetch(url, { redirect: "error" });
-    if (!response.ok) throw new Error("ATTACHMENT_DOWNLOAD_FAILED");
-    const declaredSize = Number(response.headers.get("content-length"));
-    if (!Number.isFinite(declaredSize) || declaredSize < 0 || declaredSize > maximumBytes) {
-      throw new Error("ATTACHMENT_SIZE_REJECTED");
-    }
-    const contentType = response.headers.get("content-type")?.split(";", 1)[0]?.toLowerCase() ?? "";
-    if (!allowedContentTypes[attachment.type].some((allowed) =>
-      allowed.endsWith("/") ? contentType.startsWith(allowed) : contentType === allowed
-    )) {
-      throw new Error("ATTACHMENT_CONTENT_TYPE_REJECTED");
-    }
-    const bytes = await response.arrayBuffer();
-    if (bytes.byteLength !== declaredSize || bytes.byteLength > maximumBytes) {
-      throw new Error("ATTACHMENT_SIZE_MISMATCH");
-    }
-    const attachmentId = `${input.messageId}:${index}`;
-    const key = `${input.organizationId}/conversations/${input.messageId}/${index}`;
-    await input.bucket.put(key, bytes, { httpMetadata: { contentType } });
+  index: number;
+  attachment: {
+    type: AttachmentType;
+    url: string;
+    id?: string | null;
+    filename?: string | null;
+  };
+}): Promise<AttachmentOutcome> {
+  const allowed = allowedContentTypes[input.attachment.type];
+  const attachmentId = `${input.messageId}:${input.index}`;
+  const record = async (
+    outcome: AttachmentOutcome,
+    stored?: { contentType: string; byteSize: number; key: string },
+  ) => {
+    const now = new Date().toISOString();
     await input.db.prepare(`INSERT INTO message_attachments
-      (id, organization_id, message_id, attachment_type, content_type, byte_size, r2_key, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      (id, organization_id, message_id, attachment_type, content_type, byte_size,
+       r2_key, status, failure_reason, external_media_id, filename, created_at,
+       updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT (id) DO UPDATE SET content_type = excluded.content_type,
-        byte_size = excluded.byte_size, r2_key = excluded.r2_key`)
-      .bind(attachmentId, input.organizationId, input.messageId, attachment.type,
-        contentType, bytes.byteLength, key, new Date().toISOString()).run();
+        byte_size = excluded.byte_size, r2_key = excluded.r2_key,
+        status = excluded.status, failure_reason = excluded.failure_reason,
+        updated_at = excluded.updated_at`)
+      .bind(
+        attachmentId,
+        input.organizationId,
+        input.messageId,
+        input.attachment.type,
+        stored?.contentType ?? null,
+        stored?.byteSize ?? null,
+        stored?.key ?? null,
+        outcome.status === "stored" ? "stored" : "rejected",
+        outcome.status === "stored" ? null : outcome.reason,
+        input.attachment.id ?? null,
+        input.attachment.filename ?? null,
+        now,
+        now,
+      ).run();
+    return outcome;
+  };
+
+  if (!allowed) {
+    return record({ status: "rejected", reason: "ATTACHMENT_TYPE_UNSUPPORTED" });
   }
+
+  let media: Awaited<ReturnType<ZernioClient["downloadWhatsAppMedia"]>>;
+  try {
+    media = await input.client.downloadWhatsAppMedia({
+      url: input.attachment.url,
+      accountId: input.externalAccountId,
+    });
+  } catch (caught) {
+    if (caught instanceof ZernioMediaUnavailableError) {
+      return record({ status: "rejected", reason: "ATTACHMENT_UNAVAILABLE" });
+    }
+    // Transitorio: no se registra un rechazo definitivo para no ocultar que el
+    // medio aún podría recuperarse.
+    return { status: "retryable", reason: "ATTACHMENT_DOWNLOAD_FAILED" };
+  }
+
+  if (media.bytes.byteLength > maximumBytes) {
+    return record({ status: "rejected", reason: "ATTACHMENT_SIZE_REJECTED" });
+  }
+  if (!matches(media.contentType, allowed)) {
+    return record({ status: "rejected", reason: "ATTACHMENT_CONTENT_TYPE_REJECTED" });
+  }
+
+  const key = `${input.organizationId}/conversations/${input.messageId}/${input.index}`;
+  try {
+    await input.bucket.put(key, media.bytes, {
+      httpMetadata: { contentType: media.contentType },
+    });
+  } catch {
+    return { status: "retryable", reason: "ATTACHMENT_STORAGE_FAILED" };
+  }
+  return record({ status: "stored" }, {
+    contentType: media.contentType,
+    byteSize: media.bytes.byteLength,
+    key,
+  });
+}
+
+// Nunca lanza: un adjunto irrecuperable no debe impedir que su mensaje llegue al
+// inbox. El consumidor decide reintentar solo si algún resultado es transitorio.
+export async function persistInboundAttachments(input: {
+  client: ZernioClient;
+  db: D1Database;
+  bucket: R2Bucket;
+  organizationId: string;
+  externalAccountId: string;
+  messageId: string;
+  attachments: Array<{
+    type: AttachmentType;
+    url: string;
+    id?: string | null;
+    filename?: string | null;
+  }>;
+}): Promise<AttachmentOutcome[]> {
+  const outcomes: AttachmentOutcome[] = [];
+  for (const [index, attachment] of input.attachments.entries()) {
+    outcomes.push(
+      await persistAttachment({
+        client: input.client,
+        db: input.db,
+        bucket: input.bucket,
+        organizationId: input.organizationId,
+        externalAccountId: input.externalAccountId,
+        messageId: input.messageId,
+        index,
+        attachment,
+      }),
+    );
+  }
+  return outcomes;
 }

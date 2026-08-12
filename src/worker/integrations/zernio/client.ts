@@ -65,6 +65,19 @@ export class ZernioResponseError extends Error {
   }
 }
 
+// Un medio que el proveedor ya no puede servir no se recupera reintentando: la
+// ventana de retención de WhatsApp expiró o la credencial no autoriza la
+// descarga. Separarlo del fallo transitorio evita consumir reintentos en vano.
+export class ZernioMediaUnavailableError extends Error {
+  readonly status: number;
+
+  constructor(status: number) {
+    super(`El medio no está disponible en el proveedor (estado ${status}).`);
+    this.name = "ZernioMediaUnavailableError";
+    this.status = status;
+  }
+}
+
 export class ZernioTransportError extends Error {
   readonly category: ZernioTransportFailureCategory;
 
@@ -128,5 +141,48 @@ export class ZernioClient {
     );
     if (!parsed.success) throw new ZernioResponseError();
     return parsed.data.data;
+  }
+
+  // La URL llega dentro del payload del webhook, que es entrada no confiable: la
+  // firma HMAC prueba el origen del evento, no su contenido. Por eso la
+  // credencial solo se adjunta cuando el destino es exactamente el origen de la
+  // API; cualquier otro host se rechaza antes de enviarla.
+  async downloadWhatsAppMedia(input: {
+    url: string;
+    accountId: string;
+  }): Promise<{ bytes: ArrayBuffer; contentType: string }> {
+    const target = new URL(input.url);
+    if (target.origin !== new URL(this.#baseUrl).origin) {
+      throw new ZernioMediaUnavailableError(0);
+    }
+    // El endpoint exige la cuenta que recibió el medio; se añade si el proveedor
+    // no la incluyó en la URL.
+    if (!target.searchParams.has("accountId")) {
+      target.searchParams.set("accountId", input.accountId);
+    }
+
+    let response: Response;
+    try {
+      response = await this.#fetch(target, {
+        headers: { Authorization: `Bearer ${this.#apiKey}` },
+        redirect: "error",
+      });
+    } catch (caught) {
+      throw new ZernioTransportError(classifyTransportFailure(caught));
+    }
+    if (!response.ok) {
+      // `400` significa que Meta descartó el medio y no volverá: reintentarlo
+      // nunca tendrá éxito. `401`, `403` y `404` son permanentes por
+      // configuración. El resto sí merece reintento.
+      if (response.status < 500 && response.status !== 429) {
+        throw new ZernioMediaUnavailableError(response.status);
+      }
+      throw new ZernioApiError(response.status);
+    }
+    return {
+      bytes: await response.arrayBuffer(),
+      contentType:
+        response.headers.get("content-type")?.split(";", 1)[0]?.toLowerCase() ?? "",
+    };
   }
 }

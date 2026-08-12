@@ -58,6 +58,33 @@ del contenido. La conversación devuelta solo se contrasta cuando el proveedor
 la incluye; en WhatsApp la confirman el destino de la ruta de envío y el
 webhook posterior.
 
+## Medios entrantes
+
+La `url` de un adjunto de WhatsApp apunta al endpoint autenticado
+`GET /v1/whatsapp/media/{mediaId}` y exige la credencial del canal; no es un
+enlace público, a diferencia de otras plataformas. Como esa URL llega dentro del
+payload del webhook —entrada no confiable, porque la firma prueba el origen del
+evento y no su contenido—, la credencial solo se adjunta cuando el destino
+coincide exactamente con el origen de la API. Cualquier otro host se rechaza
+antes de enviarla.
+
+WhatsApp conserva el medio una ventana limitada, así que se descarga al recibir
+el evento y no de forma diferida. Un `400` significa que el medio ya no existe y
+no se reintenta; `401`, `403` y `404` son permanentes por configuración; el
+resto sí admite reintento.
+
+Los tipos que emite el canal son `image`, `video`, `audio`, `file`, `sticker` y
+`share`. Se copian los cuatro primeros; `sticker` y `share` se registran sin
+copiar, y un tipo desconocido se normaliza como `unsupported` en vez de rechazar
+el evento, porque un `422` provocaría reintentos indefinidos de un webhook que
+nunca sería aceptado y perdería el mensaje que lo acompaña.
+
+Un adjunto que no puede conservarse **no impide que su mensaje llegue al
+inbox**: el mensaje se entrega al runtime antes de copiar los medios, y el
+adjunto queda registrado con estado `rejected` y su motivo. La lectura de un
+adjunto no conservado responde `409`, distinguible de un identificador
+inexistente.
+
 **El producto no emite acuses de lectura hacia el contacto.** El proveedor
 expone `POST /v1/inbox/conversations/{id}/read`, que en WhatsApp enviaría las
 palomitas azules, salvo en cuentas de coexistencia: ahí la app de WhatsApp

@@ -25,10 +25,35 @@ const disconnectedAccountSchema = z
   })
   .passthrough();
 
+// Los tipos reales del proveedor son `image`, `video`, `audio`, `file`,
+// `sticker` y `share`. Un tipo desconocido se normaliza en vez de rechazar el
+// evento: un `422` haría que el proveedor reintente indefinidamente un webhook
+// que nunca será aceptado, y perdería además el mensaje que lo acompaña.
+export const attachmentTypes = [
+  "image",
+  "video",
+  "audio",
+  "file",
+  "sticker",
+  "share",
+] as const;
+
+export type AttachmentType = (typeof attachmentTypes)[number] | "unsupported";
+
+const attachmentTypeSchema = z.string().max(64).transform((value): AttachmentType => {
+  const normalized = value.trim().toLowerCase();
+  return (attachmentTypes as readonly string[]).includes(normalized)
+    ? (normalized as AttachmentType)
+    : "unsupported";
+});
+
 const attachmentSchema = z
   .object({
-    type: z.enum(["audio", "image", "document"]),
+    // `id` es el `mediaId` con el que se descarga el binario de WhatsApp.
+    id: z.string().min(1).max(512).nullish(),
+    type: attachmentTypeSchema,
     url: z.url().max(8_192),
+    filename: z.string().max(1_024).nullish(),
   })
   .passthrough();
 

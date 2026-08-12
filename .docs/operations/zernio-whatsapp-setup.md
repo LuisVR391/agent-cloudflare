@@ -185,6 +185,13 @@ retiró `last_read_at` de la D1 remota.
   consumen la clave de idempotencia sin corregir el estado.
 - Mensaje en DLQ: inspecciona categoría, intento y estado D1; no generes una
   nueva clave ni reproduzcas automáticamente el contenido.
+- Adjunto que no aparece: consulta `message_attachments` por su mensaje. El
+  mensaje siempre llega al inbox, y el adjunto conserva `status` y
+  `failure_reason`. `ATTACHMENT_UNAVAILABLE` es permanente —el canal ya no puede
+  servir el medio o la credencial no autoriza la descarga— y no debe
+  reintentarse. `ATTACHMENT_TYPE_UNSUPPORTED` corresponde a `sticker`, `share` o
+  un tipo desconocido, que se registran sin copiar. Si el motivo es de
+  credencial, revisa `ZERNIO_API_KEY` y su alcance antes de reenviar nada.
 - Cuenta desconectada: reconecta en Zernio, verifica salud y reactiva el canal
   mediante una operación administrativa revisada.
 - No aparece la palomita azul en los mensajes que recibe el negocio: es el

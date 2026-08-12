@@ -21,6 +21,19 @@ const messageStatusLabels: Record<ConversationMessage["status"], string> = {
   delivery_unknown: "Confirmación pendiente",
 };
 
+const attachmentTypeLabels: Record<
+  ConversationMessage["attachments"][number]["type"],
+  string
+> = {
+  image: "Imagen",
+  video: "Video",
+  audio: "Audio",
+  file: "Archivo",
+  sticker: "Sticker",
+  share: "Contenido compartido",
+  unsupported: "Adjunto",
+};
+
 function statusTone(status: ConversationMessage["status"]): string {
   if (status === "failed") return "font-medium text-red-200";
   if (status === "delivery_unknown") return "font-medium text-amber-200";
@@ -206,10 +219,18 @@ export function ConversationInbox() {
                       <div className={`max-w-[85%] rounded-2xl px-4 py-2 text-sm ${message.direction === "outgoing" ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
                         <p className="whitespace-pre-wrap break-words">{message.text ?? "Adjunto"}</p>
                         {message.attachments.map((attachment) => (
-                          <a className="mt-2 block underline" href={`/api/conversations/${selected.id}/attachments/${encodeURIComponent(attachment.id)}`}
-                            key={attachment.id} rel="noreferrer" target="_blank">
-                            Abrir {attachment.type} · {Math.ceil(attachment.byteSize / 1024)} KiB
-                          </a>
+                          attachment.status === "stored" ? (
+                            <a className="mt-2 block underline" href={`/api/conversations/${selected.id}/attachments/${encodeURIComponent(attachment.id)}`}
+                              key={attachment.id} rel="noreferrer" target="_blank">
+                              Abrir {attachmentTypeLabels[attachment.type]} · {Math.ceil((attachment.byteSize ?? 0) / 1024)} KiB
+                            </a>
+                          ) : (
+                            // Un enlace roto haría creer que el archivo existe y
+                            // falla al abrirse; el estado se muestra sin acción.
+                            <p className="mt-2 block opacity-80" key={attachment.id}>
+                              {attachmentTypeLabels[attachment.type]} no disponible
+                            </p>
+                          )
                         ))}
                         <p className={"mt-1 text-[10px] opacity-80 " + statusTone(message.status)}>{messageStatusLabels[message.status]} · {new Date(message.occurredAt).toLocaleString()}</p>
                       </div>

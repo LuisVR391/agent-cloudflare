@@ -7,6 +7,7 @@ import { InboundWebhookEventRepository } from "../../repositories/inbound-webhoo
 import { ConversationRepository } from "../../repositories/conversation-repository";
 import { getAgentByName } from "agents";
 import { persistInboundAttachments } from "./media";
+import { ZernioClient } from "./client";
 import { MessageStatusReconciliationRepository } from "../../repositories/message-status-reconciliation-repository";
 
 type InboundQueueEnv = {
@@ -15,6 +16,7 @@ type InboundQueueEnv = {
     import("../../customer-support-agent").CustomerSupportAgent
   >;
   MEDIA_BUCKET: R2Bucket;
+  ZERNIO_API_KEY?: string;
 };
 
 async function notifyMessageChanged(
@@ -57,17 +59,12 @@ export async function processInboundQueueMessage(
       occurredAt: parsed.occurredAt,
       correlationId: parsed.correlationId,
     });
-    await persistInboundAttachments({
-      db: env.DB,
-      bucket: env.MEDIA_BUCKET,
-      organizationId: parsed.organizationId,
-      messageId: persisted.messageId,
-      attachments: parsed.attachments,
-    });
     const channel = await env.DB.prepare(
       "SELECT buffer_seconds FROM communication_channels WHERE organization_id = ? AND id = ?",
     ).bind(parsed.organizationId, parsed.channelId)
       .first<{ buffer_seconds: number }>();
+    // El mensaje se entrega al runtime antes de copiar sus medios: un adjunto
+    // irrecuperable no puede impedir que la conversación lo muestre.
     const agent = await getAgentByName(
       env.CustomerSupportAgent,
       `${parsed.organizationId}:${persisted.conversationId}`,
@@ -79,6 +76,43 @@ export async function processInboundQueueMessage(
       occurredAt: parsed.occurredAt,
       bufferSeconds: channel?.buffer_seconds ?? 8,
     });
+
+    const apiKey = env.ZERNIO_API_KEY;
+    if (parsed.attachments.length > 0 && !apiKey) {
+      // Sin credencial no hay descarga posible. Se registra y el mensaje sigue
+      // su curso: el evento se marca procesado igual, porque reintentarlo no
+      // cambiaría la configuración que falta.
+      console.error(JSON.stringify({
+        event: "queue.inbound.attachments",
+        result: "skipped",
+        reason: "ZERNIO_API_KEY_MISSING",
+        correlationId: parsed.correlationId,
+      }));
+    } else if (parsed.attachments.length > 0 && apiKey) {
+      const outcomes = await persistInboundAttachments({
+        client: new ZernioClient(apiKey),
+        db: env.DB,
+        bucket: env.MEDIA_BUCKET,
+        organizationId: parsed.organizationId,
+        externalAccountId: parsed.externalAccountId,
+        messageId: persisted.messageId,
+        attachments: parsed.attachments,
+      });
+      const rejected = outcomes.filter((outcome) => outcome.status === "rejected");
+      if (rejected.length > 0) {
+        console.error(JSON.stringify({
+          event: "queue.inbound.attachments",
+          result: "rejected",
+          reasons: rejected.map((outcome) => outcome.reason),
+          correlationId: parsed.correlationId,
+        }));
+      }
+      // El evento queda sin marcar y la Queue reintenta; `upsertInbound` y el
+      // `ON CONFLICT` de adjuntos hacen que el reintento no duplique efectos.
+      if (outcomes.some((outcome) => outcome.status === "retryable")) {
+        throw new Error("ATTACHMENT_PERSISTENCE_RETRYABLE");
+      }
+    }
   } else {
     const now = new Date().toISOString();
     const reconciliation = await new MessageStatusReconciliationRepository(

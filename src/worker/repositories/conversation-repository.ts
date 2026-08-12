@@ -16,12 +16,14 @@ type SummaryRow = {
 type MessageRow = {
   id: string; organization_id: string; conversation_id: string;
   direction: "incoming" | "outgoing"; sender_type: "customer" | "staff" | "system";
-  sender_id: string | null; message_type: "text" | "audio" | "image" | "document";
+  sender_id: string | null; message_type: ConversationMessage["messageType"];
   text_content: string | null; status: ConversationMessage["status"]; occurred_at: string;
 };
 type AttachmentRow = {
-  id: string; message_id: string; attachment_type: "audio" | "image" | "document";
-  content_type: string; byte_size: number;
+  id: string; message_id: string;
+  attachment_type: ConversationMessage["attachments"][number]["type"];
+  content_type: string | null; byte_size: number | null;
+  status: "stored" | "rejected"; failure_reason: string | null;
 };
 
 const summarySelect = `SELECT c.id, c.organization_id, c.channel_id, c.contact_id,
@@ -88,7 +90,7 @@ export class ConversationRepository {
     if (results.length === 0) return [];
     const placeholders = results.map(() => "?").join(",");
     const attachments = await this.db.prepare(`SELECT id, message_id, attachment_type,
-      content_type, byte_size FROM message_attachments
+      content_type, byte_size, status, failure_reason FROM message_attachments
       WHERE organization_id = ? AND message_id IN (${placeholders})`)
       .bind(scope, ...results.map((row) => row.id)).all<AttachmentRow>();
     return results.map((row) => ({
@@ -100,6 +102,7 @@ export class ConversationRepository {
         .map((item) => ({
           id: item.id, type: item.attachment_type,
           contentType: item.content_type, byteSize: item.byte_size,
+          status: item.status, failureReason: item.failure_reason,
         })),
     })).reverse();
   }
@@ -107,7 +110,7 @@ export class ConversationRepository {
   async upsertInbound(input: {
     organizationId: string; channelId: string; externalConversationId: string;
     externalContactId: string; externalMessageId: string; platformMessageId: string;
-    text: string | null; messageType?: "text" | "audio" | "image" | "document";
+    text: string | null; messageType?: ConversationMessage["messageType"];
     occurredAt: string; correlationId: string;
   }): Promise<{ conversationId: string; messageId: string }> {
     const scope = requireOrganizationScope(input.organizationId, "ConversationRepository.upsertInbound");
