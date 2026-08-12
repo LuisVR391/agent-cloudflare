@@ -86,7 +86,8 @@ fallback. Ninguno de estos valores aparece en logs operativos.
   devuelve, así que cada envío correcto se clasificaba como
   `ZERNIO_RESPONSE_INVALID` y perdía el `messageId` necesario para reconciliar.
   Zernio entregó el mensaje y emitió los tres estados con `202`, pero la UI
-  conservó `Confirmación pendiente`. El contrato corregido está pendiente de
-  despliegue y de una prueba humana nueva.
+  conservó `Confirmación pendiente`. El contrato corregido está desplegado en
+  staging como versión `cf9a1388-a60f-483d-80c3-f5ed83c51e05` y requiere una
+  prueba humana nueva.
 - La conservación y validación integral de medios permanece en
   [Issue #20](https://github.com/LuisVR391/agent-cloudflare/issues/20).

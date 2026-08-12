@@ -16,8 +16,9 @@ aceptados con `202`; aun así la UI conservó `Confirmación pendiente`. La caus
 era el contrato de respuesta de envío, que exigía `conversationId` y `sentAt`
 —campos que Zernio solo puebla para Twitter y Bluesky—, por lo que cada envío
 correcto se descartaba como `ZERNIO_RESPONSE_INVALID` y perdía el `messageId`
-con el que se reconcilian los estados. La corrección está en `main` y falta
-desplegarla y repetir la validación remota con un mensaje nuevo.
+con el que se reconcilian los estados. La corrección está desplegada como
+versión `cf9a1388-a60f-483d-80c3-f5ed83c51e05`; falta repetir la validación
+remota con un mensaje nuevo.
 
 Los mensajes salientes anteriores a esa corrección permanecen en
 `delivery_unknown` y no son recuperables automáticamente: no conservan el
@@ -142,8 +143,11 @@ activas, `message.sent`, `message.delivered` y `message.read` se aceptaron con
 `202` y WhatsApp mostró la respuesta entregada y leída, pero la UI conservó
 `Confirmación pendiente` por el contrato de respuesta descrito arriba.
 
-Después de desplegar la corrección, ejecuta nuevamente los pasos anteriores con
-un mensaje nuevo. Registra versión, IDs opacos y estados, sin copiar texto,
+La versión `cf9a1388-a60f-483d-80c3-f5ed83c51e05` quedó desplegada el
+2026-08-12 con las migraciones `0001` a `0006` ya aplicadas; `/api/health`,
+`/api/setup/status` y la SPA respondieron `200`, y el webhook rechazó con `401`
+tanto la firma ausente como la inválida. Ejecuta nuevamente los pasos anteriores
+con un mensaje nuevo. Registra versión, IDs opacos y estados, sin copiar texto,
 teléfono, tokens ni payloads.
 
 
