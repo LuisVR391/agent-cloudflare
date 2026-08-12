@@ -64,8 +64,13 @@ cuentas de coexistencia: ahí la app de WhatsApp Business del cliente conserva e
 estado de lectura y el proveedor no lo sobrescribe, por lo que la ausencia de
 palomita azul en esas cuentas es una limitación del canal y no un defecto
 propio. La operación no crea nada y repetirla es inocua, así que no lleva clave
-de idempotencia; `markedCount` es informativo y puede valer `0` cuando el
-proveedor ya los consideraba leídos.
+de idempotencia; `markedCount` se registra en el log del acuse y puede valer `0`
+cuando el proveedor ya los consideraba leídos.
+
+La cuenta `Lia` de staging se conectó desde la app de WhatsApp Business, por lo
+que **es una cuenta de coexistencia**: el acuse se acepta y `unreadCount` baja a
+cero en el proveedor, pero el contacto nunca ve la palomita azul. La ausencia de
+ese indicador en staging es la limitación esperada del canal y no una regresión.
 
 El proveedor decide cuál de los dos identificadores opacos devuelve en ese
 campo: en WhatsApp es el `platformMessageId`, mientras el webhook identifica el

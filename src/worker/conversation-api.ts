@@ -117,11 +117,13 @@ export async function routeConversationApi(
     if (!pending) return json({ marked: false });
     if (!env.ZERNIO_API_KEY) return json({ marked: false });
 
+    let markedCount: number | null;
     try {
-      await new ZernioClient(env.ZERNIO_API_KEY).markConversationRead({
-        conversationId: pending.externalConversationId,
-        accountId: pending.externalAccountId,
-      });
+      ({ markedCount } = await new ZernioClient(env.ZERNIO_API_KEY)
+        .markConversationRead({
+          conversationId: pending.externalConversationId,
+          accountId: pending.externalAccountId,
+        }));
     } catch {
       // El acuse es accesorio a la vista del operador: un fallo conserva la
       // conversación pendiente y la próxima apertura vuelve a intentarlo.
@@ -140,7 +142,16 @@ export async function routeConversationApi(
       readAt: new Date().toISOString(),
       correlationId,
     });
-    return json({ marked: true });
+    // `markedCount` distingue un acuse que marcó mensajes de uno que no tenía
+    // nada que marcar. Sin él, la ausencia de palomita azul en el canal no puede
+    // separarse de un acuse vacío. Puede ser nulo si el proveedor lo omite.
+    console.info(JSON.stringify({
+      event: "conversation.read.acknowledge",
+      result: "allowed",
+      markedCount,
+      correlationId,
+    }));
+    return json({ marked: true, markedCount });
   }
   if (request.method === "POST" && action === "messages") {
     if (!permissions.includes("conversations.manage")) {

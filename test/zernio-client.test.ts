@@ -94,9 +94,15 @@ describe("ZernioClient", () => {
     expect(JSON.parse(String(init?.body))).toEqual({ accountId: "account-123" });
   });
 
-  it("acepta el acuse de lectura sin markedCount", async () => {
+  // `0` significa que el canal no tenía nada que marcar y debe distinguirse de
+  // un `markedCount` ausente: es el dato que separa un acuse vacío de una cuenta
+  // de coexistencia, donde el canal acepta pero no emite el acuse al contacto.
+  it.each([
+    { case: "ausente", body: { success: true }, expected: null },
+    { case: "en cero", body: { success: true, markedCount: 0 }, expected: 0 },
+  ])("acepta el acuse de lectura con markedCount $case", async ({ body, expected }) => {
     const client = new ZernioClient("test-api-key", {
-      fetch: async () => Response.json({ success: true }),
+      fetch: async () => Response.json(body),
     });
 
     await expect(
@@ -104,7 +110,7 @@ describe("ZernioClient", () => {
         conversationId: "conversation-123",
         accountId: "account-123",
       }),
-    ).resolves.toEqual({ markedCount: null });
+    ).resolves.toEqual({ markedCount: expected });
   });
 
   it("no expone el cuerpo de error del proveedor", async () => {

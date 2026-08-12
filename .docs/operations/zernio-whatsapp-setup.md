@@ -188,3 +188,12 @@ lo conserva la app del cliente.
   nueva clave ni reproduzcas automáticamente el contenido.
 - Cuenta desconectada: reconecta en Zernio, verifica salud y reactiva el canal
   mediante una operación administrativa revisada.
+- No aparece la palomita azul: revisa primero el log
+  `conversation.read.acknowledge` y la auditoría `conversation.read`. Si el
+  resultado es `allowed`, el canal aceptó el acuse y no hay acción correctiva
+  del lado del producto. Un `markedCount` en `0` indica que no había mensajes
+  por marcar. Con el acuse aceptado, la causa es una cuenta de coexistencia:
+  la app de WhatsApp Business del cliente conserva el estado de lectura y Meta
+  no permite sobrescribirlo, así que la palomita azul no es alcanzable por API.
+  Solo un número exclusivo de Cloud API la habilita; no es un defecto que pueda
+  corregirse con código.

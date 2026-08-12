@@ -32,7 +32,17 @@ mientras no lleguen entrantes nuevos. Solo se actualiza después de que el canal
 acepta el acuse, de modo que un fallo del proveedor conserva la conversación
 pendiente y la siguiente apertura vuelve a intentarlo sin intervención. Cada
 acuse aceptado deja una entrada `conversation.read` en `audit_logs` con actor,
-conversación y correlación, sin texto ni teléfono.
+conversación y correlación, sin texto ni teléfono, y un log
+`conversation.read.acknowledge` con el `markedCount` devuelto por el canal.
+
+La recarga del WebSocket y el polling de respaldo reutilizan la misma apertura,
+de modo que un mensaje que llega con el hilo ya abierto también queda acusado
+sin que el operador tenga que volver a seleccionarlo.
+
+En cuentas de coexistencia el canal acepta el acuse pero el contacto no ve la
+palomita azul, porque el estado de lectura pertenece a la app de WhatsApp
+Business del cliente. Es una limitación del canal descrita en
+[el módulo de Zernio](./zernio-whatsapp-channel.md).
 
 ## Interfaz
 
