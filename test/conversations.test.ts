@@ -222,6 +222,82 @@ describe.sequential("conversaciones canónicas", () => {
     vi.unstubAllGlobals();
   });
 
+  it("reconcilia cuando el envío devuelve el id de plataforma y el webhook el de Zernio", async () => {
+    const repository = new ConversationRepository(env.DB);
+    const inbound = await repository.upsertInbound({
+      organizationId, channelId, externalConversationId: "z-conversation-cross-id",
+      externalContactId: "wa-contact-cross-id", externalMessageId: "z-message-cross-id",
+      platformMessageId: "wamid-inbound-cross-id", text: "Hola", occurredAt,
+      correlationId: "94949494-9494-4494-8494-949494949494",
+    });
+    const outgoing = await repository.createOutgoing({
+      organizationId,
+      conversationId: inbound.conversationId,
+      actorId: "staff-1",
+      clientRequestId: "95959595-9595-4595-8595-959595959595",
+      text: "Respuesta",
+      correlationId: "96969696-9696-4696-8696-969696969696",
+    });
+    // En WhatsApp la respuesta de envío devuelve el wamid, mientras los webhooks
+    // identifican el mensaje por el id interno de Zernio y llevan el wamid aparte.
+    const wamid = "wamid.HBgNNTIxNzcxMzQ5MzQ3NRUCABEYFENFRDk2NkU4AA==";
+    const zernioMessageId = "6a7c082eb5b00e22498d1456";
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({
+      success: true,
+      data: { messageId: wamid, conversationId: null, sentAt: null },
+    })));
+    await expect(processOutboundQueueMessage(
+      {
+        DB: env.DB,
+        CustomerSupportAgent: env.CustomerSupportAgent,
+        ZERNIO_API_KEY: "test-only-zernio-key",
+      },
+      {
+        kind: "sendTextMessage",
+        organizationId,
+        conversationId: inbound.conversationId,
+        messageId: outgoing.messageId,
+        correlationId: outgoing.correlationId,
+      },
+    )).resolves.toEqual({ action: "ack", result: "sent" });
+
+    for (const status of ["sent", "delivered", "read"] as const) {
+      await processInboundQueueMessage(env, {
+        kind: "messageStatus",
+        eventId: `cross-id-${status}`,
+        correlationId: "97979797-9797-4797-8797-979797979797",
+        organizationId,
+        channelId,
+        externalAccountId: "account-beautyplace",
+        externalConversationId: "z-conversation-cross-id",
+        externalMessageId: zernioMessageId,
+        platformMessageId: wamid,
+        status,
+        occurredAt: `2026-08-12T05:44:1${status === "sent" ? 6 : status === "delivered" ? 7 : 8}.000Z`,
+      });
+    }
+
+    const state = await env.DB.prepare(`SELECT status, external_message_id,
+      platform_message_id FROM messages WHERE organization_id = ? AND id = ?`)
+      .bind(organizationId, outgoing.messageId)
+      .first<{
+        status: string;
+        external_message_id: string;
+        platform_message_id: string;
+      }>();
+    expect(state).toEqual({
+      status: "read",
+      external_message_id: zernioMessageId,
+      platform_message_id: wamid,
+    });
+    const pending = await env.DB.prepare(`SELECT COUNT(*) AS pending
+      FROM message_status_events
+      WHERE organization_id = ? AND platform_message_id = ? AND reconciled_at IS NULL`)
+      .bind(organizationId, wamid).first<{ pending: number }>();
+    expect(pending?.pending).toBe(0);
+    vi.unstubAllGlobals();
+  });
+
   it("reconcilia estados fuera de orden recibidos antes de la respuesta", async () => {
     const repository = new ConversationRepository(env.DB);
     const inbound = await repository.upsertInbound({

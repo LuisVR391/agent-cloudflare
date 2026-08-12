@@ -146,9 +146,14 @@ activas, `message.sent`, `message.delivered` y `message.read` se aceptaron con
 La versión `cf9a1388-a60f-483d-80c3-f5ed83c51e05` quedó desplegada el
 2026-08-12 con las migraciones `0001` a `0006` ya aplicadas; `/api/health`,
 `/api/setup/status` y la SPA respondieron `200`, y el webhook rechazó con `401`
-tanto la firma ausente como la inválida. Ejecuta nuevamente los pasos anteriores
-con un mensaje nuevo. Registra versión, IDs opacos y estados, sin copiar texto,
-teléfono, tokens ni payloads.
+tanto la firma ausente como la inválida. Con esa versión el envío se confirmó
+como `sent`, pero los estados posteriores no avanzaron: el envío guardaba el
+`platformMessageId` y la búsqueda solo lo contrastaba contra el ID interno de
+Zernio, de modo que los eventos quedaban sin reconciliar. El cruce de
+identificadores corrige el vínculo.
+
+Ejecuta nuevamente los pasos anteriores con un mensaje nuevo. Registra versión,
+IDs opacos y estados, sin copiar texto, teléfono, tokens ni payloads.
 
 
 ## Recuperación

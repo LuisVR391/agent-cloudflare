@@ -58,6 +58,14 @@ del contenido. La conversación devuelta solo se contrasta cuando el proveedor
 la incluye; en WhatsApp la confirman el destino de la ruta de envío y el
 webhook posterior.
 
+El proveedor decide cuál de los dos identificadores opacos devuelve en ese
+campo: en WhatsApp es el `platformMessageId`, mientras el webhook identifica el
+mensaje por el ID interno de Zernio y lleva el de plataforma aparte. La
+reconciliación contrasta cada identificador conocido contra ambas columnas, de
+modo que el vínculo no depende de esa elección, y usa el webhook —que sí los
+distingue— para dejar cada uno en su columna. El cruce exige la misma
+organización, canal y conversación, y compara solo identificadores opacos.
+
 ## Datos y seguridad
 
 `communication_channels` conserva identificadores opacos, nombre visible y
@@ -86,8 +94,13 @@ fallback. Ninguno de estos valores aparece en logs operativos.
   devuelve, así que cada envío correcto se clasificaba como
   `ZERNIO_RESPONSE_INVALID` y perdía el `messageId` necesario para reconciliar.
   Zernio entregó el mensaje y emitió los tres estados con `202`, pero la UI
-  conservó `Confirmación pendiente`. El contrato corregido está desplegado en
-  staging como versión `cf9a1388-a60f-483d-80c3-f5ed83c51e05` y requiere una
-  prueba humana nueva.
+  conservó `Confirmación pendiente`. El contrato corregido se desplegó como
+  versión `cf9a1388-a60f-483d-80c3-f5ed83c51e05`.
+- La prueba del 2026-08-12 con esa versión confirmó el envío: el mensaje quedó
+  en `sent` con su identificador capturado. Los eventos `sent`, `delivered` y
+  `read` llegaron, pero ninguno se reconcilió, porque el envío había guardado el
+  `platformMessageId` y la búsqueda solo lo contrastaba contra el ID interno de
+  Zernio. El cruce de identificadores corrige ese vínculo y habilita
+  `Entregado` y `Leído`; requiere una prueba humana nueva.
 - La conservación y validación integral de medios permanece en
   [Issue #20](https://github.com/LuisVR391/agent-cloudflare/issues/20).
