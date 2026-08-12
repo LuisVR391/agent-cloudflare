@@ -81,7 +81,7 @@ medios/validación [#20](https://github.com/LuisVR391/agent-cloudflare/issues/20
 | Salida humana y reconciliación de entregas | Completado | Runtime de #23 | [Issue #21](https://github.com/LuisVR391/agent-cloudflare/issues/21) y [PR #24](https://github.com/LuisVR391/agent-cloudflare/pull/24) |
 | Corrección del envío humano y `message.sent` | Completado | Salida de #21 | [Issue #25](https://github.com/LuisVR391/agent-cloudflare/issues/25) y [PR #26](https://github.com/LuisVR391/agent-cloudflare/pull/26) |
 | Contrato de envío y reconciliación de estados | Completado | Corrección de #25 | [PR #27](https://github.com/LuisVR391/agent-cloudflare/pull/27) |
-| Medios en R2 y validación del recorrido real | Completado | Contrato de envío | [Issue #20](https://github.com/LuisVR391/agent-cloudflare/issues/20) y [PR #28](https://github.com/LuisVR391/agent-cloudflare/pull/28) |
+| Medios en R2 y validación del recorrido real | Completado | Contrato de envío | [Issue #20](https://github.com/LuisVR391/agent-cloudflare/issues/20) y [PR #29](https://github.com/LuisVR391/agent-cloudflare/pull/29) |
 
 **Entregables resumidos:** adaptador bidireccional de Zernio, webhook con firma
 HMAC, resolución confiable de cuenta y organización, normalización y
