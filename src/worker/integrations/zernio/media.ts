@@ -89,11 +89,24 @@ async function persistAttachment(input: {
     });
   } catch (caught) {
     if (caught instanceof ZernioMediaUnavailableError) {
-      return record({ status: "rejected", reason: "ATTACHMENT_UNAVAILABLE" });
+      // `0` marca una URL fuera del origen del proveedor, que se rechaza antes
+      // de enviar la credencial; el resto conserva el estado que devolvió.
+      return record({
+        status: "rejected",
+        reason: caught.status === 0
+          ? "ATTACHMENT_HOST_REJECTED"
+          : `ATTACHMENT_UNAVAILABLE_${caught.status}`,
+      });
     }
     // Transitorio: no se registra un rechazo definitivo para no ocultar que el
-    // medio aún podría recuperarse.
-    return { status: "retryable", reason: "ATTACHMENT_DOWNLOAD_FAILED" };
+    // medio aún podría recuperarse. El motivo viaja en el resultado porque sin
+    // él un reintento perpetuo no puede diagnosticarse.
+    return {
+      status: "retryable",
+      reason: caught instanceof Error
+        ? `${caught.name}:${caught.message}`.slice(0, 200)
+        : "ATTACHMENT_DOWNLOAD_FAILED",
+    };
   }
 
   if (media.bytes.byteLength > maximumBytes) {
@@ -108,8 +121,13 @@ async function persistAttachment(input: {
     await input.bucket.put(key, media.bytes, {
       httpMetadata: { contentType: media.contentType },
     });
-  } catch {
-    return { status: "retryable", reason: "ATTACHMENT_STORAGE_FAILED" };
+  } catch (caught) {
+    return {
+      status: "retryable",
+      reason: caught instanceof Error
+        ? `STORAGE:${caught.name}:${caught.message}`.slice(0, 200)
+        : "ATTACHMENT_STORAGE_FAILED",
+    };
   }
   return record({ status: "stored" }, {
     contentType: media.contentType,

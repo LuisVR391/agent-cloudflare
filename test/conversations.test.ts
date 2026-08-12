@@ -824,7 +824,7 @@ describe.sequential("conversaciones canónicas", () => {
       db: env.DB, bucket, organizationId,
       externalAccountId: "account-beautyplace", messageId: inbound.messageId,
       attachments: [{ type: "image", url: "https://atacante.example.com/media/1" }],
-    })).resolves.toEqual([{ status: "rejected", reason: "ATTACHMENT_UNAVAILABLE" }]);
+    })).resolves.toEqual([{ status: "rejected", reason: "ATTACHMENT_HOST_REJECTED" }]);
     expect(foreignFetch).not.toHaveBeenCalled();
   });
 
@@ -878,7 +878,7 @@ describe.sequential("conversaciones canónicas", () => {
       expect.objectContaining({
         type: "image",
         status: "rejected",
-        failureReason: "ATTACHMENT_UNAVAILABLE",
+        failureReason: "ATTACHMENT_UNAVAILABLE_400",
         contentType: null,
         byteSize: null,
       }),
@@ -908,7 +908,7 @@ describe.sequential("conversaciones canónicas", () => {
         { type: "sticker", url: "https://zernio.com/api/v1/whatsapp/media/sticker" },
       ],
     })).resolves.toEqual([
-      { status: "rejected", reason: "ATTACHMENT_UNAVAILABLE" },
+      { status: "rejected", reason: "ATTACHMENT_UNAVAILABLE_400" },
       { status: "rejected", reason: "ATTACHMENT_TYPE_UNSUPPORTED" },
     ]);
 
@@ -918,7 +918,7 @@ describe.sequential("conversaciones canónicas", () => {
         attachment_type: string; status: string; failure_reason: string; r2_key: string | null;
       }>();
     expect(rows.results).toEqual([
-      { attachment_type: "image", status: "rejected", failure_reason: "ATTACHMENT_UNAVAILABLE", r2_key: null },
+      { attachment_type: "image", status: "rejected", failure_reason: "ATTACHMENT_UNAVAILABLE_400", r2_key: null },
       { attachment_type: "sticker", status: "rejected", failure_reason: "ATTACHMENT_TYPE_UNSUPPORTED", r2_key: null },
     ]);
     expect(bucket.put).not.toHaveBeenCalled();

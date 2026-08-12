@@ -109,7 +109,18 @@ export async function processInboundQueueMessage(
       }
       // El evento queda sin marcar y la Queue reintenta; `upsertInbound` y el
       // `ON CONFLICT` de adjuntos hacen que el reintento no duplique efectos.
-      if (outcomes.some((outcome) => outcome.status === "retryable")) {
+      const retryable = outcomes.filter(
+        (outcome) => outcome.status === "retryable",
+      );
+      if (retryable.length > 0) {
+        // Sin el motivo, un reintento que se repite hasta la DLQ no puede
+        // diagnosticarse: el estado del adjunto no llega a persistirse.
+        console.error(JSON.stringify({
+          event: "queue.inbound.attachments",
+          result: "retryable",
+          reasons: retryable.map((outcome) => outcome.reason),
+          correlationId: parsed.correlationId,
+        }));
         throw new Error("ATTACHMENT_PERSISTENCE_RETRYABLE");
       }
     }
