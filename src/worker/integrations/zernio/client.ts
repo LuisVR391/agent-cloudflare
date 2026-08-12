@@ -163,9 +163,14 @@ export class ZernioClient {
 
     let response: Response;
     try {
+      // El endpoint sirve el binario desde el almacenamiento de medios, así que
+      // puede responder con una redirección. Rechazarla dejaba toda descarga en
+      // un fallo de transporte perpetuo. Seguirla es seguro aquí: la URL de
+      // partida ya se validó contra el origen del proveedor y `fetch` descarta
+      // la credencial al cambiar de origen.
       response = await this.#fetch(target, {
         headers: { Authorization: `Bearer ${this.#apiKey}` },
-        redirect: "error",
+        redirect: "follow",
       });
     } catch (caught) {
       throw new ZernioTransportError(classifyTransportFailure(caught));

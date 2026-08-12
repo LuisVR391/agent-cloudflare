@@ -1,6 +1,7 @@
 import {
   ZernioClient,
   ZernioMediaUnavailableError,
+  ZernioTransportError,
 } from "./client";
 import type { AttachmentType } from "./contracts";
 
@@ -103,9 +104,13 @@ async function persistAttachment(input: {
     // él un reintento perpetuo no puede diagnosticarse.
     return {
       status: "retryable",
-      reason: caught instanceof Error
-        ? `${caught.name}:${caught.message}`.slice(0, 200)
-        : "ATTACHMENT_DOWNLOAD_FAILED",
+      reason: caught instanceof ZernioTransportError
+        // La categoría distingue un fallo de red de un uso incorrecto del
+        // runtime, que exigen respuestas operativas distintas.
+        ? `ZernioTransportError:${caught.category}`
+        : caught instanceof Error
+          ? `${caught.name}:${caught.message}`.slice(0, 200)
+          : "ATTACHMENT_DOWNLOAD_FAILED",
     };
   }
 
