@@ -67,6 +67,7 @@ estructura y proceso de sustitución.
 | [ADR-0006: Convenciones de esquema en D1](./decisions/ADR-0006-d1-schema-conventions.md) | Vigente | Identificadores, timestamps, aislamiento, migraciones y repositorios |
 | [ADR-0007: Better Auth y contexto organizacional](./decisions/ADR-0007-better-auth-and-organization-context.md) | Vigente | Sesiones en D1, instalación cerrada y autorización por organización |
 | [ADR-0008: Zernio como adaptador de WhatsApp](./decisions/ADR-0008-zernio-whatsapp-adapter.md) | Vigente | Canal bidireccional externo sin delegar datos ni runtime empresarial |
+| [ADR-0009: Composición de la interfaz de cliente](./decisions/ADR-0009-client-ui-composition.md) | Vigente | Primitivas de shadcn/ui para el shell y el hilo, tokens en vez de color incrustado |
 
 ### Fase 1 — WhatsApp funcional
 

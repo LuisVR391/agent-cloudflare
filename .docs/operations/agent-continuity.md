@@ -87,10 +87,16 @@ Code no encontrará ninguna skill aunque el resto de la integración funcione.
 
 Todo lo que describe esta sección es **herramienta de desarrollo local**. No se
 despliega, no entra en el bundle del Worker, no declara bindings ni recursos
-Cloudflare y no añade dependencias de runtime. Un agente no debe presentarla
-como una capacidad del producto ni tratar su salida como aprobada: lo que el
-CLI de shadcn escriba se revisa en el diff, con las mismas reglas de alcance,
-pruebas y documentación que cualquier otro código.
+Cloudflare y no añade por sí misma dependencias de runtime. Un agente no debe
+presentarla como una capacidad del producto ni tratar su salida como aprobada:
+lo que el CLI de shadcn escriba se revisa en el diff, con las mismas reglas de
+alcance, pruebas y documentación que cualquier otro código.
+
+Eso incluye las dependencias. Un componente del registro puede exigir un paquete
+propio —`@shadcn/react` para el desplazamiento del hilo— y ese paquete sí entra
+en el bundle del cliente. Instalar un componente no autoriza su dependencia: se
+declara, se fija a una versión exacta y se justifica en la entrega igual que
+cualquier otra.
 
 La interfaz del cliente es un proyecto shadcn/ui —`components.json`, Tailwind
 v4, base `radix` e iconos `lucide`—, así que el repositorio declara dos piezas
@@ -140,11 +146,21 @@ Tres límites conviene tenerlos presentes:
 
 `shadcn@latest` se resuelve en cada arranque del servidor: la versión puede
 cambiar sin aviso y el primer arranque descarga el paquete. Es una decisión
-deliberada para seguir al registro oficial; el proyecto no fija el CLI como
-dependencia. El registro por defecto no usa credenciales y `components.json` no
-declara registros privados, así que ningún token entra en este flujo. Si algún
-día se configura un registro privado, su token pertenece a `.env.local` y nunca
-al repositorio.
+deliberada para seguir al registro oficial, y el servidor MCP sigue invocándose
+así.
+
+El paquete `shadcn` sí está declarado como `devDependency` con versión exacta,
+pero no para ejecutar el CLI: `src/client/styles.css` importa su
+`shadcn/tailwind.css`, que aporta las utilidades que los componentes del registro
+dan por hechas (`shimmer` en `Attachment`, `scroll-fade-*` en
+`MessageScroller`). Es una dependencia de build cuyo contenido se inlinea en el
+CSS compilado; queda fijada porque cambia con el CLI. Los detalles están en
+[ADR-0009](../decisions/ADR-0009-client-ui-composition.md).
+
+El registro por defecto no usa credenciales y `components.json` no declara
+registros privados, así que ningún token entra en este flujo. Si algún día se
+configura un registro privado, su token pertenece a `.env.local` y nunca al
+repositorio.
 
 ## Comportamiento por evento
 

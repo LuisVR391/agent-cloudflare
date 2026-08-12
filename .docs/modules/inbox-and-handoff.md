@@ -6,7 +6,9 @@ de la organización activa.
 ## API
 
 - `GET /api/conversations`: lista paginada y filtrada por estado.
-- `GET /api/conversations/:id/messages`: resumen e historial cronológico.
+- `GET /api/conversations/:id/messages`: resumen e historial cronológico. Cada
+  adjunto declara tipo, tipo de contenido, tamaño, nombre de archivo y estado de
+  conservación.
 - `POST /api/conversations/:id/messages`: respuesta humana idempotente.
 - `PATCH /api/conversations/:id`: modo o estado con control optimista.
 - `GET /api/conversations/:id/live`: WebSocket derivado y autorizado en
@@ -25,10 +27,26 @@ sentido están en
 
 ## Interfaz
 
+El inbox vive en `/app/conversaciones`, dentro del shell del panel. El shell
+acota la altura de la ventana y no scrollea: el sidebar y la cabecera permanecen
+visibles, y la lista de conversaciones y el hilo se desplazan por separado
+aunque la conversación sea larga. En pantallas estrechas solo cabe un panel, así
+que la lista cede el espacio al hilo y un control devuelve al inbox. La
+composición está fijada en
+[ADR-0009](../decisions/ADR-0009-client-ui-composition.md).
+
 La navegación habilita Conversaciones con listas de abiertas y resueltas,
 detalle del hilo, compositor y controles operativos. Los mensajes presentan
-`En cola`, `Enviado`, `Entregado`, `Leído`, `No enviado` o
-`Confirmación pendiente` según el registro canónico.
+`Recibido`, `En cola`, `Enviado`, `Entregado`, `Leído`, `No enviado` o
+`Confirmación pendiente` según el registro canónico; `No enviado` y
+`Confirmación pendiente` se distinguen como estados que piden atención. El hilo
+sigue el borde cuando llega un mensaje nuevo y ofrece volver al último mensaje
+si se está leyendo más arriba. Los cambios de día se anuncian entre mensajes.
+
+Un adjunto se identifica por el nombre que declaró el canal cuando existe, y por
+su tipo cuando no. Una imagen muestra miniatura y un audio puede reproducirse en
+el hilo. Un adjunto que no pudo conservarse se anuncia sin enlace, porque su
+descarga responde 409.
 
 El WebSocket solicita una recarga de D1 cuando cambia un mensaje entrante o
 saliente. Un polling de respaldo actualiza lista e hilo cada diez segundos ante

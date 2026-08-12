@@ -42,7 +42,7 @@ forks del producto.
 | Capacidad | Estado | Evidencia |
 | --- | --- | --- |
 | Worker y API HTTP | Implementada | `src/worker/index.ts` y `GET /api/health` |
-| SPA React servida por el Worker | Implementada | Landing, `/setup`, `/login`, `/app`, React 19, Tailwind y shadcn/ui |
+| SPA React servida por el Worker | Implementada | Landing, `/setup`, `/login`, `/app`, React 19, Tailwind y shadcn/ui; shell y hilo compuestos con primitivas del registro ([ADR-0009](.docs/decisions/ADR-0009-client-ui-composition.md)) |
 | Agente durable | Base implementada | `CustomerSupportAgent` coordina cada conversación y sus conexiones en vivo |
 | Workers AI | Binding preparado | Binding `AI` declarado, sin flujo de inferencia |
 | R2 | Implementada para Fase 1 | `MEDIA_BUCKET` conserva imágenes, audio y archivos con estado por adjunto; validado con medios reales en staging |
@@ -50,7 +50,7 @@ forks del producto.
 | D1 en local y pruebas | Implementada para Fase 1 | Migraciones `0001` a `0009`, repositorios, mensajes, entregas, adjuntos y aislamiento probado |
 | Autenticación y autorización | Implementada | Better Auth, sesión D1, instalación única, roles fijos y contexto organizacional; [PR #14](https://github.com/LuisVR391/agent-cloudflare/pull/14) |
 | Entornos y staging | Staging desplegado | Recursos aislados; producción sigue sin provisionar |
-| Panel de conversaciones | Implementado para Fase 1 | Inbox protegido, historial, recepción en vivo, handoff, estados de entrega y descarga de adjuntos |
+| Panel de conversaciones | Implementado para Fase 1 | Inbox protegido con sidebar fijo y paneles de scroll independiente, historial, recepción en vivo, handoff, estados de entrega y adjuntos con nombre, miniatura y descarga |
 | Panel de agentes | Planificado | Navegación reservada y deshabilitada |
 | WhatsApp mediante Zernio | Implementado para Fase 1 | Recorrido bidireccional validado con tráfico real, incluidos estados de entrega y medios entrantes |
 | Queues, Workflows y Vectorize | Parcial | Queues de entrada/salida y DLQ provisionadas en staging; Workflows y Vectorize permanecen planificados |
