@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { LoaderCircle, MessageCircleMore, Pause, RefreshCw, Send, UserRoundCheck } from "lucide-react";
-import { Button } from "./ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
+
+import { ConversationList } from "@/components/conversation-list";
+import { ConversationThread } from "@/components/conversation-thread";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { cn } from "@/lib/utils";
 import {
   getConversationMessages,
   listConversations,
@@ -9,36 +11,7 @@ import {
   updateConversation,
   type ConversationMessage,
   type ConversationSummary,
-} from "../lib/api";
-
-const messageStatusLabels: Record<ConversationMessage["status"], string> = {
-  received: "Recibido",
-  queued: "En cola",
-  sent: "Enviado",
-  delivered: "Entregado",
-  read: "Leído",
-  failed: "No enviado",
-  delivery_unknown: "Confirmación pendiente",
-};
-
-const attachmentTypeLabels: Record<
-  ConversationMessage["attachments"][number]["type"],
-  string
-> = {
-  image: "Imagen",
-  video: "Video",
-  audio: "Audio",
-  file: "Archivo",
-  sticker: "Sticker",
-  share: "Contenido compartido",
-  unsupported: "Adjunto",
-};
-
-function statusTone(status: ConversationMessage["status"]): string {
-  if (status === "failed") return "font-medium text-red-200";
-  if (status === "delivery_unknown") return "font-medium text-amber-200";
-  return "";
-}
+} from "@/lib/api";
 
 export function ConversationInbox() {
   const [status, setStatus] = useState<"open" | "resolved">("open");
@@ -163,117 +136,49 @@ export function ConversationInbox() {
         : "Escribe una respuesta…";
 
   return (
-    <section className="mt-8">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-semibold">Conversaciones</h2>
-          <p className="text-sm text-muted-foreground">WhatsApp atendido desde Agent Cloudflare.</p>
+    <div className="flex min-h-0 flex-1 flex-col">
+      {error ? (
+        <div className="shrink-0 p-4 pb-0">
+          <Alert variant="destructive">
+            <AlertTitle>No pudimos completar la acción</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
         </div>
-        <div className="flex gap-2">
-          <Button onClick={() => setStatus("open")} variant={status === "open" ? "default" : "outline"}>Abiertas</Button>
-          <Button onClick={() => setStatus("resolved")} variant={status === "resolved" ? "default" : "outline"}>Resueltas</Button>
-          <Button aria-label="Actualizar" onClick={() => void refreshList()} size="icon" variant="outline"><RefreshCw /></Button>
-        </div>
+      ) : null}
+      {/* En pantallas estrechas solo cabe un panel: la lista cede el espacio al
+          hilo cuando hay una conversación abierta. */}
+      <div className="grid min-h-0 flex-1 md:grid-cols-[320px_1fr] lg:grid-cols-[360px_1fr]">
+        <ConversationList
+          className={cn(selected && "hidden md:flex")}
+          conversations={conversations}
+          loading={loading}
+          onRefresh={() => void refreshList()}
+          onSelect={(conversation) => void openConversation(conversation)}
+          onStatusChange={setStatus}
+          selectedId={selected?.id ?? null}
+          status={status}
+        />
+        <ConversationThread
+          composerDisabled={composerDisabled}
+          composerPlaceholder={composerPlaceholder}
+          messages={messages}
+          onBack={() => setSelected(null)}
+          onChangeState={(input) => void changeState(input)}
+          onComposerChange={(event) => {
+            setText(event.target.value);
+            if (
+              pendingSend.current &&
+              pendingSend.current.text !== event.target.value.trim()
+            ) {
+              pendingSend.current = null;
+            }
+          }}
+          onSend={() => void send()}
+          selected={selected}
+          sending={sending}
+          text={text}
+        />
       </div>
-      {error ? <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">{error}</div> : null}
-      <div className="grid min-h-[620px] gap-4 lg:grid-cols-[340px_1fr]">
-        <Card className="overflow-hidden">
-          <CardHeader><CardTitle>Inbox</CardTitle><CardDescription>{conversations.length} conversaciones</CardDescription></CardHeader>
-          <CardContent className="space-y-2">
-            {loading ? <LoaderCircle className="mx-auto animate-spin" /> : null}
-            {!loading && conversations.length === 0 ? <p className="py-12 text-center text-sm text-muted-foreground">Aún no hay conversaciones {status === "open" ? "abiertas" : "resueltas"}.</p> : null}
-            {conversations.map((conversation) => (
-              <button className={`w-full rounded-xl border p-3 text-left transition ${selected?.id === conversation.id ? "border-primary bg-primary/5" : "hover:bg-muted"}`}
-                key={conversation.id} onClick={() => void openConversation(conversation)} type="button">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="truncate font-medium">{conversation.contactDisplayName ?? conversation.contactExternalId}</span>
-                  <span className="text-xs text-muted-foreground">{new Date(conversation.lastMessageAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
-                </div>
-                <p className="mt-1 truncate text-sm text-muted-foreground">{conversation.lastMessageText ?? "Adjunto"}</p>
-                <p className="mt-2 text-xs capitalize text-muted-foreground">{conversation.attentionMode}</p>
-              </button>
-            ))}
-          </CardContent>
-        </Card>
-        <Card className="flex min-w-0 flex-col">
-          {!selected ? <CardContent className="flex flex-1 flex-col items-center justify-center text-center text-muted-foreground"><MessageCircleMore className="mb-3 size-10" /><p>Selecciona una conversación para ver su flujo.</p></CardContent> : (
-            <>
-              <CardHeader className="border-b">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div><CardTitle>{selected.contactDisplayName ?? selected.contactExternalId}</CardTitle><CardDescription>{selected.channelDisplayName ?? "WhatsApp"} · {selected.status}</CardDescription></div>
-                  <div className="flex gap-2">
-                    <Button onClick={() => void changeState({ attentionMode: selected.attentionMode === "paused" ? "human" : "paused" })} variant="outline">
-                      {selected.attentionMode === "paused" ? <UserRoundCheck /> : <Pause />}
-                      {selected.attentionMode === "paused" ? "Tomar control" : "Pausar"}
-                    </Button>
-                    <Button onClick={() => void changeState({ status: selected.status === "open" ? "resolved" : "open" })} variant="outline">
-                      {selected.status === "open" ? "Resolver" : "Reabrir"}
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="flex flex-1 flex-col p-0">
-                <div aria-live="polite" className="flex-1 space-y-3 overflow-y-auto p-4">
-                  {messages.map((message) => (
-                    <div className={`flex ${message.direction === "outgoing" ? "justify-end" : "justify-start"}`} key={message.id}>
-                      <div className={`max-w-[85%] rounded-2xl px-4 py-2 text-sm ${message.direction === "outgoing" ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
-                        <p className="whitespace-pre-wrap break-words">{message.text ?? "Adjunto"}</p>
-                        {message.attachments.map((attachment) => (
-                          attachment.status === "stored" ? (
-                            <a className="mt-2 block underline" href={`/api/conversations/${selected.id}/attachments/${encodeURIComponent(attachment.id)}`}
-                              key={attachment.id} rel="noreferrer" target="_blank">
-                              Abrir {attachmentTypeLabels[attachment.type]} · {Math.ceil((attachment.byteSize ?? 0) / 1024)} KiB
-                            </a>
-                          ) : (
-                            // Un enlace roto haría creer que el archivo existe y
-                            // falla al abrirse; el estado se muestra sin acción.
-                            <p className="mt-2 block opacity-80" key={attachment.id}>
-                              {attachmentTypeLabels[attachment.type]} no disponible
-                            </p>
-                          )
-                        ))}
-                        <p className={"mt-1 text-[10px] opacity-80 " + statusTone(message.status)}>{messageStatusLabels[message.status]} · {new Date(message.occurredAt).toLocaleString()}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <div className="border-t p-4">
-                  <div className="flex gap-2">
-                    <textarea
-                      aria-label="Mensaje"
-                      className="min-h-11 flex-1 resize-none rounded-md border bg-background px-3 py-2 text-sm"
-                      disabled={composerDisabled}
-                      onChange={(event) => {
-                        setText(event.target.value);
-                        if (
-                          pendingSend.current &&
-                          pendingSend.current.text !== event.target.value.trim()
-                        ) {
-                          pendingSend.current = null;
-                        }
-                      }}
-                      placeholder={composerPlaceholder}
-                      value={text}
-                    />
-                    <Button
-                      aria-label="Enviar mensaje"
-                      disabled={composerDisabled || !text.trim()}
-                      onClick={() => void send()}
-                      size="icon"
-                    >
-                      {sending ? (
-                        <LoaderCircle className="animate-spin" />
-                      ) : (
-                        <Send />
-                      )}
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </>
-          )}
-        </Card>
-      </div>
-    </section>
+    </div>
   );
 }

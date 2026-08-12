@@ -80,6 +80,82 @@ describe("inbox de conversaciones", () => {
     expect(secondRequestId).toBe(firstRequestId);
   });
 
+  it("identifica un adjunto conservado por su nombre y ofrece abrirlo", async () => {
+    vi.mocked(getConversationMessages).mockResolvedValue({
+      conversation,
+      messages: [{
+        id: "message-media",
+        direction: "incoming",
+        senderType: "customer",
+        text: null,
+        status: "received",
+        occurredAt: conversation.lastMessageAt,
+        attachments: [
+          {
+            id: "message-media:0",
+            type: "image",
+            contentType: "image/png",
+            byteSize: 110_592,
+            filename: "recibo-agosto.png",
+            status: "stored",
+            failureReason: null,
+          },
+          {
+            id: "message-media:1",
+            type: "audio",
+            contentType: "audio/ogg",
+            byteSize: 6_144,
+            filename: null,
+            status: "stored",
+            failureReason: null,
+          },
+        ],
+      }],
+    });
+    const user = userEvent.setup();
+    render(<ConversationInbox />);
+    await user.click(await screen.findByRole("button", { name: /María/i }));
+
+    expect(await screen.findByText("recibo-agosto.png")).toBeInTheDocument();
+    expect(screen.getByText("Imagen · 108 KiB")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Abrir recibo-agosto.png" })).toHaveAttribute(
+      "href",
+      "/api/conversations/conversation-1/attachments/message-media%3A0",
+    );
+    // Sin nombre declarado, la etiqueta del tipo identifica el adjunto.
+    expect(screen.getByText("Audio · 6 KiB")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Abrir Audio" })).toBeInTheDocument();
+  });
+
+  it("no ofrece enlace cuando el adjunto no pudo conservarse", async () => {
+    vi.mocked(getConversationMessages).mockResolvedValue({
+      conversation,
+      messages: [{
+        id: "message-rejected",
+        direction: "incoming",
+        senderType: "customer",
+        text: null,
+        status: "received",
+        occurredAt: conversation.lastMessageAt,
+        attachments: [{
+          id: "message-rejected:0",
+          type: "image",
+          contentType: null,
+          byteSize: null,
+          filename: "vencido.jpg",
+          status: "rejected",
+          failureReason: "ATTACHMENT_UNAVAILABLE_400",
+        }],
+      }],
+    });
+    const user = userEvent.setup();
+    render(<ConversationInbox />);
+    await user.click(await screen.findByRole("button", { name: /María/i }));
+
+    expect(await screen.findByText("Imagen no disponible")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /^Abrir/ })).not.toBeInTheDocument();
+  });
+
   it("muestra un fallo saliente con una etiqueta comprensible", async () => {
     vi.mocked(getConversationMessages).mockResolvedValue({
       conversation,
