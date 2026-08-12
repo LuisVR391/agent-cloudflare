@@ -142,6 +142,9 @@ export type ConversationMessage = {
     // Nulos cuando el adjunto no pudo conservarse: `status` explica el motivo.
     contentType: string | null;
     byteSize: number | null;
+    // Nombre declarado por el canal; nulo cuando no lo envía. Es texto no
+    // confiable: se presenta, no se usa para construir rutas ni encabezados.
+    filename: string | null;
     status: "stored" | "rejected";
     failureReason: string | null;
   }>;

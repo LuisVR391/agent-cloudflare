@@ -22,7 +22,7 @@ type MessageRow = {
 type AttachmentRow = {
   id: string; message_id: string;
   attachment_type: ConversationMessage["attachments"][number]["type"];
-  content_type: string | null; byte_size: number | null;
+  content_type: string | null; byte_size: number | null; filename: string | null;
   status: "stored" | "rejected"; failure_reason: string | null;
 };
 
@@ -90,7 +90,7 @@ export class ConversationRepository {
     if (results.length === 0) return [];
     const placeholders = results.map(() => "?").join(",");
     const attachments = await this.db.prepare(`SELECT id, message_id, attachment_type,
-      content_type, byte_size, status, failure_reason FROM message_attachments
+      content_type, byte_size, filename, status, failure_reason FROM message_attachments
       WHERE organization_id = ? AND message_id IN (${placeholders})`)
       .bind(scope, ...results.map((row) => row.id)).all<AttachmentRow>();
     return results.map((row) => ({
@@ -102,6 +102,7 @@ export class ConversationRepository {
         .map((item) => ({
           id: item.id, type: item.attachment_type,
           contentType: item.content_type, byteSize: item.byte_size,
+          filename: item.filename,
           status: item.status, failureReason: item.failure_reason,
         })),
     })).reverse();

@@ -122,6 +122,7 @@ export type ConversationMessage = {
     type: "image" | "video" | "audio" | "file" | "sticker" | "share" | "unsupported";
     contentType: string | null;
     byteSize: number | null;
+    filename: string | null;
     status: "stored" | "rejected";
     failureReason: string | null;
   }>;
