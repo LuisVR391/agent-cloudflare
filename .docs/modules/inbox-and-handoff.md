@@ -18,6 +18,11 @@ respuesta cuando la conversación está abierta y en modo `human`; una
 conversación resuelta debe reabrirse y un modo pausado debe volver a control
 humano.
 
+Leer una conversación en el inbox no produce efectos hacia el canal: el producto
+no emite acuses de lectura. La razón y la condición bajo la que volvería a tener
+sentido están en
+[el módulo de Zernio](./zernio-whatsapp-channel.md).
+
 ## Interfaz
 
 La navegación habilita Conversaciones con listas de abiertas y resueltas,

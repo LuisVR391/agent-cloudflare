@@ -9,11 +9,21 @@ de Zernio está activo.
 
 La entrada real, la persistencia canónica, el inbox y su actualización en vivo
 están verificados. Las Queues de entrada y salida y sus DLQ están provisionadas.
-La salida humana histórica alcanzó el consumidor, pero agotó sus reintentos sin
-entregar el mensaje y dejó la UI en `queued`. La corrección del
-[Issue #25](https://github.com/LuisVR391/agent-cloudflare/issues/25) y la
-migración `0005` están desplegadas; falta repetir la validación remota con un
-mensaje nuevo.
+
+La prueba humana del 2026-08-12 confirmó que WhatsApp entregó la respuesta y que
+Zernio emitió `message.sent`, `message.delivered` y `message.read`, los tres
+aceptados con `202`; aun así la UI conservó `Confirmación pendiente`. La causa
+era el contrato de respuesta de envío, que exigía `conversationId` y `sentAt`
+—campos que Zernio solo puebla para Twitter y Bluesky—, por lo que cada envío
+correcto se descartaba como `ZERNIO_RESPONSE_INVALID` y perdía el `messageId`
+con el que se reconcilian los estados. La corrección está desplegada como
+versión `cf9a1388-a60f-483d-80c3-f5ed83c51e05`; falta repetir la validación
+remota con un mensaje nuevo.
+
+Los mensajes salientes anteriores a esa corrección permanecen en
+`delivery_unknown` y no son recuperables automáticamente: no conservan el
+identificador de Zernio y vincularlos por texto, teléfono o proximidad temporal
+está prohibido.
 
 ## Prerrequisitos
 
@@ -127,10 +137,32 @@ vivo. El primer intento de respuesta humana llegó a la Queue saliente y agotó
 seis ejecuciones con categoría genérica, sin llegar a WhatsApp. No se debe
 reproducir automáticamente ese mensaje histórico.
 
-La versión `6e7870bb-ed49-4732-a6d3-98d6e0119d12` y la migración `0005` están
-activas en staging. Activa `message.sent` y ejecuta nuevamente los pasos
-anteriores. Registra
-versión, IDs opacos y estados, sin copiar texto, teléfono, tokens ni payloads.
+En la validación del 2026-08-12, con la versión
+`4180d56e-4660-4504-a60d-01f1d13cc598` y las migraciones `0001` a `0006`
+activas, `message.sent`, `message.delivered` y `message.read` se aceptaron con
+`202` y WhatsApp mostró la respuesta entregada y leída, pero la UI conservó
+`Confirmación pendiente` por el contrato de respuesta descrito arriba.
+
+La versión `cf9a1388-a60f-483d-80c3-f5ed83c51e05` quedó desplegada el
+2026-08-12 con las migraciones `0001` a `0006` ya aplicadas; `/api/health`,
+`/api/setup/status` y la SPA respondieron `200`, y el webhook rechazó con `401`
+tanto la firma ausente como la inválida. Con esa versión el envío se confirmó
+como `sent`, pero los estados posteriores no avanzaron: el envío guardaba el
+`platformMessageId` y la búsqueda solo lo contrastaba contra el ID interno de
+Zernio, de modo que los eventos quedaban sin reconciliar. El cruce de
+identificadores corrige el vínculo y quedó desplegado como versión
+`7bc15db8-03eb-4e68-b8cb-96ad0a328b6d`, con `/api/health`, `/api/setup/status`
+y la SPA en `200` y el webhook sin firma en `401`.
+
+Ejecuta nuevamente los pasos anteriores con un mensaje nuevo. Registra versión,
+IDs opacos y estados, sin copiar texto, teléfono, tokens ni payloads.
+
+El acuse de lectura se desplegó como versión
+`3f8b56e1-cfd7-4a22-9cf4-5393f78cdf0b` y se retiró tras comprobar que el
+proveedor lo aceptaba sin que el contacto viera la palomita azul, por tratarse
+de una cuenta de coexistencia. La versión
+`9caf5c9a-ae64-4cab-a748-ef3f9dccfb16` ya no lo incluye y la migración `0008`
+retiró `last_read_at` de la D1 remota.
 
 
 ## Recuperación
@@ -145,7 +177,22 @@ versión, IDs opacos y estados, sin copiar texto, teléfono, tokens ni payloads.
 - `ZERNIO_RESPONSE_INVALID`, `ZERNIO_TRANSPORT_FAILED` o
   `ZERNIO_CONVERSATION_MISMATCH`: conserva `delivery_unknown`, la misma clave
   de idempotencia y reconcilia antes de cualquier reenvío manual.
+- `ZERNIO_RESPONSE_INVALID` en todos los envíos, y no en casos aislados, indica
+  un cambio en el contrato del proveedor y no un incidente puntual. El síntoma
+  visible es que WhatsApp entrega el mensaje y Zernio registra sus estados con
+  `202`, mientras la UI conserva `Confirmación pendiente`. Compara la respuesta
+  contra la especificación vigente antes de reenviar nada: los reintentos
+  consumen la clave de idempotencia sin corregir el estado.
 - Mensaje en DLQ: inspecciona categoría, intento y estado D1; no generes una
   nueva clave ni reproduzcas automáticamente el contenido.
 - Cuenta desconectada: reconecta en Zernio, verifica salud y reactiva el canal
   mediante una operación administrativa revisada.
+- No aparece la palomita azul en los mensajes que recibe el negocio: es el
+  comportamiento esperado. El producto no emite acuses de lectura porque la
+  cuenta operada es de coexistencia y el proveedor no sobrescribe el estado de
+  lectura que posee la app de WhatsApp Business. En esa cuenta solo la app del
+  teléfono genera la palomita azul, al abrir el chat desde ella. La capacidad se
+  implementó, se validó en staging y se retiró al confirmar que el mensaje
+  entrante conservaba `deliveryStatus: 'delivered'` pese a que el proveedor
+  aceptaba la llamada. No es un defecto corregible con código: requeriría un
+  número exclusivo de Cloud API.

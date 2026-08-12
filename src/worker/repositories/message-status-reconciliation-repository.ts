@@ -21,6 +21,7 @@ type CandidateRow = {
 type StatusEventRow = {
   status: ProviderStatus;
   occurred_at: string;
+  message_external_id: string;
   platform_message_id: string | null;
 };
 
@@ -157,6 +158,12 @@ export class MessageStatusReconciliationRepository {
     externalMessageId: string;
     platformMessageId: string;
   }): Promise<CandidateRow[]> {
+    // La respuesta de envío devuelve un único identificador y el proveedor
+    // decide cuál: en WhatsApp es el `platformMessageId`, mientras el webhook
+    // identifica el mensaje por el ID interno de Zernio y lleva el otro aparte.
+    // Cada identificador conocido se contrasta con ambas columnas para que el
+    // vínculo no dependa de esa elección; ambos son opacos y del mismo canal y
+    // conversación, así que el cruce no infiere identidad.
     const result = await this.#db.prepare(`SELECT m.id, m.conversation_id,
       m.external_message_id, m.platform_message_id, m.status,
       d.external_message_id AS delivery_external_message_id
@@ -167,8 +174,9 @@ export class MessageStatusReconciliationRepository {
         AND d.message_id = m.id
       WHERE m.organization_id = ? AND m.direction = 'outgoing'
         AND c.channel_id = ? AND c.external_conversation_id = ?
-        AND (m.external_message_id = ? OR m.platform_message_id = ?
-          OR d.external_message_id = ?)
+        AND (m.external_message_id IN (?, ?)
+          OR m.platform_message_id IN (?, ?)
+          OR d.external_message_id IN (?, ?))
       LIMIT 2`)
       .bind(
         input.organizationId,
@@ -177,6 +185,9 @@ export class MessageStatusReconciliationRepository {
         input.externalMessageId,
         input.platformMessageId,
         input.externalMessageId,
+        input.platformMessageId,
+        input.externalMessageId,
+        input.platformMessageId,
       ).all<CandidateRow>();
     return result.results;
   }
@@ -191,12 +202,11 @@ export class MessageStatusReconciliationRepository {
     reconciledAt: string;
   }): Promise<StatusReconciliationResult> {
     const events = await this.#db.prepare(`SELECT status, occurred_at,
-      platform_message_id
+      message_external_id, platform_message_id
       FROM message_status_events
       WHERE organization_id = ? AND channel_id = ?
         AND conversation_external_id = ?
-        AND (message_external_id = ?
-          OR (? IS NOT NULL AND platform_message_id = ?))
+        AND (message_external_id IN (?, ?) OR platform_message_id IN (?, ?))
       ORDER BY occurred_at ASC,
         CASE status
           WHEN 'failed' THEN 0 WHEN 'sent' THEN 1
@@ -209,13 +219,18 @@ export class MessageStatusReconciliationRepository {
         input.externalConversationId,
         input.externalMessageId,
         input.platformMessageId,
+        input.externalMessageId,
         input.platformMessageId,
       ).all<StatusEventRow>();
 
-    const platformMessageId = input.platformMessageId
-      ?? events.results.find((event) => event.platform_message_id)
-        ?.platform_message_id
-      ?? null;
+    // El webhook distingue ambos identificadores, así que es la fuente
+    // autoritativa para colocar cada uno en su columna aunque el envío hubiera
+    // guardado el otro.
+    const externalMessageId = events.results[0]?.message_external_id
+      ?? input.externalMessageId;
+    const platformMessageId = events.results.find(
+      (event) => event.platform_message_id,
+    )?.platform_message_id ?? input.platformMessageId ?? null;
     let status = input.candidate.status;
     for (const event of events.results) {
       status = applyProviderStatus(status, event.status);
@@ -225,12 +240,12 @@ export class MessageStatusReconciliationRepository {
 
     await this.#db.batch([
       this.#db.prepare(`UPDATE messages SET
-        external_message_id = COALESCE(external_message_id, ?),
-        platform_message_id = COALESCE(platform_message_id, ?),
+        external_message_id = ?,
+        platform_message_id = COALESCE(?, platform_message_id),
         status = ?, updated_at = ?
         WHERE organization_id = ? AND id = ?`)
         .bind(
-          input.externalMessageId,
+          externalMessageId,
           platformMessageId,
           status,
           input.reconciledAt,
@@ -244,7 +259,7 @@ export class MessageStatusReconciliationRepository {
         updated_at = ?
         WHERE organization_id = ? AND message_id = ?`)
         .bind(
-          input.externalMessageId,
+          externalMessageId,
           deliveryStatus,
           deliveryError,
           deliveryStatus,
@@ -256,15 +271,15 @@ export class MessageStatusReconciliationRepository {
       this.#db.prepare(`UPDATE message_status_events SET reconciled_at = ?
         WHERE organization_id = ? AND channel_id = ?
           AND conversation_external_id = ?
-          AND (message_external_id = ?
-            OR (? IS NOT NULL AND platform_message_id = ?))`)
+          AND (message_external_id IN (?, ?) OR platform_message_id IN (?, ?))`)
         .bind(
           input.reconciledAt,
           input.organizationId,
           input.channelId,
           input.externalConversationId,
-          input.externalMessageId,
+          externalMessageId,
           platformMessageId,
+          externalMessageId,
           platformMessageId,
         ),
     ]);

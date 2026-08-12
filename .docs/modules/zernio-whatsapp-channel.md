@@ -48,6 +48,42 @@ solo conserva el ID como candidato: el mensaje permanece en
 esperados. Un evento desconocido permanece sin reconciliar y nunca se vincula
 por texto, teléfono, tiempo ni similitud.
 
+La respuesta de envío solo garantiza `data.messageId`. Zernio puebla
+`data.conversationId` únicamente para Twitter y `data.sentAt` únicamente para
+Bluesky, así que en WhatsApp ambos llegan nulos: se aceptan como ausentes y el
+envío conserva la hora local de aceptación. Ese `messageId` es el único vínculo
+con los eventos de estado posteriores; sin él el mensaje quedaría en
+`delivery_unknown` de forma permanente, porque la identidad nunca se infiere
+del contenido. La conversación devuelta solo se contrasta cuando el proveedor
+la incluye; en WhatsApp la confirman el destino de la ruta de envío y el
+webhook posterior.
+
+**El producto no emite acuses de lectura hacia el contacto.** El proveedor
+expone `POST /v1/inbox/conversations/{id}/read`, que en WhatsApp enviaría las
+palomitas azules, salvo en cuentas de coexistencia: ahí la app de WhatsApp
+Business del cliente conserva el estado de lectura y el proveedor no lo
+sobrescribe. La cuenta `Lia` que se opera se conectó desde esa app, así que es
+de coexistencia.
+
+Se implementó y se retiró tras comprobarlo en staging: el proveedor aceptaba la
+llamada, pero el mensaje entrante conservaba `deliveryStatus: 'delivered'` y el
+contacto nunca veía la palomita azul. No existe endpoint alternativo ni
+override, `isRead` es un campo que el webhook entrega y no un parámetro que se
+pueda devolver, y desconectar la app tampoco es salida porque el proveedor
+desactiva la cuenta al hacerlo.
+
+Reintroducirlo solo tiene sentido con un número exclusivo de Cloud API, sin
+coexistencia; entonces requeriría de nuevo el endpoint, una marca de lectura por
+conversación y su auditoría.
+
+El proveedor decide cuál de los dos identificadores opacos devuelve en ese
+campo: en WhatsApp es el `platformMessageId`, mientras el webhook identifica el
+mensaje por el ID interno de Zernio y lleva el de plataforma aparte. La
+reconciliación contrasta cada identificador conocido contra ambas columnas, de
+modo que el vínculo no depende de esa elección, y usa el webhook —que sí los
+distingue— para dejar cada uno en su columna. El cruce exige la misma
+organización, canal y conversación, y compara solo identificadores opacos.
+
 ## Datos y seguridad
 
 `communication_channels` conserva identificadores opacos, nombre visible y
@@ -69,8 +105,21 @@ fallback. Ninguno de estos valores aparece en logs operativos.
   WhatsApp y Zernio emitió `message.sent`, `message.delivered` y
   `message.read`.
 - Esa prueba dejó la UI en `delivery_unknown` porque los estados aceptados no
-  podían vincularse después. La reconciliación independiente del orden está
-  desplegada en staging como versión
-  `4180d56e-4660-4504-a60d-01f1d13cc598`; requiere una prueba humana nueva.
+  podían vincularse después. La reconciliación independiente del orden se
+  desplegó como versión `4180d56e-4660-4504-a60d-01f1d13cc598`.
+- La prueba humana del 2026-08-12 mostró que la causa raíz seguía activa: el
+  contrato de respuesta exigía `conversationId` y `sentAt`, que WhatsApp nunca
+  devuelve, así que cada envío correcto se clasificaba como
+  `ZERNIO_RESPONSE_INVALID` y perdía el `messageId` necesario para reconciliar.
+  Zernio entregó el mensaje y emitió los tres estados con `202`, pero la UI
+  conservó `Confirmación pendiente`. El contrato corregido se desplegó como
+  versión `cf9a1388-a60f-483d-80c3-f5ed83c51e05`.
+- La prueba del 2026-08-12 con esa versión confirmó el envío: el mensaje quedó
+  en `sent` con su identificador capturado. Los eventos `sent`, `delivered` y
+  `read` llegaron, pero ninguno se reconcilió, porque el envío había guardado el
+  `platformMessageId` y la búsqueda solo lo contrastaba contra el ID interno de
+  Zernio. El cruce de identificadores corrige ese vínculo y habilita
+  `Entregado` y `Leído`; está desplegado como versión
+  `7bc15db8-03eb-4e68-b8cb-96ad0a328b6d` y requiere una prueba humana nueva.
 - La conservación y validación integral de medios permanece en
   [Issue #20](https://github.com/LuisVR391/agent-cloudflare/issues/20).

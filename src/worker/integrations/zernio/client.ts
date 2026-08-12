@@ -7,12 +7,16 @@ const sendInputSchema = z.object({
   idempotencyKey: z.string().min(1).max(255),
 });
 
+// Zernio solo puebla `conversationId` para Twitter y `sentAt` para Bluesky; en
+// WhatsApp ambos llegan nulos y `messageId` es el único identificador devuelto.
+// Exigirlos convertía cada envío correcto en `ZERNIO_RESPONSE_INVALID` y dejaba
+// el mensaje sin ID externo con el que reconciliar sus estados.
 const sendResponseSchema = z.object({
   success: z.literal(true),
   data: z.object({
-    messageId: z.string().min(1),
-    conversationId: z.string().min(1),
-    sentAt: z.iso.datetime({ offset: true }),
+    messageId: z.string().min(1).max(512),
+    conversationId: z.string().min(1).max(512).nullish(),
+    sentAt: z.iso.datetime({ offset: true }).nullish(),
   }),
 });
 
