@@ -15,7 +15,9 @@
     "wrangler.jsonc",
     ".agents/",
     ".codex/",
-    ".claude/"
+    ".claude/",
+    ".mcp.json",
+    "skills-lock.json"
   ],
   "documentationPrefixes": [
     ".docs/",
@@ -35,7 +37,9 @@
     ".agents/",
     ".claude/",
     ".codex/",
+    ".mcp.json",
     "migrations/",
+    "skills-lock.json",
     "src/",
     "wrangler.jsonc"
   ],
@@ -181,6 +185,20 @@
       "documents": [
         "AGENTS.md",
         "CLAUDE.md",
+        ".docs/operations/agent-continuity.md"
+      ]
+    },
+    {
+      "prefix": ".mcp.json",
+      "documents": [
+        "AGENTS.md",
+        ".docs/operations/agent-continuity.md"
+      ]
+    },
+    {
+      "prefix": "skills-lock.json",
+      "documents": [
+        "AGENTS.md",
         ".docs/operations/agent-continuity.md"
       ]
     }

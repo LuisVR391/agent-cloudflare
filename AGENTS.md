@@ -109,6 +109,27 @@ vigente.
 - Toda mejora sensible requiere evidencia, evaluación, aprobación humana,
   nueva versión, auditoría y rollback.
 
+## Herramientas de desarrollo asistido
+
+La interfaz del cliente es un proyecto shadcn/ui. El repositorio declara la
+skill `shadcn` en `.agents/skills`, con symlink desde `.claude/skills`, y el
+servidor MCP `shadcn` en `.mcp.json` para Claude Code y en `.codex/config.toml`
+para Codex. Úsalos en vez de adivinar la API de un componente.
+
+- Son herramientas de desarrollo local: no forman parte del producto
+  desplegado, no declaran bindings ni recursos y no añaden dependencias de
+  runtime.
+- No autorizan nada por sí solas. El código que generen se revisa en el diff y
+  cumple las mismas reglas de alcance, seguridad, pruebas y documentación.
+- Los guardrails no observan las llamadas a herramientas MCP; la revisión
+  humana y `npm run check` siguen siendo el control.
+- Una skill o un servidor MCP externo se incorpora con su contenido revisado,
+  una sola copia canónica, declaración en ambos agentes y registro en
+  `skills-lock.json`.
+
+La [guía de continuidad](./.docs/operations/agent-continuity.md) explica su
+descubrimiento, verificación y límites.
+
 ## Flujo de trabajo
 
 1. Confirma el objetivo, fase, dependencias, alcance y fuera de alcance.

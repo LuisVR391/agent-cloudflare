@@ -22,6 +22,9 @@ una sola vez. La decisión está registrada en
 | [Pruebas simuladas](../../.agents/guard/scenarios.mjs) | Verifica decisiones permitidas, bloqueos, recordatorios y cierre de turno. |
 | [Hooks de Codex](../../.codex/hooks.json) y [su adaptador](../../.codex/hooks/project-guard.mjs) | Registran los eventos de Codex y declaran la identidad del agente. |
 | [Ajustes de Claude Code](../../.claude/settings.json) y [su adaptador](../../.claude/hooks/project-guard.mjs) | Registran los eventos de Claude Code, sus permisos denegados y la identidad del agente. |
+| [Skill de shadcn](../../.agents/skills/shadcn/SKILL.md) | Aporta el contexto real del proyecto, las convenciones del CLI y las reglas de composición de la interfaz. |
+| [Servidor MCP para Claude Code](../../.mcp.json) y [para Codex](../../.codex/config.toml) | Declaran el servidor de shadcn en cada agente para consultar e instalar desde los registros. |
+| [Lockfile de skills](../../skills-lock.json) | Fija el origen y el hash de cada skill externa para que su versión sea reproducible. |
 
 Los adaptadores no contienen reglas. Solo declaran cómo se identifica el agente
 y cómo se invoca el skill; toda decisión pertenece al núcleo compartido.
@@ -41,11 +44,12 @@ Los hooks locales solo se cargan en un proyecto confiable y sus comandos
 requieren revisión humana. Después de actualizar la rama:
 
 1. Inicia o reinicia Codex desde cualquier directorio dentro del repositorio.
-2. Ejecuta `/skills` y confirma que aparece
-   `deliver-agent-cloudflare-change`.
+2. Ejecuta `/skills` y confirma que aparecen
+   `deliver-agent-cloudflare-change` y `shadcn`.
 3. Ejecuta `/hooks`.
 4. Revisa el origen `.codex/hooks.json`, el comando exacto y los eventos.
 5. Confía la definición únicamente si coincide con el código revisado.
+6. Ejecuta `codex mcp list` y confirma el servidor `shadcn`.
 
 Codex registra la confianza contra el hash de la definición. Un cambio futuro
 en los hooks requerirá una revisión nueva. No se debe usar
@@ -66,17 +70,81 @@ después de aceptar el diálogo de confianza del directorio de trabajo. Después
 de actualizar la rama:
 
 1. Inicia o reinicia Claude Code dentro del repositorio y acepta la confianza
-   del proyecto solo si revisaste el contenido de `.claude/`.
-2. Ejecuta `/skills` y confirma que aparece
-   `deliver-agent-cloudflare-change`.
+   del proyecto solo si revisaste el contenido de `.claude/` y `.mcp.json`.
+2. Ejecuta `/skills` y confirma que aparecen
+   `deliver-agent-cloudflare-change` y `shadcn`.
 3. Ejecuta `/hooks` y revisa el origen `Project Settings`, el comando exacto y
    los eventos registrados.
 4. Ejecuta `/permissions` y confirma las reglas denegadas.
+5. Ejecuta `/mcp` y confirma que `shadcn` aparece como `Connected`.
 
 Un cambio en `.claude/settings.json` vuelve a requerir revisión. Al clonar en
-Windows, el symlink del skill necesita `git config core.symlinks true` o
-permisos de enlace simbólico; sin eso, Claude Code no encontrará el skill
-aunque el resto de la integración funcione.
+Windows, los symlinks de `.claude/skills` necesitan
+`git config core.symlinks true` o permisos de enlace simbólico; sin eso, Claude
+Code no encontrará ninguna skill aunque el resto de la integración funcione.
+
+## Herramientas MCP y skills de terceros
+
+Todo lo que describe esta sección es **herramienta de desarrollo local**. No se
+despliega, no entra en el bundle del Worker, no declara bindings ni recursos
+Cloudflare y no añade dependencias de runtime. Un agente no debe presentarla
+como una capacidad del producto ni tratar su salida como aprobada: lo que el
+CLI de shadcn escriba se revisa en el diff, con las mismas reglas de alcance,
+pruebas y documentación que cualquier otro código.
+
+La interfaz del cliente es un proyecto shadcn/ui —`components.json`, Tailwind
+v4, base `radix` e iconos `lucide`—, así que el repositorio declara dos piezas
+para trabajar sobre ella sin adivinar APIs:
+
+| Pieza | Qué aporta |
+| --- | --- |
+| Skill `shadcn` | Inyecta el contexto real del proyecto con `shadcn info --json` y fija las convenciones de composición, formularios, iconos y theming. |
+| Servidor MCP `shadcn` | Permite buscar, inspeccionar e instalar componentes de los registros configurados desde el propio agente. |
+
+La skill vive una sola vez en `.agents/skills/shadcn`, la ruta universal que
+Codex descubre, y `.claude/skills/shadcn` es un symlink relativo a ese
+directorio, igual que la skill de entrega. Su origen y su hash quedan fijados
+en [`skills-lock.json`](../../skills-lock.json); se actualiza con
+`npx skills update shadcn` y el cambio se revisa como cualquier otro diff.
+
+El servidor MCP se declara por separado en cada agente, con el mismo comando:
+
+```json
+// .mcp.json — Claude Code
+{ "mcpServers": { "shadcn": { "command": "npx", "args": ["shadcn@latest", "mcp"] } } }
+```
+
+```toml
+# .codex/config.toml — Codex
+[mcp_servers.shadcn]
+command = "npx"
+args = ["shadcn@latest", "mcp"]
+```
+
+`npm run check:agents` exige que ambas declaraciones coincidan; un servidor
+disponible en un solo agente produciría entregas que el otro no puede
+reproducir.
+
+Tres límites conviene tenerlos presentes:
+
+- **Codex solo lee `.codex/config.toml` en un proyecto confiable.** Sin esa
+  confianza, `codex mcp list` no muestra el servidor y hay que declararlo por
+  máquina con `codex mcp add shadcn -- npx shadcn@latest mcp`. Codex Desktop
+  puede ignorar la configuración de proyecto.
+- **Claude Code pide aprobar el `.mcp.json` del proyecto** la primera vez que
+  se abre el repositorio, y vuelve a pedirlo si el archivo cambia.
+- **El guardrail no observa las llamadas a herramientas MCP.** `PreToolUse`
+  solo registra `Bash`, `Edit` y `Write`, así que un servidor MCP escribe
+  archivos fuera de esa cobertura. La revisión del diff y `npm run check` son
+  el control real.
+
+`shadcn@latest` se resuelve en cada arranque del servidor: la versión puede
+cambiar sin aviso y el primer arranque descarga el paquete. Es una decisión
+deliberada para seguir al registro oficial; el proyecto no fija el CLI como
+dependencia. El registro por defecto no usa credenciales y `components.json` no
+declara registros privados, así que ningún token entra en este flujo. Si algún
+día se configura un registro privado, su token pertenece a `.env.local` y nunca
+al repositorio.
 
 ## Comportamiento por evento
 
@@ -253,10 +321,13 @@ npm run check
 git diff --check
 ```
 
-`check:agents` valida el frontmatter y metadata del skill, los JSON, el symlink
-de `.claude/skills`, el nombre exacto de `CLAUDE.md`, los archivos
-referenciados, los eventos registrados por cada agente, las reglas denegadas, la
-sintaxis Node.js y quince escenarios simulados. En un evento `pull_request`,
+`check:agents` valida el frontmatter y metadata del skill de entrega, los JSON,
+los symlinks de `.claude/skills` y el `SKILL.md` de cada skill, el origen y el
+hash de las skills externas en `skills-lock.json`, la paridad del servidor MCP
+entre `.mcp.json` y `.codex/config.toml`, el nombre exacto de `CLAUDE.md`, los
+archivos referenciados, los eventos registrados por cada agente, las reglas
+denegadas, la sintaxis Node.js y los escenarios simulados de `scenarios.mjs`.
+En un evento `pull_request`,
 también exige contenido real bajo las secciones `Documentación`, `ADR`,
 `Roadmap` y `Validación`.
 
@@ -279,4 +350,7 @@ agentes. No existe un script de producción.
 - Prefiere advertencias para decisiones contextuales y bloqueos para riesgos de
   alta confianza.
 - No conviertas el hook en una segunda copia de `AGENTS.md`.
+- Antes de traer una skill o un servidor MCP externo, revisa su contenido, deja
+  la copia canónica en `.agents/skills`, declara el servidor en ambos agentes y
+  registra la skill en `skills-lock.json`.
 - Actualiza esta guía cuando cambien eventos, comandos, confianza o límites.

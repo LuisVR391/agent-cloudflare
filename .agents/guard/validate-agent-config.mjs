@@ -37,8 +37,20 @@ const codexAdapterPath = ".codex/hooks/project-guard.mjs";
 const claudeAdapterPath = ".claude/hooks/project-guard.mjs";
 const codexHooksPath = ".codex/hooks.json";
 const claudeSettingsPath = ".claude/settings.json";
-const claudeSkillLink = ".claude/skills/deliver-agent-cloudflare-change";
+const codexConfigPath = ".codex/config.toml";
+const claudeMcpPath = ".mcp.json";
+const skillsLockPath = "skills-lock.json";
 const continuityGuide = ".docs/operations/agent-continuity.md";
+
+// Skills propias del repositorio y skills traídas de un origen externo. Ambas
+// viven una sola vez en `.agents/skills`; la segunda lista además debe quedar
+// fijada en el lockfile para que la versión sea reproducible.
+const ownSkills = ["deliver-agent-cloudflare-change"];
+const vendoredSkills = ["shadcn"];
+
+// Servidores MCP que ambos agentes deben ofrecer. Son herramientas de
+// desarrollo local, no parte del artefacto desplegado.
+const sharedMcpServers = ["shadcn"];
 
 for (const path of [
   skillPath,
@@ -50,6 +62,9 @@ for (const path of [
   claudeAdapterPath,
   codexHooksPath,
   claudeSettingsPath,
+  codexConfigPath,
+  claudeMcpPath,
+  skillsLockPath,
   continuityGuide,
   "CLAUDE.md",
 ]) {
@@ -72,19 +87,36 @@ if (!/@AGENTS\.md/.test(claudeMemory)) {
   fail("CLAUDE.md: debe importar AGENTS.md con `@AGENTS.md`");
 }
 
-// El skill vive una sola vez en `.agents/skills` y Claude Code lo alcanza por
-// symlink. Una copia física volvería a separar las instrucciones de entrega.
-try {
-  const linkPath = join(root, claudeSkillLink);
-  if (!lstatSync(linkPath).isSymbolicLink()) {
-    fail(`${claudeSkillLink}: debe ser un symlink a ${skillDirectory}`);
-  } else if (
-    realpathSync(linkPath) !== realpathSync(join(root, skillDirectory))
-  ) {
-    fail(`${claudeSkillLink}: el symlink no resuelve a ${skillDirectory}`);
+// Cada skill vive una sola vez en `.agents/skills`, que Codex descubre, y
+// Claude Code la alcanza por symlink. Una copia física volvería a separar las
+// instrucciones entre ambos agentes.
+for (const name of [...ownSkills, ...vendoredSkills]) {
+  const directory = `.agents/skills/${name}`;
+  const link = `.claude/skills/${name}`;
+  requireFile(`${directory}/SKILL.md`);
+  try {
+    const linkPath = join(root, link);
+    if (!lstatSync(linkPath).isSymbolicLink()) {
+      fail(`${link}: debe ser un symlink a ${directory}`);
+    } else if (
+      realpathSync(linkPath) !== realpathSync(join(root, directory))
+    ) {
+      fail(`${link}: el symlink no resuelve a ${directory}`);
+    }
+  } catch (error) {
+    fail(`${link}: symlink ausente o roto (${error.message})`);
   }
-} catch (error) {
-  fail(`${claudeSkillLink}: symlink ausente o roto (${error.message})`);
+}
+
+// Una skill externa sin entrada en el lockfile no se puede actualizar ni
+// auditar: `npx skills update` deja de reconocerla y su versión se vuelve
+// indeterminada.
+const skillsLock = readJson(skillsLockPath);
+for (const name of vendoredSkills) {
+  const entry = skillsLock.skills?.[name];
+  if (!entry?.source || !entry?.computedHash) {
+    fail(`${skillsLockPath}: ${name} debe declarar source y computedHash`);
+  }
 }
 
 const skill = readFileSync(join(root, skillPath), "utf8");
@@ -135,8 +167,16 @@ for (const key of [
 }
 
 // Ambas integraciones son entregables del repositorio y deben auditarse igual.
+// `.mcp.json` y el lockfile de skills viven en la raíz y quedarían fuera de esa
+// auditoría si no se declararan aquí.
 for (const key of ["implementationPrefixes", "deliverablePrefixes"]) {
-  for (const prefix of [".claude/", ".codex/", ".agents/"]) {
+  for (const prefix of [
+    ".claude/",
+    ".codex/",
+    ".agents/",
+    ".mcp.json",
+    "skills-lock.json",
+  ]) {
     if (!(policy[key] || []).includes(prefix)) {
       fail(`${policyPath}: ${key} debe incluir ${prefix}`);
     }
@@ -189,6 +229,58 @@ const denyRules = claudeSettings.permissions?.deny || [];
 for (const rule of ["Read(./.dev.vars)", "Read(./.env)"]) {
   if (!denyRules.includes(rule)) {
     fail(`${claudeSettingsPath}: permissions.deny debe incluir ${rule}`);
+  }
+}
+
+// Un servidor MCP declarado para un solo agente produce entregas que el otro
+// no puede reproducir. Node no trae parser TOML: la sección se acota por
+// encabezado y se comparan comando y argumentos contra `.mcp.json`.
+function tomlSection(source, heading) {
+  const lines = source.split("\n");
+  const start = lines.findIndex((line) => line.trim() === `[${heading}]`);
+  if (start === -1) return null;
+  const rest = lines.slice(start + 1);
+  const end = rest.findIndex((line) => /^\s*\[/.test(line));
+  return (end === -1 ? rest : rest.slice(0, end)).join("\n");
+}
+
+function tomlString(section, key) {
+  const expression = new RegExp(`^\\s*${key}\\s*=\\s*"([^"]*)"`, "m");
+  return section.match(expression)?.[1] ?? null;
+}
+
+function tomlStringArray(section, key) {
+  const expression = new RegExp(`^\\s*${key}\\s*=\\s*\\[([^\\]]*)\\]`, "m");
+  const raw = section.match(expression)?.[1];
+  if (raw === undefined) return null;
+  return [...raw.matchAll(/"([^"]*)"/g)].map((match) => match[1]);
+}
+
+const claudeMcp = readJson(claudeMcpPath);
+const codexConfig = existsSync(join(root, codexConfigPath))
+  ? readFileSync(join(root, codexConfigPath), "utf8")
+  : "";
+
+for (const name of sharedMcpServers) {
+  const declared = claudeMcp.mcpServers?.[name];
+  if (!declared?.command || !Array.isArray(declared.args)) {
+    fail(`${claudeMcpPath}: mcpServers.${name} debe declarar command y args`);
+    continue;
+  }
+  const section = tomlSection(codexConfig, `mcp_servers.${name}`);
+  if (section === null) {
+    fail(`${codexConfigPath}: falta [mcp_servers.${name}]`);
+    continue;
+  }
+  const command = tomlString(section, "command");
+  const args = tomlStringArray(section, "args");
+  if (
+    command !== declared.command ||
+    JSON.stringify(args) !== JSON.stringify(declared.args)
+  ) {
+    fail(
+      `${codexConfigPath}: [mcp_servers.${name}] no coincide con ${claudeMcpPath}`,
+    );
   }
 }
 

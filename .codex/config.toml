@@ -1,0 +1,9 @@
+# Configuración de Codex específica de este proyecto. Codex solo la carga en un
+# proyecto confiable; sin esa confianza, el servidor debe declararse por máquina
+# como explica `.docs/operations/agent-continuity.md`.
+#
+# Herramienta de desarrollo local: no forma parte del artefacto desplegado.
+
+[mcp_servers.shadcn]
+command = "npx"
+args = ["shadcn@latest", "mcp"]
