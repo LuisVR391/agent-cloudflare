@@ -97,10 +97,9 @@ test("git push requiere confirmación explícita y conserva el bloqueo de force 
   );
 });
 
-test("bloquea D1 remoto, borrados y force push", () => {
+test("bloquea D1 remoto y force push", () => {
   const commands = [
     "npx wrangler d1 execute app --remote --file migrations/0001.sql",
-    "npx wrangler r2 bucket delete customer-files",
     "git push --force-with-lease origin feature",
   ];
   for (const command of commands) {
@@ -123,15 +122,65 @@ test("un despliegue exige la marca de autorización y conserva el dry-run", () =
   assert.equal(preTool("AGENT_DEPLOY_CONFIRMED=1 npx wrangler deploy"), null);
 });
 
-test("la marca de despliegue no libera otros bloqueos", () => {
+// Cada clase de operación tiene su propia marca. Una autorización concedida
+// para desplegar no puede habilitar una migración remota, un borrado ni una
+// fusión: son decisiones distintas que el usuario aprueba por separado.
+test("cada marca libera solo su propia operación", () => {
   const commands = [
     "AGENT_DEPLOY_CONFIRMED=1 npx wrangler r2 bucket delete customer-files",
+    "AGENT_DEPLOY_CONFIRMED=1 npx wrangler d1 migrations apply app --remote",
+    "AGENT_DEPLOY_CONFIRMED=1 gh pr merge 26 --squash",
     "AGENT_DEPLOY_CONFIRMED=1 npx wrangler secret put ZERNIO_TOKEN",
     "AGENT_DEPLOY_CONFIRMED=1 git push origin feature",
+    "AGENT_MERGE_CONFIRMED=1 npm run deploy:staging",
+    "AGENT_MIGRATION_CONFIRMED=1 npx wrangler r2 bucket delete customer-files",
+    "AGENT_DESTRUCTIVE_CONFIRMED=1 npx wrangler secret put ZERNIO_TOKEN",
   ];
   for (const command of commands) {
     assert.equal(denied(preTool(command)), true, command);
   }
+});
+
+test("las operaciones autorizables se liberan con su marca", () => {
+  const commands = [
+    "AGENT_MIGRATION_CONFIRMED=1 npx wrangler d1 migrations apply app --remote",
+    "AGENT_DESTRUCTIVE_CONFIRMED=1 npx wrangler r2 bucket delete customer-files",
+    "AGENT_MERGE_CONFIRMED=1 gh pr merge 26 --squash",
+  ];
+  for (const command of commands) {
+    assert.equal(preTool(command), null, command);
+  }
+});
+
+// Un bloqueo autorizable indica cómo pedir la decisión sin abandonar el turno.
+// Una prohibición permanente nunca lo hace: sugerir una pregunta implicaría que
+// existe una autorización capaz de habilitarla.
+test("solo los bloqueos autorizables invitan a preguntar en el turno", () => {
+  const runtime = { inlineApprovalTool: "AskUserQuestion" };
+  const reason = (command, withTool = true) =>
+    preTool(command, {}, withTool ? runtime : {})
+      .hookSpecificOutput.permissionDecisionReason;
+
+  assert.match(reason("npm run deploy:staging"), /AskUserQuestion/);
+  assert.match(reason("gh pr merge 26 --squash"), /AskUserQuestion/);
+  assert.match(reason("git push origin feature"), /AskUserQuestion/);
+  assert.doesNotMatch(reason("git push --force origin main"), /AskUserQuestion/);
+  assert.doesNotMatch(
+    reason("npx wrangler secret put ZERNIO_TOKEN"),
+    /AskUserQuestion/,
+  );
+  // Un adaptador que no declara la herramienta conserva el motivo neutral.
+  assert.doesNotMatch(reason("npm run deploy:staging", false), /AskUserQuestion/);
+});
+
+// Una migración remota producía efectos sin exigir ninguna autorización.
+test("una migración remota exige su marca", () => {
+  const blocked = preTool("npx wrangler d1 migrations apply app --remote");
+  assert.equal(denied(blocked), true);
+  assert.match(
+    blocked.hookSpecificOutput.permissionDecisionReason,
+    /AGENT_MIGRATION_CONFIRMED=1/,
+  );
 });
 
 // Con la red habilitada en el sandbox del agente, estos comandos ya no
@@ -141,7 +190,6 @@ test("bloquea secretos remotos, mutaciones de GitHub y publicación", () => {
   const commands = [
     "npx wrangler secret put ZERNIO_TOKEN",
     "npx wrangler secret bulk delete secrets.json",
-    "gh pr merge 26 --squash",
     "gh release create v0.2.0",
     "gh api -X DELETE repos/example/agents/issues/comments/1",
     "npm publish --access public",

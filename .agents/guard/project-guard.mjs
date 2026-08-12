@@ -63,6 +63,19 @@ function denyPreToolUse(reason) {
   };
 }
 
+// Un bloqueo autorizable espera una decisión humana, no el final de la entrega.
+// Cuando el adaptador declara una herramienta de pregunta en línea, el motivo
+// indica cómo pedirla sin abandonar el turno. Las prohibiciones permanentes
+// —force push, reset destructivo, migración ya aplicada— nunca la reciben:
+// preguntar por ellas sugeriría que existe una autorización que las habilite.
+function denyAuthorizable(reason, runtime) {
+  const tool = runtime?.inlineApprovalTool;
+  if (!tool) return denyPreToolUse(reason);
+  return denyPreToolUse(
+    `${reason} Solicita esa autorización con ${tool} en este mismo turno, indicando entorno y artefacto, y continúa según lo que el usuario apruebe; no termines la entrega para pedirla.`,
+  );
+}
+
 function addContext(eventName, additionalContext) {
   return {
     hookSpecificOutput: {
@@ -324,14 +337,18 @@ function handlePreToolUse(input, policy, runtime = {}) {
   for (const rule of policy.blockedCommandPatterns) {
     if (!new RegExp(rule.pattern, "i").test(command)) continue;
     if (hasRuleConfirmation(command, rule.confirmation)) continue;
-    return denyPreToolUse(rule.message);
+    // Solo las reglas con `confirmation` admiten desbloqueo por autorización.
+    return rule.confirmation
+      ? denyAuthorizable(rule.message, runtime)
+      : denyPreToolUse(rule.message);
   }
 
   if (isGitPush(command) && !hasPushConfirmation(command, policy)) {
     const variable = policy.pushConfirmation.environmentVariable;
     const value = policy.pushConfirmation.value;
-    return denyPreToolUse(
+    return denyAuthorizable(
       `Bloqueado: git push requiere confirmación explícita del usuario. Después de recibirla, ejecuta \`${variable}=${value} git push\` en el mismo comando.`,
+      runtime,
     );
   }
 

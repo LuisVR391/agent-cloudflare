@@ -95,7 +95,11 @@
     {
       "id": "cloudflare-resource-delete",
       "pattern": "(^|[;&|]\\s*|\\s)(?:npx\\s+)?wrangler\\s+(d1\\s+delete|r2\\s+bucket\\s+delete|kv\\s+namespace\\s+delete|queues?\\s+delete|workflows?\\s+delete)\\b",
-      "message": "Bloqueado: la eliminación de recursos Cloudflare requiere una operación humana separada."
+      "message": "Bloqueado: eliminar un recurso Cloudflare requiere autorización explícita del usuario para ese recurso y entorno. Después de recibirla, ejecuta `AGENT_DESTRUCTIVE_CONFIRMED=1 <comando>` en el mismo comando. Es una operación destructiva y por lo general irreversible: producción requiere una autorización separada.",
+      "confirmation": {
+        "environmentVariable": "AGENT_DESTRUCTIVE_CONFIRMED",
+        "value": "1"
+      }
     },
     {
       "id": "cloudflare-secret-write",
@@ -103,9 +107,27 @@
       "message": "Bloqueado: crear o eliminar secretos en Cloudflare es una operación humana separada."
     },
     {
+      "id": "d1-remote-migrations",
+      "pattern": "(^|[;&|]\\s*|\\s)(?:npx\\s+)?wrangler\\s+d1\\s+migrations\\s+apply\\b[^\\n;&|]*--remote",
+      "confirmation": {
+        "environmentVariable": "AGENT_MIGRATION_CONFIRMED",
+        "value": "1"
+      },
+      "message": "Bloqueado: aplicar migraciones en una base remota requiere autorización explícita del usuario para esa base y entorno. Después de recibirla, ejecuta `AGENT_MIGRATION_CONFIRMED=1 <comando>` en el mismo comando. Producción requiere una autorización separada."
+    },
+    {
+      "id": "github-pull-request-state",
+      "pattern": "(^|[;&|]\\s*|\\s)gh\\s+(?:pr|issue)\\s+(?:merge|close|reopen)\\b",
+      "confirmation": {
+        "environmentVariable": "AGENT_MERGE_CONFIRMED",
+        "value": "1"
+      },
+      "message": "Bloqueado: fusionar o cerrar desde un agente requiere autorización explícita del usuario para esa rama y esos commits. Después de recibirla, ejecuta `AGENT_MERGE_CONFIRMED=1 <comando>` en el mismo comando. El force push permanece prohibido."
+    },
+    {
       "id": "github-remote-mutation",
-      "pattern": "(^|[;&|]\\s*|\\s)gh\\s+(?:pr\\s+(?:merge|close)|release\\s+(?:create|delete|upload)|repo\\s+(?:delete|archive)|secret\\s+(?:set|delete)|workflow\\s+run)\\b",
-      "message": "Bloqueado: fusionar, publicar o alterar el repositorio remoto requiere una operación humana separada."
+      "pattern": "(^|[;&|]\\s*|\\s)gh\\s+(?:release\\s+(?:create|delete|upload)|repo\\s+(?:delete|archive)|secret\\s+(?:set|delete)|workflow\\s+run)\\b",
+      "message": "Bloqueado: publicar releases, alterar el repositorio, escribir secretos o lanzar workflows requiere una operación humana separada."
     },
     {
       "id": "github-api-mutation",

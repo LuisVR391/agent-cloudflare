@@ -144,6 +144,29 @@ entorno y el artefacto actuales. Después de recibirla, el comando usa
 otra versión o entorno, y no habilita ninguna otra operación bloqueada.
 Producción y las operaciones destructivas requieren una autorización separada.
 
+Cada clase de efecto remoto tiene su propia marca, de modo que autorizar una no
+habilita otra:
+
+| Operación | Marca |
+| --- | --- |
+| `git push` de la rama y commits actuales | `AGENT_PUSH_CONFIRMED=1` |
+| Despliegue de un entorno y artefacto | `AGENT_DEPLOY_CONFIRMED=1` |
+| Migraciones sobre una base remota | `AGENT_MIGRATION_CONFIRMED=1` |
+| Fusionar, cerrar o reabrir un PR o issue | `AGENT_MERGE_CONFIRMED=1` |
+| Eliminar un recurso Cloudflare | `AGENT_DESTRUCTIVE_CONFIRMED=1` |
+
+Una autorización se pide para la operación concreta que está a punto de
+ejecutarse y no se reutiliza. Cuando el agente dispone de un canal para
+consultar al usuario dentro de la entrega, la pide ahí y continúa con lo que se
+apruebe, en vez de interrumpir el trabajo; el guardrail del repositorio se lo
+indica en el propio bloqueo.
+
+Permanecen prohibidas sin excepción, porque ninguna autorización las habilita:
+el force push, el descarte destructivo de trabajo local, la ejecución remota
+arbitraria sobre D1, la escritura de secretos, la publicación de paquetes o
+releases y la alteración del repositorio remoto. Esas siguen siendo operaciones
+humanas separadas.
+
 ## Documentación y ADRs
 
 - La guía rectora conserva la visión; el roadmap conserva el estado aceptado.
