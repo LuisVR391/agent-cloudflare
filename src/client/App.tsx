@@ -2,19 +2,11 @@ import {
   ArrowRight,
   Bot,
   Building2,
-  CheckCircle2,
-  ChevronDown,
-  CircleGauge,
   Clock3,
-  Inbox,
   LoaderCircle,
   LockKeyhole,
-  LogOut,
   MessageCircleMore,
-  Settings2,
   ShieldCheck,
-  Sparkles,
-  Users,
 } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import {
@@ -28,6 +20,8 @@ import {
 
 import { LoginForm } from "@/components/login-form";
 import { ConversationInbox } from "@/components/conversation-inbox";
+import { PanelOverview } from "@/components/panel-overview";
+import { PanelShell } from "@/components/panel-shell";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -372,19 +366,10 @@ function FullScreenLoading({ label }: { label: string }) {
   );
 }
 
-const navigation = [
-  { label: "Resumen", icon: CircleGauge, available: true },
-  { label: "Conversaciones", icon: Inbox, available: true },
-  { label: "Agentes", icon: Bot, available: false },
-  { label: "Equipo", icon: Users, available: false },
-  { label: "Configuración", icon: Settings2, available: false },
-];
-
 function PanelPage() {
   const navigate = useNavigate();
   const [context, setContext] = useState<AppContext | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [section, setSection] = useState<"Resumen" | "Conversaciones">("Resumen");
 
   async function loadContext() {
     try {
@@ -475,128 +460,12 @@ function PanelPage() {
     );
   }
 
-  const active = context.activeOrganization;
   return (
-    <div className="min-h-screen bg-muted/35 lg:grid lg:grid-cols-[260px_1fr]">
-      <aside className="border-b bg-zinc-950 p-5 text-white lg:min-h-screen lg:border-b-0 lg:border-r lg:border-white/10">
-        <Brand />
-        <div className="mt-8 rounded-xl border border-white/10 bg-white/5 p-3">
-          <p className="truncate text-sm font-medium">{active.organizationName}</p>
-          <p className="mt-1 text-xs capitalize text-zinc-500">{active.role}</p>
-        </div>
-        <nav className="mt-6 grid grid-cols-2 gap-1 sm:grid-cols-5 lg:grid-cols-1">
-          {navigation.map(({ label, icon: Icon, available }) => (
-            <button
-              className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm ${
-                available
-                  ? "bg-white/10 text-white"
-                  : "cursor-not-allowed text-zinc-600"
-              }`}
-              disabled={!available}
-              key={label}
-              onClick={() => available && setSection(label as "Resumen" | "Conversaciones")}
-              type="button"
-            >
-              <Icon className="size-4" />
-              <span>{label}</span>
-              {!available && (
-                <span className="ml-auto hidden text-[10px] uppercase lg:block">
-                  Planeado
-                </span>
-              )}
-            </button>
-          ))}
-        </nav>
-        <Button
-          className="mt-6 w-full justify-start text-zinc-400 hover:bg-white/10 hover:text-white lg:mt-12"
-          onClick={() => void leave()}
-          variant="ghost"
-        >
-          <LogOut /> Cerrar sesión
-        </Button>
-      </aside>
-      <main className="p-5 sm:p-8 lg:p-10">
-        <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-          <div>
-            <p className="text-sm text-muted-foreground">Panel administrativo</p>
-            <h1 className="mt-1 text-3xl font-semibold tracking-tight">
-              Hola, {context.user.name.split(" ")[0]}
-            </h1>
-          </div>
-          <button
-            className="flex items-center gap-3 self-start rounded-full border bg-background py-1.5 pl-1.5 pr-3 text-sm shadow-xs"
-            type="button"
-          >
-            <span className="flex size-8 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
-              {context.user.name.slice(0, 2).toUpperCase()}
-            </span>
-            <span className="max-w-40 truncate">{context.user.email}</span>
-            <ChevronDown className="size-4 text-muted-foreground" />
-          </button>
-        </header>
-        {error ? (
-          <div className="mt-6 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-            {error}
-          </div>
-        ) : null}
-        {section === "Conversaciones" ? <ConversationInbox /> : null}
-        <div className={section === "Resumen" ? "" : "hidden"}>
-        <section className="mt-8 grid gap-4 md:grid-cols-3">
-          {([
-            ["Conversaciones abiertas", "—", MessageCircleMore],
-            ["Esperando respuesta", "—", Clock3],
-            ["Agentes configurados", "—", Bot],
-          ] as const).map(([label, value, Icon]) => (
-            <Card key={String(label)}>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <CardDescription>{label}</CardDescription>
-                <Icon className="size-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <p className="text-3xl font-semibold">{value}</p>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Disponible en la etapa correspondiente
-                </p>
-              </CardContent>
-            </Card>
-          ))}
-        </section>
-        <section className="mt-6 grid gap-6 lg:grid-cols-[1.4fr_.6fr]">
-          <Card>
-            <CardHeader>
-              <CardTitle>Base administrativa lista</CardTitle>
-              <CardDescription>
-                El acceso y el contexto organizacional ya protegen las futuras
-                capacidades.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {[
-                "Sesión segura persistida en D1",
-                "Organización activa validada en backend",
-                `Rol ${active.role} con permisos efectivos`,
-              ].map((item) => (
-                <div className="flex items-center gap-3 text-sm" key={item}>
-                  <CheckCircle2 className="size-5 text-emerald-600" />
-                  {item}
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-          <Card className="bg-zinc-950 text-white">
-            <CardHeader>
-              <Sparkles className="mb-2 size-5 text-cyan-300" />
-              <CardTitle>Próxima etapa</CardTitle>
-              <CardDescription className="text-zinc-500">
-                El panel de conversaciones y agentes se habilitará cuando sus
-                issues entren en fase activa.
-              </CardDescription>
-            </CardHeader>
-          </Card>
-        </section>
-        </div>
-      </main>
-    </div>
+    <PanelShell
+      context={{ ...context, activeOrganization: context.activeOrganization }}
+      error={error}
+      onSignOut={() => void leave()}
+    />
   );
 }
 
@@ -607,7 +476,11 @@ export function App() {
         <Route element={<LandingPage />} path="/" />
         <Route element={<LoginPage />} path="/login" />
         <Route element={<SetupPage />} path="/setup" />
-        <Route element={<PanelPage />} path="/app/*" />
+        <Route element={<PanelPage />} path="/app">
+          <Route element={<PanelOverview />} index />
+          <Route element={<ConversationInbox />} path="conversaciones" />
+          <Route element={<Navigate replace to="/app" />} path="*" />
+        </Route>
         <Route element={<Navigate replace to="/" />} path="*" />
       </Routes>
     </BrowserRouter>
