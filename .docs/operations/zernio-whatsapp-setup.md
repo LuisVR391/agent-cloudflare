@@ -9,11 +9,20 @@ de Zernio está activo.
 
 La entrada real, la persistencia canónica, el inbox y su actualización en vivo
 están verificados. Las Queues de entrada y salida y sus DLQ están provisionadas.
-La salida humana histórica alcanzó el consumidor, pero agotó sus reintentos sin
-entregar el mensaje y dejó la UI en `queued`. La corrección del
-[Issue #25](https://github.com/LuisVR391/agent-cloudflare/issues/25) y la
-migración `0005` están desplegadas; falta repetir la validación remota con un
-mensaje nuevo.
+
+La prueba humana del 2026-08-12 confirmó que WhatsApp entregó la respuesta y que
+Zernio emitió `message.sent`, `message.delivered` y `message.read`, los tres
+aceptados con `202`; aun así la UI conservó `Confirmación pendiente`. La causa
+era el contrato de respuesta de envío, que exigía `conversationId` y `sentAt`
+—campos que Zernio solo puebla para Twitter y Bluesky—, por lo que cada envío
+correcto se descartaba como `ZERNIO_RESPONSE_INVALID` y perdía el `messageId`
+con el que se reconcilian los estados. La corrección está en `main` y falta
+desplegarla y repetir la validación remota con un mensaje nuevo.
+
+Los mensajes salientes anteriores a esa corrección permanecen en
+`delivery_unknown` y no son recuperables automáticamente: no conservan el
+identificador de Zernio y vincularlos por texto, teléfono o proximidad temporal
+está prohibido.
 
 ## Prerrequisitos
 
@@ -127,10 +136,15 @@ vivo. El primer intento de respuesta humana llegó a la Queue saliente y agotó
 seis ejecuciones con categoría genérica, sin llegar a WhatsApp. No se debe
 reproducir automáticamente ese mensaje histórico.
 
-La versión `6e7870bb-ed49-4732-a6d3-98d6e0119d12` y la migración `0005` están
-activas en staging. Activa `message.sent` y ejecuta nuevamente los pasos
-anteriores. Registra
-versión, IDs opacos y estados, sin copiar texto, teléfono, tokens ni payloads.
+En la validación del 2026-08-12, con la versión
+`4180d56e-4660-4504-a60d-01f1d13cc598` y las migraciones `0001` a `0006`
+activas, `message.sent`, `message.delivered` y `message.read` se aceptaron con
+`202` y WhatsApp mostró la respuesta entregada y leída, pero la UI conservó
+`Confirmación pendiente` por el contrato de respuesta descrito arriba.
+
+Después de desplegar la corrección, ejecuta nuevamente los pasos anteriores con
+un mensaje nuevo. Registra versión, IDs opacos y estados, sin copiar texto,
+teléfono, tokens ni payloads.
 
 
 ## Recuperación
@@ -145,6 +159,12 @@ versión, IDs opacos y estados, sin copiar texto, teléfono, tokens ni payloads.
 - `ZERNIO_RESPONSE_INVALID`, `ZERNIO_TRANSPORT_FAILED` o
   `ZERNIO_CONVERSATION_MISMATCH`: conserva `delivery_unknown`, la misma clave
   de idempotencia y reconcilia antes de cualquier reenvío manual.
+- `ZERNIO_RESPONSE_INVALID` en todos los envíos, y no en casos aislados, indica
+  un cambio en el contrato del proveedor y no un incidente puntual. El síntoma
+  visible es que WhatsApp entrega el mensaje y Zernio registra sus estados con
+  `202`, mientras la UI conserva `Confirmación pendiente`. Compara la respuesta
+  contra la especificación vigente antes de reenviar nada: los reintentos
+  consumen la clave de idempotencia sin corregir el estado.
 - Mensaje en DLQ: inspecciona categoría, intento y estado D1; no generes una
   nueva clave ni reproduzcas automáticamente el contenido.
 - Cuenta desconectada: reconecta en Zernio, verifica salud y reactiva el canal

@@ -48,6 +48,16 @@ solo conserva el ID como candidato: el mensaje permanece en
 esperados. Un evento desconocido permanece sin reconciliar y nunca se vincula
 por texto, teléfono, tiempo ni similitud.
 
+La respuesta de envío solo garantiza `data.messageId`. Zernio puebla
+`data.conversationId` únicamente para Twitter y `data.sentAt` únicamente para
+Bluesky, así que en WhatsApp ambos llegan nulos: se aceptan como ausentes y el
+envío conserva la hora local de aceptación. Ese `messageId` es el único vínculo
+con los eventos de estado posteriores; sin él el mensaje quedaría en
+`delivery_unknown` de forma permanente, porque la identidad nunca se infiere
+del contenido. La conversación devuelta solo se contrasta cuando el proveedor
+la incluye; en WhatsApp la confirman el destino de la ruta de envío y el
+webhook posterior.
+
 ## Datos y seguridad
 
 `communication_channels` conserva identificadores opacos, nombre visible y
@@ -69,8 +79,14 @@ fallback. Ninguno de estos valores aparece en logs operativos.
   WhatsApp y Zernio emitió `message.sent`, `message.delivered` y
   `message.read`.
 - Esa prueba dejó la UI en `delivery_unknown` porque los estados aceptados no
-  podían vincularse después. La reconciliación independiente del orden está
-  desplegada en staging como versión
-  `4180d56e-4660-4504-a60d-01f1d13cc598`; requiere una prueba humana nueva.
+  podían vincularse después. La reconciliación independiente del orden se
+  desplegó como versión `4180d56e-4660-4504-a60d-01f1d13cc598`.
+- La prueba humana del 2026-08-12 mostró que la causa raíz seguía activa: el
+  contrato de respuesta exigía `conversationId` y `sentAt`, que WhatsApp nunca
+  devuelve, así que cada envío correcto se clasificaba como
+  `ZERNIO_RESPONSE_INVALID` y perdía el `messageId` necesario para reconciliar.
+  Zernio entregó el mensaje y emitió los tres estados con `202`, pero la UI
+  conservó `Confirmación pendiente`. El contrato corregido está pendiente de
+  despliegue y de una prueba humana nueva.
 - La conservación y validación integral de medios permanece en
   [Issue #20](https://github.com/LuisVR391/agent-cloudflare/issues/20).

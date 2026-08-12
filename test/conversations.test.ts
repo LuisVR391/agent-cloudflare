@@ -136,6 +136,92 @@ describe.sequential("conversaciones canónicas", () => {
     vi.unstubAllGlobals();
   });
 
+  it("marca enviado y reconcilia cuando WhatsApp omite conversationId y sentAt", async () => {
+    const repository = new ConversationRepository(env.DB);
+    const inbound = await repository.upsertInbound({
+      organizationId, channelId, externalConversationId: "z-conversation-whatsapp",
+      externalContactId: "wa-contact-whatsapp", externalMessageId: "z-message-whatsapp",
+      platformMessageId: "wamid-inbound-whatsapp", text: "Hola", occurredAt,
+      correlationId: "90909090-9090-4090-8090-909090909090",
+    });
+    const outgoing = await repository.createOutgoing({
+      organizationId,
+      conversationId: inbound.conversationId,
+      actorId: "staff-1",
+      clientRequestId: "91919191-9191-4191-8191-919191919191",
+      text: "Respuesta desde el inbox",
+      correlationId: "92929292-9292-4292-8292-929292929292",
+    });
+    // Forma real de Zernio en WhatsApp: `conversationId` es de Twitter y
+    // `sentAt` de Bluesky, así que ambos llegan nulos.
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({
+      success: true,
+      data: {
+        messageId: "6a7c02f342e22321dc12dbd0",
+        conversationId: null,
+        sentAt: null,
+      },
+    })));
+    await expect(processOutboundQueueMessage(
+      {
+        DB: env.DB,
+        CustomerSupportAgent: env.CustomerSupportAgent,
+        ZERNIO_API_KEY: "test-only-zernio-key",
+      },
+      {
+        kind: "sendTextMessage",
+        organizationId,
+        conversationId: inbound.conversationId,
+        messageId: outgoing.messageId,
+        correlationId: outgoing.correlationId,
+      },
+    )).resolves.toEqual({ action: "ack", result: "sent" });
+
+    const afterSend = await env.DB.prepare(`SELECT m.status AS message_status,
+      m.external_message_id, d.status AS delivery_status, d.last_error_code,
+      d.sent_at
+      FROM messages m JOIN outbound_message_deliveries d
+        ON d.organization_id = m.organization_id AND d.message_id = m.id
+      WHERE m.organization_id = ? AND m.id = ?`)
+      .bind(organizationId, outgoing.messageId)
+      .first<{
+        message_status: string;
+        external_message_id: string;
+        delivery_status: string;
+        last_error_code: string | null;
+        sent_at: string | null;
+      }>();
+    expect(afterSend).toMatchObject({
+      message_status: "sent",
+      external_message_id: "6a7c02f342e22321dc12dbd0",
+      delivery_status: "sent",
+      last_error_code: null,
+    });
+    expect(afterSend?.sent_at).not.toBeNull();
+
+    for (const status of ["sent", "delivered", "read"] as const) {
+      await processInboundQueueMessage(env, {
+        kind: "messageStatus",
+        eventId: `whatsapp-status-${status}`,
+        correlationId: "93939393-9393-4393-8393-939393939393",
+        organizationId,
+        channelId,
+        externalAccountId: "account-beautyplace",
+        externalConversationId: "z-conversation-whatsapp",
+        externalMessageId: "6a7c02f342e22321dc12dbd0",
+        platformMessageId: "wamid-outbound-whatsapp",
+        status,
+        occurredAt: `2026-08-12T05:21:5${status === "sent" ? 7 : status === "delivered" ? 8 : 9}.000Z`,
+      });
+    }
+
+    await expect(env.DB.prepare(
+      "SELECT status FROM messages WHERE organization_id = ? AND id = ?",
+    ).bind(organizationId, outgoing.messageId).first<{ status: string }>())
+      .resolves.toEqual({ status: "read" });
+    vi.unstubAllGlobals();
+  });
+
   it("reconcilia estados fuera de orden recibidos antes de la respuesta", async () => {
     const repository = new ConversationRepository(env.DB);
     const inbound = await repository.upsertInbound({

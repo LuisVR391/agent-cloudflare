@@ -207,7 +207,13 @@ export async function processOutboundQueueMessage(
     };
   }
 
-  if (sent.conversationId !== delivery.external_conversation_id) {
+  // Solo verificable cuando el proveedor devuelve la conversación. WhatsApp no
+  // la devuelve: el envío se dirigió a `external_conversation_id` en la ruta y
+  // el webhook posterior confirma canal y conversación antes de reconciliar.
+  if (
+    sent.conversationId != null &&
+    sent.conversationId !== delivery.external_conversation_id
+  ) {
     await persistFailure(
       env,
       delivery,
@@ -230,7 +236,7 @@ export async function processOutboundQueueMessage(
         WHERE organization_id = ? AND message_id = ?`)
         .bind(
           sent.messageId,
-          sent.sentAt,
+          sent.sentAt ?? now,
           now,
           parsed.organizationId,
           parsed.messageId,

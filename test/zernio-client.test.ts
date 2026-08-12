@@ -47,6 +47,31 @@ describe("ZernioClient", () => {
     });
   });
 
+  it.each([
+    { case: "nulos", conversationId: null, sentAt: null },
+    { case: "ausentes", conversationId: undefined, sentAt: undefined },
+  ])(
+    "acepta la respuesta de WhatsApp con conversationId y sentAt $case",
+    async ({ conversationId, sentAt }) => {
+      const client = new ZernioClient("test-api-key", {
+        fetch: async () =>
+          Response.json({
+            success: true,
+            data: { messageId: "6a7c02f342e22321dc12dbd0", conversationId, sentAt },
+          }),
+      });
+
+      await expect(
+        client.sendTextMessage({
+          conversationId: "6a7a42c2b3233b234cd4723b",
+          accountId: "account-123",
+          message: "Hola",
+          idempotencyKey: "organization-1:outbound-message-1",
+        }),
+      ).resolves.toMatchObject({ messageId: "6a7c02f342e22321dc12dbd0" });
+    },
+  );
+
   it("no expone el cuerpo de error del proveedor", async () => {
     const client = new ZernioClient("test-api-key", {
       fetch: async () =>
@@ -77,7 +102,7 @@ describe("ZernioClient", () => {
     const responseClient = new ZernioClient("test-api-key", {
       fetch: async () => Response.json({
         success: true,
-        data: { messageId: "incomplete" },
+        data: { conversationId: "conversation-123" },
       }),
     });
     const input = {
