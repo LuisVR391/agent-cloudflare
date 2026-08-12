@@ -145,8 +145,14 @@ fallback. Ninguno de estos valores aparece en logs operativos.
   en `sent` con su identificador capturado. Los eventos `sent`, `delivered` y
   `read` llegaron, pero ninguno se reconcilió, porque el envío había guardado el
   `platformMessageId` y la búsqueda solo lo contrastaba contra el ID interno de
-  Zernio. El cruce de identificadores corrige ese vínculo y habilita
-  `Entregado` y `Leído`; está desplegado como versión
-  `7bc15db8-03eb-4e68-b8cb-96ad0a328b6d` y requiere una prueba humana nueva.
-- La conservación y validación integral de medios permanece en
-  [Issue #20](https://github.com/LuisVR391/agent-cloudflare/issues/20).
+  Zernio. El cruce de identificadores corrigió ese vínculo y habilitó
+  `Entregado` y `Leído`, confirmados en la prueba siguiente.
+- La conservación de medios exigió tres correcciones antes de funcionar: la
+  descarga carecía de credencial contra un endpoint autenticado, rechazaba la
+  redirección con la que el proveedor sirve el binario, y la descarga desde el
+  inbox no decodificaba el identificador del adjunto. Con las tres desplegadas,
+  una imagen y un audio reales se copiaron a R2 y se abren desde el inbox.
+- **Fase 1 quedó validada el 2026-08-12** sobre la versión
+  `0997e8f9-c9e1-4d21-a316-6cadeb9ea3ab`, con el recorrido bidireccional
+  completo: recepción única y ordenada, respuesta humana entregada y leída, y
+  medios conservados y descargables.

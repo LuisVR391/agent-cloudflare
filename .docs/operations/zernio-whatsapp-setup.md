@@ -143,19 +143,21 @@ activas, `message.sent`, `message.delivered` y `message.read` se aceptaron con
 `202` y WhatsApp mostró la respuesta entregada y leída, pero la UI conservó
 `Confirmación pendiente` por el contrato de respuesta descrito arriba.
 
-La versión `cf9a1388-a60f-483d-80c3-f5ed83c51e05` quedó desplegada el
-2026-08-12 con las migraciones `0001` a `0006` ya aplicadas; `/api/health`,
-`/api/setup/status` y la SPA respondieron `200`, y el webhook rechazó con `401`
-tanto la firma ausente como la inválida. Con esa versión el envío se confirmó
-como `sent`, pero los estados posteriores no avanzaron: el envío guardaba el
-`platformMessageId` y la búsqueda solo lo contrastaba contra el ID interno de
-Zernio, de modo que los eventos quedaban sin reconciliar. El cruce de
-identificadores corrige el vínculo y quedó desplegado como versión
-`7bc15db8-03eb-4e68-b8cb-96ad0a328b6d`, con `/api/health`, `/api/setup/status`
-y la SPA en `200` y el webhook sin firma en `401`.
+**Fase 1 quedó validada el 2026-08-12** sobre la versión
+`0997e8f9-c9e1-4d21-a316-6cadeb9ea3ab`, con las migraciones `0001` a `0009`
+aplicadas en la D1 remota. El recorrido bidireccional completo está verificado
+con tráfico real: los mensajes de texto, imagen y audio se reciben una sola vez
+y en orden; una respuesta humana recorre `En cola → Enviado → Entregado →
+Leído`; y los medios se conservan en R2 y se abren desde el inbox.
 
-Ejecuta nuevamente los pasos anteriores con un mensaje nuevo. Registra versión,
-IDs opacos y estados, sin copiar texto, teléfono, tokens ni payloads.
+Llegar ahí exigió cuatro correcciones sucesivas, todas verificadas en staging:
+el contrato de respuesta de envío, el cruce de identificadores al reconciliar
+estados, la descarga autenticada de medios con su redirección, y la
+decodificación del identificador del adjunto en la descarga.
+
+Ante un despliegue nuevo, repite los pasos anteriores con un mensaje nuevo y
+registra versión, IDs opacos y estados, sin copiar texto, teléfono, tokens ni
+payloads.
 
 El acuse de lectura se desplegó como versión
 `3f8b56e1-cfd7-4a22-9cf4-5393f78cdf0b` y se retiró tras comprobar que el

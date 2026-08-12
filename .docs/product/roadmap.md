@@ -23,7 +23,7 @@ cuando satisface sus criterios y el PR correspondiente está fusionado en
 | Fase | Estado | Dependencia | Criterio de salida |
 | --- | --- | --- | --- |
 | 0. Fundamentos | Completado | Ninguna | Fundamentos documentales, datos, seguridad y entornos validados; staging preparado sin crear producción sin autorización. |
-| 1. WhatsApp funcional | En progreso | Fase 0 | Mensajes de WhatsApp procesados de extremo a extremo con seguridad, durabilidad, inbox y handoff humano. |
+| 1. WhatsApp funcional | Completado | Fase 0 | Mensajes de WhatsApp procesados de extremo a extremo con seguridad, durabilidad, inbox y handoff humano. |
 | 2. CRM | Planificado | Fase 1 | El flujo comercial desde contacto hasta cita puede operarse y medirse desde el CRM. |
 | 3. Agentes | Planificado | Fase 2 | Agentes versionados usan conocimiento y herramientas autorizadas con aislamiento y supervisión. |
 | 4. Automatización | Planificado | Fase 3 | Procesos de seguimiento se ejecutan como Workflows durables, recuperables y observables. |
@@ -74,6 +74,15 @@ salida humana inicial [#21](https://github.com/LuisVR391/agent-cloudflare/issues
 corrección y reconciliación de salida [#25](https://github.com/LuisVR391/agent-cloudflare/issues/25) y
 medios/validación [#20](https://github.com/LuisVR391/agent-cloudflare/issues/20).
 
+| Entregable | Estado | Dependencia | Evidencia |
+| --- | --- | --- | --- |
+| Persistencia canónica e inbox consultable | Completado | Fase 0 | [Issue #22](https://github.com/LuisVR391/agent-cloudflare/issues/22) y [PR #24](https://github.com/LuisVR391/agent-cloudflare/pull/24) |
+| Runtime durable y actualización en vivo | Completado | Persistencia de #22 | [Issue #23](https://github.com/LuisVR391/agent-cloudflare/issues/23) y [PR #24](https://github.com/LuisVR391/agent-cloudflare/pull/24) |
+| Salida humana y reconciliación de entregas | Completado | Runtime de #23 | [Issue #21](https://github.com/LuisVR391/agent-cloudflare/issues/21) y [PR #24](https://github.com/LuisVR391/agent-cloudflare/pull/24) |
+| Corrección del envío humano y `message.sent` | Completado | Salida de #21 | [Issue #25](https://github.com/LuisVR391/agent-cloudflare/issues/25) y [PR #26](https://github.com/LuisVR391/agent-cloudflare/pull/26) |
+| Contrato de envío y reconciliación de estados | Completado | Corrección de #25 | [PR #27](https://github.com/LuisVR391/agent-cloudflare/pull/27) |
+| Medios en R2 y validación del recorrido real | Completado | Contrato de envío | [Issue #20](https://github.com/LuisVR391/agent-cloudflare/issues/20) y [PR #28](https://github.com/LuisVR391/agent-cloudflare/pull/28) |
+
 **Entregables resumidos:** adaptador bidireccional de Zernio, webhook con firma
 HMAC, resolución confiable de cuenta y organización, normalización y
 deduplicación, estados de entrega, colas de entrada y salida, conversación
@@ -83,6 +92,24 @@ durable con orden y buffer, inbox y handoff humano.
 Cloudflare de extremo a extremo, los reintentos no duplican recepción ni
 envío, la conversación conserva orden y estado, y un colaborador autorizado
 puede verla e intervenir desde Agent Cloudflare.
+
+**Estado:** completado el 2026-08-12, validado con tráfico real en staging
+sobre la versión `0997e8f9-c9e1-4d21-a316-6cadeb9ea3ab` y las migraciones
+`0001` a `0009`:
+
+| Criterio | Evidencia |
+| --- | --- |
+| Recepción única y con orden | Mensajes de texto, imagen y audio procesados una sola vez; eventos en `processed` sin reintentos. |
+| Respuesta humana entregada | Recorrido `En cola → Enviado → Entregado → Leído` con los estados reconciliados desde el canal. |
+| Reintentos sin efectos duplicados | Idempotencia por clave estable y deduplicación de eventos verificadas en pruebas y en staging. |
+| Medios conservados | Imagen y audio copiados a R2 bajo el prefijo de su organización y descargables desde el inbox. |
+| Aislamiento entre organizaciones | Consultas y descargas acotadas por organización activa, cubiertas por pruebas. |
+
+Los mensajes salientes anteriores a la corrección del contrato de envío
+permanecen en `delivery_unknown`: no conservan el identificador del proveedor y
+vincularlos por contenido o proximidad temporal está prohibido. El producto no
+emite acuses de lectura hacia el contacto, por la limitación de coexistencia
+descrita en el [canal de Zernio](../modules/zernio-whatsapp-channel.md).
 
 ## Fase 2 — CRM
 
