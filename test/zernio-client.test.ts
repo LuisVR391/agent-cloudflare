@@ -72,47 +72,6 @@ describe("ZernioClient", () => {
     },
   );
 
-  it("marca la conversación como leída con bearer y accountId", async () => {
-    const fetchMock = vi.fn<ZernioFetch>(async () =>
-      Response.json({ success: true, markedCount: 2 }),
-    );
-    const client = new ZernioClient("test-api-key", { fetch: fetchMock });
-
-    await expect(
-      client.markConversationRead({
-        conversationId: "conversation/123",
-        accountId: "account-123",
-      }),
-    ).resolves.toEqual({ markedCount: 2 });
-
-    const [url, init] = fetchMock.mock.calls[0];
-    expect(url).toBe(
-      "https://zernio.com/api/v1/inbox/conversations/conversation%2F123/read",
-    );
-    expect(init?.method).toBe("POST");
-    expect(init?.headers).toMatchObject({ Authorization: "Bearer test-api-key" });
-    expect(JSON.parse(String(init?.body))).toEqual({ accountId: "account-123" });
-  });
-
-  // `0` significa que el canal no tenía nada que marcar y debe distinguirse de
-  // un `markedCount` ausente: es el dato que separa un acuse vacío de una cuenta
-  // de coexistencia, donde el canal acepta pero no emite el acuse al contacto.
-  it.each([
-    { case: "ausente", body: { success: true }, expected: null },
-    { case: "en cero", body: { success: true, markedCount: 0 }, expected: 0 },
-  ])("acepta el acuse de lectura con markedCount $case", async ({ body, expected }) => {
-    const client = new ZernioClient("test-api-key", {
-      fetch: async () => Response.json(body),
-    });
-
-    await expect(
-      client.markConversationRead({
-        conversationId: "conversation-123",
-        accountId: "account-123",
-      }),
-    ).resolves.toEqual({ markedCount: expected });
-  });
-
   it("no expone el cuerpo de error del proveedor", async () => {
     const client = new ZernioClient("test-api-key", {
       fetch: async () =>

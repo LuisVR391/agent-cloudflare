@@ -58,19 +58,23 @@ del contenido. La conversación devuelta solo se contrasta cuando el proveedor
 la incluye; en WhatsApp la confirman el destino de la ruta de envío y el
 webhook posterior.
 
-El acuse de lectura usa `POST /v1/inbox/conversations/{id}/read` con la cuenta
-del canal. En WhatsApp emite las palomitas azules hacia el contacto, salvo en
-cuentas de coexistencia: ahí la app de WhatsApp Business del cliente conserva el
-estado de lectura y el proveedor no lo sobrescribe, por lo que la ausencia de
-palomita azul en esas cuentas es una limitación del canal y no un defecto
-propio. La operación no crea nada y repetirla es inocua, así que no lleva clave
-de idempotencia; `markedCount` se registra en el log del acuse y puede valer `0`
-cuando el proveedor ya los consideraba leídos.
+**El producto no emite acuses de lectura hacia el contacto.** El proveedor
+expone `POST /v1/inbox/conversations/{id}/read`, que en WhatsApp enviaría las
+palomitas azules, salvo en cuentas de coexistencia: ahí la app de WhatsApp
+Business del cliente conserva el estado de lectura y el proveedor no lo
+sobrescribe. La cuenta `Lia` que se opera se conectó desde esa app, así que es
+de coexistencia.
 
-La cuenta `Lia` de staging se conectó desde la app de WhatsApp Business, por lo
-que **es una cuenta de coexistencia**: el acuse se acepta y `unreadCount` baja a
-cero en el proveedor, pero el contacto nunca ve la palomita azul. La ausencia de
-ese indicador en staging es la limitación esperada del canal y no una regresión.
+Se implementó y se retiró tras comprobarlo en staging: el proveedor aceptaba la
+llamada, pero el mensaje entrante conservaba `deliveryStatus: 'delivered'` y el
+contacto nunca veía la palomita azul. No existe endpoint alternativo ni
+override, `isRead` es un campo que el webhook entrega y no un parámetro que se
+pueda devolver, y desconectar la app tampoco es salida porque el proveedor
+desactiva la cuenta al hacerlo.
+
+Reintroducirlo solo tiene sentido con un número exclusivo de Cloud API, sin
+coexistencia; entonces requeriría de nuevo el endpoint, una marca de lectura por
+conversación y su auditoría.
 
 El proveedor decide cuál de los dos identificadores opacos devuelve en ese
 campo: en WhatsApp es el `platformMessageId`, mientras el webhook identifica el

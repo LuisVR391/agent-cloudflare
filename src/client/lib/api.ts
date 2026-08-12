@@ -153,18 +153,6 @@ export async function sendConversationMessage(
   if (!response.ok) throw new Error(await parseError(response, "No fue posible enviar el mensaje."));
 }
 
-// Emite el acuse de lectura hacia el canal. Es accesorio a la vista: quien la
-// invoca ignora su resultado para no degradar la apertura de la conversación.
-export async function markConversationRead(conversationId: string): Promise<boolean> {
-  const response = await fetch(
-    `/api/conversations/${encodeURIComponent(conversationId)}/read`,
-    { method: "POST", credentials: "same-origin" },
-  );
-  if (!response.ok) return false;
-  const body = (await response.json().catch(() => ({}))) as { marked?: boolean };
-  return body.marked === true;
-}
-
 export async function updateConversation(
   conversationId: string,
   input: { expectedVersion: number; status?: "open" | "resolved"; attentionMode?: "human" | "paused" },

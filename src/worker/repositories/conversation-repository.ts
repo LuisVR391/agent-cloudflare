@@ -328,69 +328,6 @@ export class ConversationRepository {
     return this.find(input.organizationId, input.conversationId);
   }
 
-  // Devuelve los datos del acuse solo cuando hay entrantes posteriores a la
-  // última lectura registrada; en caso contrario no hay nada que marcar y no se
-  // llama al proveedor.
-  async findUnreadInbound(organizationId: string, conversationId: string): Promise<{
-    externalConversationId: string;
-    externalAccountId: string;
-    lastInboundAt: string;
-  } | null> {
-    const scope = requireOrganizationScope(
-      organizationId,
-      "ConversationRepository.findUnreadInbound",
-    );
-    return this.db.prepare(`SELECT c.external_conversation_id AS externalConversationId,
-      ch.external_account_id AS externalAccountId,
-      MAX(m.occurred_at) AS lastInboundAt
-      FROM conversations c
-      JOIN communication_channels ch ON ch.organization_id = c.organization_id
-        AND ch.id = c.channel_id
-      JOIN messages m ON m.organization_id = c.organization_id
-        AND m.conversation_id = c.id AND m.direction = 'incoming'
-      WHERE c.organization_id = ? AND c.id = ?
-      GROUP BY c.id
-      HAVING c.last_read_at IS NULL OR MAX(m.occurred_at) > c.last_read_at`)
-      .bind(scope, conversationId)
-      .first<{
-        externalConversationId: string;
-        externalAccountId: string;
-        lastInboundAt: string;
-      }>();
-  }
-
-  // Solo se invoca tras un acuse aceptado por el canal, de modo que un fallo
-  // deja la conversación pendiente y la siguiente apertura reintenta.
-  async markRead(input: {
-    organizationId: string;
-    conversationId: string;
-    actorId: string;
-    readAt: string;
-    correlationId: string;
-  }): Promise<void> {
-    const scope = requireOrganizationScope(
-      input.organizationId,
-      "ConversationRepository.markRead",
-    );
-    await this.db.batch([
-      this.db.prepare(`UPDATE conversations SET last_read_at = ?, updated_at = ?
-        WHERE organization_id = ? AND id = ?`)
-        .bind(input.readAt, input.readAt, scope, input.conversationId),
-      this.db.prepare(`INSERT INTO audit_logs
-        (id, organization_id, actor_type, actor_id, action, resource_type,
-         resource_id, result, correlation_id, occurred_at)
-        VALUES (?, ?, 'staff', ?, 'conversation.read', 'conversation', ?, 'allowed', ?, ?)`)
-        .bind(
-          crypto.randomUUID(),
-          scope,
-          input.actorId,
-          input.conversationId,
-          input.correlationId,
-          input.readAt,
-        ),
-    ]);
-  }
-
   private findContact(organizationId: string, externalId: string) {
     return this.db.prepare(`SELECT contacts.id FROM contacts JOIN contact_identities
       ON contact_identities.organization_id = contacts.organization_id

@@ -136,57 +136,6 @@ describe.sequential("conversaciones canónicas", () => {
     vi.unstubAllGlobals();
   });
 
-  it("expone el acuse pendiente solo mientras haya entrantes sin leer", async () => {
-    const repository = new ConversationRepository(env.DB);
-    const inbound = await repository.upsertInbound({
-      organizationId, channelId, externalConversationId: "z-conversation-read",
-      externalContactId: "wa-contact-read", externalMessageId: "z-message-read",
-      platformMessageId: "wamid-inbound-read", text: "Hola", occurredAt,
-      correlationId: "a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1",
-    });
-
-    await expect(
-      repository.findUnreadInbound(organizationId, inbound.conversationId),
-    ).resolves.toMatchObject({
-      externalConversationId: "z-conversation-read",
-      externalAccountId: "account-beautyplace",
-      lastInboundAt: occurredAt,
-    });
-
-    await repository.markRead({
-      organizationId,
-      conversationId: inbound.conversationId,
-      actorId: "staff-1",
-      readAt: "2026-08-10T18:05:00.000Z",
-      correlationId: "a2a2a2a2-a2a2-4a2a-8a2a-a2a2a2a2a2a2",
-    });
-
-    // Ya leída: no vuelve a pedir acuse al proveedor.
-    await expect(
-      repository.findUnreadInbound(organizationId, inbound.conversationId),
-    ).resolves.toBeNull();
-    await expect(env.DB.prepare(`SELECT COUNT(*) AS total FROM audit_logs
-      WHERE organization_id = ? AND action = 'conversation.read' AND result = 'allowed'`)
-      .bind(organizationId).first<{ total: number }>()).resolves.toEqual({ total: 1 });
-
-    // Un entrante posterior vuelve a dejarla pendiente.
-    await repository.upsertInbound({
-      organizationId, channelId, externalConversationId: "z-conversation-read",
-      externalContactId: "wa-contact-read", externalMessageId: "z-message-read-2",
-      platformMessageId: "wamid-inbound-read-2", text: "¿Sigues ahí?",
-      occurredAt: "2026-08-10T18:09:00.000Z",
-      correlationId: "a3a3a3a3-a3a3-4a3a-8a3a-a3a3a3a3a3a3",
-    });
-    await expect(
-      repository.findUnreadInbound(organizationId, inbound.conversationId),
-    ).resolves.toMatchObject({ lastInboundAt: "2026-08-10T18:09:00.000Z" });
-
-    // Otra organización no alcanza la conversación.
-    await expect(
-      repository.findUnreadInbound(otherOrganizationId, inbound.conversationId),
-    ).resolves.toBeNull();
-  });
-
   it("marca enviado y reconcilia cuando WhatsApp omite conversationId y sentAt", async () => {
     const repository = new ConversationRepository(env.DB);
     const inbound = await repository.upsertInbound({

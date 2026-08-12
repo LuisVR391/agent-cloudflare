@@ -5,7 +5,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/
 import {
   getConversationMessages,
   listConversations,
-  markConversationRead,
   sendConversationMessage,
   updateConversation,
   type ConversationMessage,
@@ -62,10 +61,6 @@ export function ConversationInbox() {
       const result = await getConversationMessages(conversation.id);
       setSelected(result.conversation);
       setMessages(result.messages);
-      // Acuse de lectura una vez que el hilo está a la vista. No se espera ni se
-      // reporta: su fallo no afecta lo que el operador está haciendo y la
-      // siguiente apertura vuelve a intentarlo.
-      void markConversationRead(conversation.id).catch(() => false);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "No fue posible abrir la conversación.");
     }
