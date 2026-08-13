@@ -96,5 +96,7 @@ controlada por el cliente.
 - [Issue #6](https://github.com/LuisVR391/agent-cloudflare/issues/6)
 - [ADR-0002: D1 como fuente de verdad](./ADR-0002-d1-source-of-truth.md)
 - [ADR-0006: Convenciones de esquema](./ADR-0006-d1-schema-conventions.md)
+- [ADR-0011: Incorporación de colaboradores por invitación](./ADR-0011-collaborator-invitations.md),
+  que complementa esta decisión sin reabrir el registro público
 - [Modelo de seguridad](../architecture/security-model.md)
 - [Operación de autenticación](../operations/authentication.md)
