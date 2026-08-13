@@ -798,6 +798,7 @@ describe.sequential("conversaciones canónicas", () => {
       attachments: [{
         type: "image",
         url: "https://zernio.com/api/v1/whatsapp/media/media-1",
+        filename: "recibo-agosto.png",
       }],
     })).resolves.toEqual([{ status: "stored" }]);
 
@@ -815,6 +816,21 @@ describe.sequential("conversaciones canónicas", () => {
       .first<{ r2_key: string; byte_size: number; status: string; attachment_type: string }>();
     expect(stored).toMatchObject({ byte_size: 3, status: "stored", attachment_type: "image" });
     expect(objects.get(stored!.r2_key)?.byteLength).toBe(3);
+
+    // El nombre declarado por el canal se conservaba en D1 pero no se leía, así
+    // que el inbox no podía identificar el archivo más allá de su tipo.
+    const withAttachment = await repository.listMessages(
+      organizationId, inbound.conversationId, { limit: 50 },
+    );
+    expect(withAttachment.at(-1)?.attachments).toEqual([
+      expect.objectContaining({
+        type: "image",
+        status: "stored",
+        contentType: "image/png",
+        byteSize: 3,
+        filename: "recibo-agosto.png",
+      }),
+    ]);
 
     // Un host ajeno al proveedor nunca debe recibir la credencial: la URL llega
     // dentro del payload del webhook, que es entrada no confiable.

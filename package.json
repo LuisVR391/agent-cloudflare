@@ -28,6 +28,7 @@
     "check": "npm run check:agents && npm run typecheck && npm run test && npm run build && npm run check:staging"
   },
   "dependencies": {
+    "@shadcn/react": "0.3.0",
     "@tailwindcss/vite": "^4.3.3",
     "agents": "^0.20.1",
     "better-auth": "^1.6.25",
@@ -44,8 +45,8 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@cloudflare/vite-plugin": "^1.48.0",
-    "@cloudflare/vitest-pool-workers": "^0.19.0",
+    "@cloudflare/vite-plugin": "^1.52.0",
+    "@cloudflare/vitest-pool-workers": "^0.21.2",
     "@testing-library/jest-dom": "^7.0.0",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
@@ -54,9 +55,10 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.4",
     "jsdom": "^29.0.1",
+    "shadcn": "4.17.0",
     "typescript": "^7.0.2",
     "vite": "^8.1.5",
     "vitest": "^4.1.10",
-    "wrangler": "^4.118.0"
+    "wrangler": "^4.122.0"
   }
 }

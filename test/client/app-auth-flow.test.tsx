@@ -102,7 +102,11 @@ describe("flujo autenticado del panel", () => {
     expect(await screen.findByText("Hola, Ana")).toBeInTheDocument();
     expect(screen.getByText("Salón Dos")).toBeInTheDocument();
 
-    await browserUser.click(screen.getByRole("button", { name: "Cerrar sesión" }));
+    // Cerrar sesión vive en el menú de la cuenta, en el pie del sidebar.
+    await browserUser.click(screen.getByRole("button", { name: /Ana Propietaria/ }));
+    await browserUser.click(
+      await screen.findByRole("menuitem", { name: "Cerrar sesión" }),
+    );
     await waitFor(() => expect(window.location.pathname).toBe("/login"));
     expect(
       await screen.findByRole("button", { name: "Iniciar sesión" }),

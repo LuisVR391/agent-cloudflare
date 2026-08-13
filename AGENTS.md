@@ -111,14 +111,19 @@ vigente.
 
 ## Herramientas de desarrollo asistido
 
-La interfaz del cliente es un proyecto shadcn/ui. El repositorio declara la
-skill `shadcn` en `.agents/skills`, con symlink desde `.claude/skills`, y el
-servidor MCP `shadcn` en `.mcp.json` para Claude Code y en `.codex/config.toml`
-para Codex. Úsalos en vez de adivinar la API de un componente.
+La interfaz del cliente es un proyecto shadcn/ui y se compone con las primitivas
+del registro, según [ADR-0009](./.docs/decisions/ADR-0009-client-ui-composition.md).
+El repositorio declara la skill `shadcn` en `.agents/skills`, con symlink desde
+`.claude/skills`, y el servidor MCP `shadcn` en `.mcp.json` para Claude Code y en
+`.codex/config.toml` para Codex. Úsalos en vez de adivinar la API de un
+componente.
 
 - Son herramientas de desarrollo local: no forman parte del producto
-  desplegado, no declaran bindings ni recursos y no añaden dependencias de
-  runtime.
+  desplegado, no declaran bindings ni recursos y no añaden por sí mismas
+  dependencias de runtime.
+- Un componente del registro sí puede exigir un paquete que entra en el bundle.
+  Instalarlo no autoriza su dependencia: se declara, se fija a una versión
+  exacta y se justifica en la entrega.
 - No autorizan nada por sí solas. El código que generen se revisa en el diff y
   cumple las mismas reglas de alcance, seguridad, pruebas y documentación.
 - Los guardrails no observan las llamadas a herramientas MCP; la revisión

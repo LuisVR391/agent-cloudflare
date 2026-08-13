@@ -1,5 +1,9 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+/* Aporta las utilidades que los componentes del registro dan por hechas
+   (`shimmer` en Attachment, `scroll-fade-*` en MessageScroller). Es una
+   dependencia de build: su contenido se inlinea en el CSS compilado. */
+@import "shadcn/tailwind.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -27,6 +31,14 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
   --radius-2xl: calc(var(--radius) + 8px);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
 }
 
 :root {
@@ -49,6 +61,16 @@
   --border: oklch(0.9 0.01 240);
   --input: oklch(0.9 0.01 240);
   --ring: oklch(0.62 0.12 225);
+  /* El sidebar conserva el contraste oscuro que la marca ya usaba, expresado
+     como tokens para que los componentes no necesiten clases de color. */
+  --sidebar: oklch(0.16 0.008 250);
+  --sidebar-foreground: oklch(0.97 0.002 250);
+  --sidebar-primary: oklch(0.62 0.12 225);
+  --sidebar-primary-foreground: oklch(0.16 0.008 250);
+  --sidebar-accent: oklch(0.26 0.012 250);
+  --sidebar-accent-foreground: oklch(0.98 0.002 250);
+  --sidebar-border: oklch(0.28 0.012 250);
+  --sidebar-ring: oklch(0.62 0.12 225);
 }
 
 @layer base {

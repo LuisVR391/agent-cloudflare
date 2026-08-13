@@ -114,6 +114,18 @@ export type ConversationMessage = {
   id: string;
   direction: "incoming" | "outgoing";
   senderType: "customer" | "staff" | "system";
+  // Identifica al colaborador que respondió. Es opaco: distingue a un autor de
+  // otro, pero no resuelve su nombre.
+  senderId: string | null;
+  messageType:
+    | "text"
+    | "image"
+    | "video"
+    | "audio"
+    | "file"
+    | "sticker"
+    | "share"
+    | "unsupported";
   text: string | null;
   status: "received" | "queued" | "sent" | "delivered" | "read" | "failed" | "delivery_unknown";
   occurredAt: string;
@@ -122,6 +134,7 @@ export type ConversationMessage = {
     type: "image" | "video" | "audio" | "file" | "sticker" | "share" | "unsupported";
     contentType: string | null;
     byteSize: number | null;
+    filename: string | null;
     status: "stored" | "rejected";
     failureReason: string | null;
   }>;
