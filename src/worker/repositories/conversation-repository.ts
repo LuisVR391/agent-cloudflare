@@ -4,6 +4,7 @@ import type {
   ConversationMessage,
   ConversationStatus,
   ConversationSummary,
+  PageCursor,
 } from "../domain/types";
 
 type SummaryRow = {
@@ -54,19 +55,28 @@ export class ConversationRepository {
   constructor(private readonly db: D1Database) {}
 
   async list(organizationId: string, options: {
-    status?: ConversationStatus; limit: number; cursor?: string;
-  }): Promise<ConversationSummary[]> {
+    status?: ConversationStatus; limit: number; cursor?: PageCursor;
+  }): Promise<{ conversations: ConversationSummary[]; nextCursor: PageCursor | null }> {
     const scope = requireOrganizationScope(organizationId, "ConversationRepository.list");
     const clauses = ["c.organization_id = ?"];
     const bindings: unknown[] = [scope];
     if (options.status) { clauses.push("c.status = ?"); bindings.push(options.status); }
-    if (options.cursor) { clauses.push("c.last_message_at < ?"); bindings.push(options.cursor); }
-    bindings.push(options.limit);
+    if (options.cursor) {
+      clauses.push("(c.last_message_at < ? OR (c.last_message_at = ? AND c.id < ?))");
+      bindings.push(options.cursor.timestamp, options.cursor.timestamp, options.cursor.id);
+    }
+    // Una fila extra revela si queda página siguiente sin una consulta de conteo.
+    bindings.push(options.limit + 1);
     const { results } = await this.db.prepare(`${summarySelect}
       WHERE ${clauses.join(" AND ")}
       ORDER BY c.last_message_at DESC, c.id DESC LIMIT ?`)
       .bind(...bindings).all<SummaryRow>();
-    return results.map(summary);
+    const page = results.slice(0, options.limit).map(summary);
+    const last = results.length > options.limit ? page.at(-1) : undefined;
+    return {
+      conversations: page,
+      nextCursor: last ? { timestamp: last.lastMessageAt, id: last.id } : null,
+    };
   }
 
   async find(organizationId: string, conversationId: string): Promise<ConversationSummary | null> {
@@ -77,23 +87,36 @@ export class ConversationRepository {
   }
 
   async listMessages(organizationId: string, conversationId: string, options: {
-    limit: number; cursor?: string;
-  }): Promise<ConversationMessage[]> {
+    limit: number; cursor?: PageCursor;
+  }): Promise<{ messages: ConversationMessage[]; nextCursor: PageCursor | null }> {
     const scope = requireOrganizationScope(organizationId, "ConversationRepository.listMessages");
-    const cursorSql = options.cursor ? "AND occurred_at < ?" : "";
+    // El cursor compara la tupla completa que ordena la consulta. Comparar solo
+    // `occurred_at` dejaba inalcanzables las filas empatadas que el límite
+    // cortaba, y el canal emite timestamps con precisión de segundos.
+    const cursorSql = options.cursor
+      ? "AND (occurred_at < ? OR (occurred_at = ? AND id < ?))"
+      : "";
+    const probe = options.limit + 1;
     const bindings = options.cursor
-      ? [scope, conversationId, options.cursor, options.limit]
-      : [scope, conversationId, options.limit];
-    const { results } = await this.db.prepare(`SELECT * FROM messages
+      ? [scope, conversationId, options.cursor.timestamp, options.cursor.timestamp, options.cursor.id, probe]
+      : [scope, conversationId, probe];
+    const { results: probed } = await this.db.prepare(`SELECT id, organization_id,
+      conversation_id, direction, sender_type, sender_id, message_type, text_content,
+      status, occurred_at FROM messages
       WHERE organization_id = ? AND conversation_id = ? ${cursorSql}
       ORDER BY occurred_at DESC, id DESC LIMIT ?`).bind(...bindings).all<MessageRow>();
-    if (results.length === 0) return [];
+    const hasMore = probed.length > options.limit;
+    const results = probed.slice(0, options.limit);
+    if (results.length === 0) return { messages: [], nextCursor: null };
+    // La consulta baja de nuevo a viejo, así que la última fila de la página es
+    // la más antigua y de ella sale el cursor hacia atrás.
+    const oldest = results.at(-1)!;
     const placeholders = results.map(() => "?").join(",");
     const attachments = await this.db.prepare(`SELECT id, message_id, attachment_type,
       content_type, byte_size, filename, status, failure_reason FROM message_attachments
       WHERE organization_id = ? AND message_id IN (${placeholders})`)
       .bind(scope, ...results.map((row) => row.id)).all<AttachmentRow>();
-    return results.map((row) => ({
+    const messages = results.map((row) => ({
       id: row.id, organizationId: row.organization_id, conversationId: row.conversation_id,
       direction: row.direction, senderType: row.sender_type, senderId: row.sender_id,
       messageType: row.message_type, text: row.text_content, status: row.status,
@@ -106,6 +129,10 @@ export class ConversationRepository {
           status: item.status, failureReason: item.failure_reason,
         })),
     })).reverse();
+    return {
+      messages,
+      nextCursor: hasMore ? { timestamp: oldest.occurred_at, id: oldest.id } : null,
+    };
   }
 
   async upsertInbound(input: {

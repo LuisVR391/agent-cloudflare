@@ -4,6 +4,7 @@ import { error, resolveAuthorizationContext } from "./auth/http";
 import type { WorkerEnv } from "./auth/types";
 import type { CustomerSupportAgent } from "./customer-support-agent";
 import type { OutboundQueueMessage } from "./integrations/zernio/contracts";
+import type { PageCursor } from "./domain/types";
 import { ConversationRepository } from "./repositories/conversation-repository";
 
 type ConversationEnv = WorkerEnv & {
@@ -28,6 +29,30 @@ function json(value: unknown, status = 200): Response {
 function parseLimit(value: string | null, fallback: number): number | null {
   const parsed = Number(value ?? fallback);
   return Number.isInteger(parsed) && parsed >= 1 ? Math.min(parsed, 100) : null;
+}
+
+/**
+ * El cursor es opaco para el cliente: transporta la tupla que ordena la
+ * consulta, no un dato con significado propio. Se valida antes de tocar SQL y
+ * falla cerrado, como cualquier otra entrada no confiable.
+ */
+const CURSOR_MAX_LENGTH = 128;
+
+function encodeCursor(cursor: PageCursor | null): string | null {
+  return cursor ? `${cursor.timestamp}|${cursor.id}` : null;
+}
+
+function parseCursor(value: string | null): { cursor?: PageCursor } | null {
+  if (value === null) return { cursor: undefined };
+  if (value.length === 0 || value.length > CURSOR_MAX_LENGTH) return null;
+  const separator = value.indexOf("|");
+  if (separator <= 0 || separator === value.length - 1) return null;
+  return {
+    cursor: {
+      timestamp: value.slice(0, separator),
+      id: value.slice(separator + 1),
+    },
+  };
 }
 
 export async function routeConversationApi(
@@ -55,11 +80,15 @@ export async function routeConversationApi(
     }
     const pageLimit = parseLimit(url.searchParams.get("limit"), 30);
     if (!pageLimit) return error(400, "INVALID_LIMIT", "El límite solicitado no es válido.", correlationId);
-    const conversations = await repository.list(organizationId, {
-      status: status ?? undefined, limit: pageLimit,
-      cursor: url.searchParams.get("cursor") ?? undefined,
+    const page = parseCursor(url.searchParams.get("cursor"));
+    if (!page) return error(400, "INVALID_CURSOR", "El cursor solicitado no es válido.", correlationId);
+    const result = await repository.list(organizationId, {
+      status: status ?? undefined, limit: pageLimit, cursor: page.cursor,
     });
-    return json({ conversations, nextCursor: conversations.at(-1)?.lastMessageAt ?? null });
+    return json({
+      conversations: result.conversations,
+      nextCursor: encodeCursor(result.nextCursor),
+    });
   }
 
   const attachmentMatch = suffix.match(/^\/([^/]+)\/attachments\/([^/]+)$/);
@@ -118,10 +147,16 @@ export async function routeConversationApi(
     if (!permissions.includes("conversations.read")) return error(403, "FORBIDDEN", "No tienes permiso para consultar conversaciones.", correlationId);
     const pageLimit = parseLimit(url.searchParams.get("limit"), 50);
     if (!pageLimit) return error(400, "INVALID_LIMIT", "El límite solicitado no es válido.", correlationId);
-    const messages = await repository.listMessages(organizationId, conversationId, {
-      limit: pageLimit, cursor: url.searchParams.get("cursor") ?? undefined,
+    const page = parseCursor(url.searchParams.get("cursor"));
+    if (!page) return error(400, "INVALID_CURSOR", "El cursor solicitado no es válido.", correlationId);
+    const result = await repository.listMessages(organizationId, conversationId, {
+      limit: pageLimit, cursor: page.cursor,
     });
-    return json({ conversation, messages, nextCursor: messages.at(0)?.occurredAt ?? null });
+    return json({
+      conversation,
+      messages: result.messages,
+      nextCursor: encodeCursor(result.nextCursor),
+    });
   }
   if (request.method === "GET" && action === "live") {
     if (!permissions.includes("conversations.read")) return error(403, "FORBIDDEN", "No tienes permiso para consultar conversaciones.", correlationId);

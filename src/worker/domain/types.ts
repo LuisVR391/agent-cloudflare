@@ -125,6 +125,16 @@ export type AttachmentContentType =
   | "unsupported";
 export type MessageContentType = "text" | AttachmentContentType;
 
+/**
+ * Cursor de paginación por clave. Reproduce la tupla que ordena la consulta
+ * —timestamp e identificador— porque comparar solo el timestamp deja
+ * inalcanzables las filas empatadas que el límite corta.
+ */
+export type PageCursor = {
+  timestamp: string;
+  id: string;
+};
+
 export type ConversationMessage = {
   id: string;
   organizationId: string;
