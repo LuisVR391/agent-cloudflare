@@ -42,6 +42,25 @@ const inboundConsumer = config.queues?.consumers?.find(
 assert.equal(inboundConsumer?.max_batch_size, 10);
 assert.equal(inboundConsumer?.max_retries, 5);
 
+// El utillaje de desarrollo no puede viajar en el artefacto: una ruta capaz de
+// inyectar mensajes falsos en un entorno real es justo lo que el guard de
+// `import.meta.env.DEV` debe eliminar. Si esta comprobación falla, el bundle
+// dejó dentro el enganche y no debe publicarse.
+const workerBundle = readFileSync(
+  join(repositoryRoot, "dist", "agent_cloudflare", "index.js"),
+  "utf8",
+);
+assert.equal(
+  workerBundle.includes("/api/dev/"),
+  false,
+  "El bundle del Worker contiene una ruta de desarrollo.",
+);
+assert.equal(
+  workerBundle.includes("inbound-fixture"),
+  false,
+  "El bundle del Worker contiene el módulo de simulación local.",
+);
+
 const authOrigin = new URL(config.vars?.BETTER_AUTH_URL);
 assert.equal(authOrigin.protocol, "https:");
 assert.equal(authOrigin.pathname, "/");
