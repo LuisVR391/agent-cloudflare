@@ -41,13 +41,33 @@ Los roles son fijos en este corte y no existe editor:
 
 | Rol | Alcance inicial |
 | --- | --- |
-| `owner` | Panel, conversaciones, agentes, usuarios y organización |
-| `manager` | Panel, conversaciones y agentes |
-| `operator` | Panel y operación de conversaciones |
+| `owner` | Panel, conversaciones, contactos, agentes, usuarios y organización |
+| `manager` | Panel, conversaciones, contactos y agentes |
+| `operator` | Panel, operación de conversaciones y contactos |
 
-Los módulos de conversaciones, agentes y equipo todavía están planificados. El
-panel muestra su lugar futuro deshabilitado; los permisos no implican que esas
-interfaces o contratos ya existan.
+Los tres roles gestionan contactos: quien atiende la conversación es quien
+descubre el nombre correcto de la persona mientras habla con ella.
+
+Los módulos de agentes y equipo todavía están planificados. El panel muestra su
+lugar futuro deshabilitado; los permisos no implican que esas interfaces o
+contratos ya existan.
+
+### Crecimiento del catálogo de permisos
+
+`AuthorizationRepository.seedOwner` siembra el catálogo únicamente durante la
+instalación, así que una organización ya instalada nunca vuelve a pasar por
+ahí. Un permiso nuevo que solo se declarara en código dejaría a esa
+organización sin acceso a la capacidad que lo exige.
+
+Por eso, cada corte que añade permisos hace las tres cosas:
+
+1. Declara el permiso en `permissionDefinitions` y `permissionsByRole`, que
+   gobiernan las instalaciones nuevas.
+2. Añade una migración aditiva que lo inserta y lo concede a los roles
+   existentes por `role_key`, con `ON CONFLICT DO NOTHING` para que reaplicarla
+   no duplique concesiones.
+3. Cubre con una prueba que una instalación nueva y una migrada terminan con el
+   mismo catálogo `(role_key, permission_key)`.
 
 ## Instalación y registro
 

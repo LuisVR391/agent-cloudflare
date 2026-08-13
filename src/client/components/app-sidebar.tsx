@@ -1,4 +1,12 @@
-import { Bot, CircleGauge, Inbox, MessageCircleMore, Settings2, Users } from "lucide-react";
+import {
+  Bot,
+  CircleGauge,
+  Contact,
+  Inbox,
+  MessageCircleMore,
+  Settings2,
+  Users,
+} from "lucide-react";
 import type { ComponentProps } from "react";
 import { Link, useLocation } from "react-router";
 
@@ -26,6 +34,7 @@ import type { PanelContext } from "@/components/panel-shell";
 export const panelSections = [
   { label: "Resumen", icon: CircleGauge, path: "/app" },
   { label: "Conversaciones", icon: Inbox, path: "/app/conversaciones" },
+  { label: "Contactos", icon: Contact, path: "/app/contactos" },
   { label: "Agentes", icon: Bot, path: null },
   { label: "Equipo", icon: Users, path: null },
   { label: "Configuración", icon: Settings2, path: null },

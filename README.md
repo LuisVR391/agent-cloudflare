@@ -9,7 +9,8 @@ desde una sola interfaz.
 > de WhatsApp se reciben una sola vez y en orden, una persona autorizada
 > responde desde el inbox y la respuesta recorre `Enviado → Entregado → Leído`,
 > y los medios entrantes se conservan en R2 y se abren desde la conversación.
-> El trabajo siguiente pertenece a Fase 2.
+> Fase 2 está en progreso: su primer corte da al contacto una ficha
+> consultable y editable, con teléfono, correo y etiquetas.
 ## Objetivo del producto
 
 Agent Cloudflare debe permitir que una empresa administre desde un solo panel:
@@ -47,14 +48,15 @@ forks del producto.
 | Workers AI | Binding preparado | Binding `AI` declarado, sin flujo de inferencia |
 | R2 | Implementada para Fase 1 | `MEDIA_BUCKET` conserva imágenes, audio y archivos con estado por adjunto; validado con medios reales en staging |
 | Observabilidad | Configurada | Logs y trazas habilitados en Wrangler |
-| D1 en local y pruebas | Implementada para Fase 1 | Migraciones `0001` a `0009`, repositorios, mensajes, entregas, adjuntos y aislamiento probado |
+| D1 en local y pruebas | Implementada para Fase 1 y el primer corte de Fase 2 | Migraciones `0001` a `0010`, repositorios, mensajes, entregas, adjuntos, contactos y aislamiento probado |
 | Autenticación y autorización | Implementada | Better Auth, sesión D1, instalación única, roles fijos y contexto organizacional; [PR #14](https://github.com/LuisVR391/agent-cloudflare/pull/14) |
 | Entornos y staging | Staging desplegado | Recursos aislados; producción sigue sin provisionar |
 | Panel de conversaciones | Implementado para Fase 1 | Inbox protegido con sidebar fijo y paneles de scroll independiente, historial, recepción en vivo, handoff, estados de entrega y adjuntos con nombre, miniatura y descarga |
+| Panel de contactos | Implementado para Fase 2 | Directorio buscable, ficha editable con teléfono, correo y etiquetas, y la misma ficha abierta desde la conversación |
 | Panel de agentes | Planificado | Navegación reservada y deshabilitada |
 | WhatsApp mediante Zernio | Implementado para Fase 1 | Recorrido bidireccional validado con tráfico real, incluidos estados de entrega y medios entrantes |
 | Queues, Workflows y Vectorize | Parcial | Queues de entrada/salida y DLQ provisionadas en staging; Workflows y Vectorize permanecen planificados |
-| CRM, agenda y pipelines | Planificados | El inbox mínimo pertenece a Fase 1; el enriquecimiento comercial sigue en Fase 2 |
+| CRM, agenda y pipelines | Parcial | Contactos con ficha y etiquetas están implementados; equipo, pipeline, tareas, citas y métricas siguen planificados en Fase 2 |
 | Versionado, evaluación y mejora de agentes | Planificados | Fuera del prototipo actual |
 
 `CustomerSupportAgent` coordina el estado vivo de cada conversación sin

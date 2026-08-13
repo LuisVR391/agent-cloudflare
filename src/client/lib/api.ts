@@ -100,6 +100,7 @@ export async function selectOrganization(organizationId: string): Promise<void> 
 
 export type ConversationSummary = {
   id: string;
+  contactId: string;
   contactDisplayName: string | null;
   contactExternalId: string;
   channelDisplayName: string | null;
@@ -193,4 +194,86 @@ export async function updateConversation(
     body: JSON.stringify(input),
   });
   if (!response.ok) throw new Error(await parseError(response, "No fue posible actualizar la conversación."));
+}
+
+export type ContactTag = {
+  id: string;
+  name: string;
+  // Token semántico, no un color literal: la variante visual la decide el tema.
+  color: "neutral" | "info" | "success" | "warning" | "danger";
+};
+
+export type ContactProfile = {
+  id: string;
+  displayName: string | null;
+  phoneNumber: string | null;
+  email: string | null;
+  status: "active" | "archived";
+  version: number;
+  createdAt: string;
+  identities: Array<{ id: string; provider: "whatsapp"; externalId: string }>;
+  tags: ContactTag[];
+};
+
+export async function listContacts(query?: string, cursor?: string) {
+  const params = new URLSearchParams();
+  if (query) params.set("query", query);
+  if (cursor) params.set("cursor", cursor);
+  const suffix = params.size > 0 ? `?${params}` : "";
+  const response = await fetch(`/api/contacts${suffix}`, { credentials: "same-origin" });
+  if (!response.ok) throw new Error(await parseError(response, "No fue posible cargar los contactos."));
+  return response.json() as Promise<{ contacts: ContactProfile[]; nextCursor: string | null }>;
+}
+
+export async function getContact(contactId: string) {
+  const response = await fetch(`/api/contacts/${encodeURIComponent(contactId)}`, {
+    credentials: "same-origin",
+  });
+  if (!response.ok) throw new Error(await parseError(response, "No fue posible cargar el contacto."));
+  const body = (await response.json()) as { contact: ContactProfile };
+  return body.contact;
+}
+
+// Un campo ausente se conserva y `null` lo borra, igual que en el Worker.
+export async function updateContact(
+  contactId: string,
+  input: {
+    expectedVersion: number;
+    displayName?: string | null;
+    phoneNumber?: string | null;
+    email?: string | null;
+    status?: "active" | "archived";
+  },
+) {
+  const response = await fetch(`/api/contacts/${encodeURIComponent(contactId)}`, {
+    method: "PATCH",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error(await parseError(response, "No fue posible actualizar el contacto."));
+  const body = (await response.json()) as { contact: ContactProfile };
+  return body.contact;
+}
+
+export async function addContactTag(contactId: string, name: string) {
+  const response = await fetch(`/api/contacts/${encodeURIComponent(contactId)}/tags`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  if (!response.ok) throw new Error(await parseError(response, "No fue posible etiquetar el contacto."));
+  const body = (await response.json()) as { contact: ContactProfile };
+  return body.contact;
+}
+
+export async function removeContactTag(contactId: string, tagId: string) {
+  const response = await fetch(
+    `/api/contacts/${encodeURIComponent(contactId)}/tags/${encodeURIComponent(tagId)}`,
+    { method: "DELETE", credentials: "same-origin" },
+  );
+  if (!response.ok) throw new Error(await parseError(response, "No fue posible quitar la etiqueta."));
+  const body = (await response.json()) as { contact: ContactProfile };
+  return body.contact;
 }

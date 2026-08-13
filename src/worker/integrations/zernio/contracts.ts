@@ -154,6 +154,9 @@ export const inboundQueueMessageSchema = z.discriminatedUnion("kind", [
     externalMessageId: z.string().min(1).max(512),
     platformMessageId: z.string().min(1).max(1_024),
     externalContactId: z.string().min(1).max(512),
+    // Opcional a propósito: el campo es aditivo y los mensajes ya encolados
+    // antes de este corte deben seguir validando al consumirse.
+    contactPhoneNumber: z.string().min(1).max(32).nullish(),
     text: z.string().max(65_536).nullable(),
     attachments: z.array(attachmentSchema).max(32),
   }),

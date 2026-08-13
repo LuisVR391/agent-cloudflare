@@ -11,6 +11,7 @@ import type { InboundQueueMessage, OutboundQueueMessage } from "./integrations/z
 import { handleInboundQueue } from "./integrations/zernio/inbound-queue";
 import { handleOutboundQueue } from "./integrations/zernio/outbound-queue";
 import { handleZernioWebhook } from "./integrations/zernio/webhook";
+import { routeContactApi } from "./contact-api";
 import { routeConversationApi } from "./conversation-api";
 import { AuthorizationRepository } from "./repositories/auth/authorization-repository";
 
@@ -48,6 +49,9 @@ export default {
 
     const conversationResponse = await routeConversationApi(request, env as never);
     if (conversationResponse) return conversationResponse;
+
+    const contactResponse = await routeContactApi(request, workerEnv);
+    if (contactResponse) return contactResponse;
 
     if (url.pathname.startsWith("/api/")) {
       return new Response(

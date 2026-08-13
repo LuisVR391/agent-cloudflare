@@ -19,6 +19,7 @@ import {
 } from "react-router";
 
 import { LoginForm } from "@/components/login-form";
+import { ContactDirectory } from "@/components/contact-directory";
 import { ConversationInbox } from "@/components/conversation-inbox";
 import { PanelOverview } from "@/components/panel-overview";
 import { PanelShell } from "@/components/panel-shell";
@@ -478,6 +479,7 @@ export function App() {
         <Route element={<PanelPage />} path="/app">
           <Route element={<PanelOverview />} index />
           <Route element={<ConversationInbox />} path="conversaciones" />
+          <Route element={<ContactDirectory />} path="contactos" />
           <Route element={<Navigate replace to="/app" />} path="*" />
         </Route>
         <Route element={<Navigate replace to="/" />} path="*" />

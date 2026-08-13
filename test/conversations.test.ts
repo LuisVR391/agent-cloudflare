@@ -73,6 +73,60 @@ describe.sequential("conversaciones canónicas", () => {
     expect(counts).toEqual({ contacts: 1, messages: 1 });
   });
 
+  it("conserva el teléfono del canal sin pisar la ficha editada", async () => {
+    const repository = new ConversationRepository(env.DB);
+    const input = {
+      organizationId,
+      channelId,
+      externalConversationId: "z-conversation-phone",
+      externalContactId: "wa-contact-phone",
+      contactPhoneNumber: "+52 55 8888 7777",
+      externalMessageId: "z-message-phone",
+      platformMessageId: "wamid-phone",
+      text: "Hola",
+      occurredAt,
+      correlationId: "88888888-8888-4888-8888-888888888888",
+    };
+    await repository.upsertInbound(input);
+
+    const stored = await env.DB.prepare(
+      `SELECT c.id, c.phone_number FROM contacts c
+        JOIN contact_identities i ON i.organization_id = c.organization_id
+         AND i.contact_id = c.id
+        WHERE c.organization_id = ? AND i.external_id = ?`,
+    )
+      .bind(organizationId, input.externalContactId)
+      .first<{ id: string; phone_number: string | null }>();
+    expect(stored?.phone_number).toBe("+52 55 8888 7777");
+
+    // Una corrección manual manda sobre lo que reporta el canal: el siguiente
+    // mensaje no debe devolver el número anterior.
+    await env.DB.prepare(
+      `UPDATE contacts SET phone_number = '+52 55 0000 0000' WHERE organization_id = ? AND id = ?`,
+    )
+      .bind(organizationId, stored!.id)
+      .run();
+    await repository.upsertInbound({
+      ...input,
+      externalMessageId: "z-message-phone-2",
+      platformMessageId: "wamid-phone-2",
+    });
+
+    const after = await env.DB.prepare(
+      `SELECT phone_number FROM contacts WHERE organization_id = ? AND id = ?`,
+    )
+      .bind(organizationId, stored!.id)
+      .first<{ phone_number: string | null }>();
+    expect(after?.phone_number).toBe("+52 55 0000 0000");
+
+    const counts = await env.DB.prepare(
+      `SELECT COUNT(*) AS contacts FROM contacts WHERE organization_id = ?`,
+    )
+      .bind(organizationId)
+      .first<{ contacts: number }>();
+    expect(counts?.contacts).toBe(1);
+  });
+
   it("crea una respuesta idempotente y reconcilia el envío", async () => {
     const repository = new ConversationRepository(env.DB);
     const inbound = await repository.upsertInbound({
