@@ -258,6 +258,10 @@ export function ConversationInbox() {
           }}
           onLoadOlder={() => void loadOlderMessages()}
           onSend={() => void send()}
+          onSimulatedInbound={() => {
+            if (selected) void refreshThread(selected);
+            void refreshList();
+          }}
           selected={selected}
           sending={sending}
           text={text}

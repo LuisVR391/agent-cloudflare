@@ -53,6 +53,15 @@ export default {
     const contactResponse = await routeContactApi(request, workerEnv);
     if (contactResponse) return contactResponse;
 
+    // Utillaje de desarrollo. La importación es dinámica y vive dentro del
+    // guard para que el artefacto construido no contenga la ruta:
+    // `scripts/validate-staging-build.mjs` comprueba esa ausencia.
+    if (import.meta.env.DEV) {
+      const { routeDevFixtureApi } = await import("./dev/inbound-fixture");
+      const fixtureResponse = await routeDevFixtureApi(request, env as never);
+      if (fixtureResponse) return fixtureResponse;
+    }
+
     if (url.pathname.startsWith("/api/")) {
       return new Response(
         JSON.stringify({

@@ -8,6 +8,7 @@ import {
   getConversationMessages,
   listConversations,
   sendConversationMessage,
+  simulateInboundMessage,
   type ConversationMessage,
 } from "../../src/client/lib/api";
 
@@ -20,6 +21,7 @@ vi.mock("../../src/client/lib/api", () => ({
   updateContact: vi.fn(),
   addContactTag: vi.fn(),
   removeContactTag: vi.fn(),
+  simulateInboundMessage: vi.fn(),
 }));
 
 const conversation = {
@@ -421,6 +423,27 @@ describe("inbox de conversaciones", () => {
 
     expect(await screen.findByText("Audio")).toBeInTheDocument();
     expect(screen.getByText("No se conservó desde el canal")).toBeInTheDocument();
+  });
+
+  it("simula un contacto desde la lista y una respuesta dentro del hilo", async () => {
+    vi.mocked(simulateInboundMessage).mockResolvedValue({
+      conversationId: "local-1",
+      phoneNumber: "+525512345678",
+      text: "Hola, soy Lucía, quiero información de precios",
+    });
+    const user = await openThread();
+
+    // Sin hilo: siembra un contacto nuevo.
+    await user.click(screen.getByRole("button", { name: /Simular contacto/ }));
+    await waitFor(() =>
+      expect(simulateInboundMessage).toHaveBeenCalledWith(undefined),
+    );
+
+    // Dentro del hilo: continúa esa conversación.
+    await user.click(screen.getByRole("button", { name: /Simular respuesta/ }));
+    await waitFor(() =>
+      expect(simulateInboundMessage).toHaveBeenCalledWith("conversation-1"),
+    );
   });
 
   it("abre la ficha del contacto desde el hilo solo con permiso de lectura", async () => {

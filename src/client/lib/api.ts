@@ -196,6 +196,28 @@ export async function updateConversation(
   if (!response.ok) throw new Error(await parseError(response, "No fue posible actualizar la conversación."));
 }
 
+/**
+ * Simula un mensaje entrante. Solo existe en desarrollo: el Worker no incluye
+ * la ruta en el artefacto construido, y quien la llama la monta dentro de
+ * `import.meta.env.DEV`.
+ */
+export async function simulateInboundMessage(conversationId?: string) {
+  const response = await fetch("/api/dev/inbound-messages", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(conversationId ? { conversationId } : {}),
+  });
+  if (!response.ok) {
+    throw new Error(await parseError(response, "No fue posible simular el mensaje."));
+  }
+  return response.json() as Promise<{
+    conversationId: string;
+    phoneNumber: string;
+    text: string;
+  }>;
+}
+
 export type ContactTag = {
   id: string;
   name: string;

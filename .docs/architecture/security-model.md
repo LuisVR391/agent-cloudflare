@@ -99,6 +99,30 @@ Por eso, cada corte que añade permisos hace las tres cosas:
   credenciales, tokens, cuerpos, correos ni el identificador empresarial
   solicitado.
 
+## Utillaje de desarrollo
+
+El panel local expone `POST /api/dev/inbound-messages` para simular un mensaje
+entrante sin salir del navegador. Una ruta capaz de inyectar mensajes falsos es
+justo lo que nunca debe alcanzar un entorno real, así que se protege por capas
+y ninguna basta sola:
+
+1. `src/worker/index.ts` solo la importa dentro de `import.meta.env.DEV`, de
+   modo que el artefacto construido no la contiene.
+2. `scripts/validate-staging-build.mjs` comprueba esa ausencia sobre el bundle
+   generado, dentro de `npm run check`. Si el guard fallara, el gate lo detecta
+   antes de publicar.
+3. La ruta solo responde cuando el origen de autenticación configurado es
+   local. Se comprueba `BETTER_AUTH_URL` —configuración del entorno— y no solo
+   el `Host` de la petición, que lo fija quien llama.
+4. Exige sesión válida y `conversations.manage`, como cualquier otra escritura.
+
+Fuera de un entorno local la ruta no se niega: no existe. La petición cae en el
+`404` genérico de `/api/`, sin revelar que hubo algo ahí.
+
+La simulación no escribe en D1: firma el evento y lo entrega al webhook real,
+de modo que la deduplicación, la resolución de canal y el runtime se ejercitan
+igual que con tráfico del proveedor.
+
 ## Fuera de alcance
 
 No existen todavía recuperación de contraseña por correo, invitaciones, MFA,
