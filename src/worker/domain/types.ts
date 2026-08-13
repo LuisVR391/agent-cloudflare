@@ -139,6 +139,7 @@ export type ConversationSummary = {
   channelDisplayName: string | null;
   status: ConversationStatus;
   attentionMode: AttentionMode;
+  assignee: ConversationAssignee | null;
   version: number;
   lastMessageAt: string;
   lastMessageText: string | null;
@@ -290,4 +291,15 @@ export type InvitationLookup = {
   role: RoleKey;
   status: InvitationStatus;
   expiresAt: string;
+};
+
+/**
+ * Responsable vigente de una conversación. Es una membresía, no un usuario
+ * suelto: `membershipId` pertenece a la organización y `userId` solo sirve
+ * para reconocer a quien ya escribió en el hilo.
+ */
+export type ConversationAssignee = {
+  membershipId: string;
+  userId: string;
+  name: string;
 };

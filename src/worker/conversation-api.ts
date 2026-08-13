@@ -5,7 +5,12 @@ import type { WorkerEnv } from "./auth/types";
 import type { CustomerSupportAgent } from "./customer-support-agent";
 import { encodeCursor, json, parseCursor, parseLimit } from "./http/api-helpers";
 import type { OutboundQueueMessage } from "./integrations/zernio/contracts";
-import { ConversationRepository } from "./repositories/conversation-repository";
+import {
+  ConversationRepository,
+  type AssigneeFilter,
+} from "./repositories/conversation-repository";
+import { MembershipNotActiveInOrganizationError } from "./domain/errors";
+import type { ConversationSummary } from "./domain/types";
 
 type ConversationEnv = WorkerEnv & {
   CustomerSupportAgent: DurableObjectNamespace<CustomerSupportAgent>;
@@ -16,11 +21,36 @@ const updateSchema = z.object({
   expectedVersion: z.number().int().positive(),
   status: z.enum(["open", "resolved"]).optional(),
   attentionMode: z.enum(["human", "paused"]).optional(),
-}).refine((value) => value.status !== undefined || value.attentionMode !== undefined);
+  // Ausente conserva el responsable; `null` lo retira. Campo nuevo y opcional:
+  // un cliente que no lo envía sigue viendo el mismo contrato.
+  assigneeMembershipId: z.uuid().nullable().optional(),
+}).refine((value) => value.status !== undefined || value.attentionMode !== undefined
+  || value.assigneeMembershipId !== undefined);
 const sendSchema = z.object({
   clientRequestId: z.uuid(),
   text: z.string().trim().min(1).max(65_536),
 });
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * `me` lo resuelve el backend con la membresía de la sesión: el cliente no
+ * necesita conocer su identificador para filtrar lo suyo. Cualquier otro valor
+ * que no sea `unassigned` ni un identificador con forma válida se rechaza
+ * antes de tocar SQL.
+ */
+function parseAssigneeFilter(
+  value: string | null,
+  membershipId: string,
+): { filter?: AssigneeFilter } | null {
+  if (value === null) return { filter: undefined };
+  if (value === "me") return { filter: { kind: "membership", membershipId } };
+  if (value === "unassigned") return { filter: { kind: "unassigned" } };
+  return UUID_PATTERN.test(value)
+    ? { filter: { kind: "membership", membershipId: value } }
+    : null;
+}
 
 export async function routeConversationApi(
   request: Request,
@@ -45,12 +75,20 @@ export async function routeConversationApi(
     if (status !== null && status !== "open" && status !== "resolved") {
       return error(400, "INVALID_STATUS", "El estado solicitado no es válido.", correlationId);
     }
+    const assignee = parseAssigneeFilter(
+      url.searchParams.get("assignee"),
+      context.activeOrganization.membershipId,
+    );
+    if (assignee === null) {
+      return error(400, "INVALID_ASSIGNEE_FILTER", "El responsable solicitado no es válido.", correlationId);
+    }
     const pageLimit = parseLimit(url.searchParams.get("limit"), 30);
     if (!pageLimit) return error(400, "INVALID_LIMIT", "El límite solicitado no es válido.", correlationId);
     const page = parseCursor(url.searchParams.get("cursor"));
     if (!page) return error(400, "INVALID_CURSOR", "El cursor solicitado no es válido.", correlationId);
     const result = await repository.list(organizationId, {
-      status: status ?? undefined, limit: pageLimit, cursor: page.cursor,
+      status: status ?? undefined, assignee: assignee.filter,
+      limit: pageLimit, cursor: page.cursor,
     });
     return json({
       conversations: result.conversations,
@@ -235,9 +273,19 @@ export async function routeConversationApi(
     if (!permissions.includes("conversations.manage")) return error(403, "FORBIDDEN", "No tienes permiso para gestionar conversaciones.", correlationId);
     const parsed = updateSchema.safeParse(await request.json().catch(() => null));
     if (!parsed.success) return error(400, "INVALID_CONVERSATION_UPDATE", "El cambio solicitado no es válido.", correlationId);
-    const updated = await repository.updateState({
-      organizationId, conversationId, actorId: context.user.id, correlationId, ...parsed.data,
-    });
+    let updated: ConversationSummary | null;
+    try {
+      updated = await repository.updateState({
+        organizationId, conversationId, actorId: context.user.id, correlationId, ...parsed.data,
+      });
+    } catch (caught) {
+      // Inexistente, revocada o de otra organización se confunden a propósito:
+      // distinguirlas revelaría a quién pertenece un identificador ajeno.
+      if (caught instanceof MembershipNotActiveInOrganizationError) {
+        return error(400, "INVALID_ASSIGNEE", "El responsable indicado no pertenece al equipo activo.", correlationId);
+      }
+      throw caught;
+    }
     if (!updated) return error(409, "CONVERSATION_VERSION_CONFLICT", "La conversación cambió; vuelve a cargarla.", correlationId);
     const agent = await getAgentByName(env.CustomerSupportAgent, `${organizationId}:${conversationId}`);
     if (parsed.data.attentionMode) await agent.updateAttentionMode(parsed.data.attentionMode);
