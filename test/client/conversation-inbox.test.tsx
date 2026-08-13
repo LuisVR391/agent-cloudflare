@@ -91,6 +91,7 @@ describe("inbox de conversaciones", () => {
     vi.mocked(getConversationMessages).mockResolvedValue({
       conversation,
       messages: [message()],
+      nextCursor: null,
     });
     vi.mocked(sendConversationMessage).mockResolvedValue(undefined);
   });
@@ -150,6 +151,7 @@ describe("inbox de conversaciones", () => {
           status: "sent",
         }),
       ],
+      nextCursor: null,
     });
     await openThread();
 
@@ -180,6 +182,7 @@ describe("inbox de conversaciones", () => {
           status: "sent",
         }),
       ],
+      nextCursor: null,
     });
     await openThread();
 
@@ -201,6 +204,7 @@ describe("inbox de conversaciones", () => {
     vi.mocked(getConversationMessages).mockResolvedValue({
       conversation: anonymous,
       messages: [message()],
+      nextCursor: null,
     });
     const user = userEvent.setup();
     renderInbox();
@@ -223,6 +227,7 @@ describe("inbox de conversaciones", () => {
           status: "sent",
         }),
       ),
+      nextCursor: null,
     });
     await openThread();
 
@@ -252,6 +257,7 @@ describe("inbox de conversaciones", () => {
           status: "delivered",
         }),
       ],
+      nextCursor: null,
     });
     await openThread();
 
@@ -259,6 +265,67 @@ describe("inbox de conversaciones", () => {
     // necesita su propia etiqueta para no desaparecer.
     expect(await screen.findByText(/No enviado/)).toBeInTheDocument();
     expect(screen.getByText("Entregado")).toBeInTheDocument();
+  });
+
+  it("carga el historial más antiguo cuando el borde del hilo queda a la vista", async () => {
+    vi.mocked(getConversationMessages).mockImplementation(async (_id, cursor) =>
+      cursor === undefined
+        ? {
+            conversation,
+            messages: [message({ id: "reciente", text: "Reciente" })],
+            nextCursor: "2026-08-10T18:00:00.000Z|reciente",
+          }
+        : {
+            conversation,
+            messages: [message({
+              id: "antiguo",
+              text: "Antiguo",
+              occurredAt: "2026-08-09T18:00:00.000Z",
+            })],
+            nextCursor: null,
+          },
+    );
+    await openThread();
+
+    expect(await screen.findByText("Antiguo")).toBeInTheDocument();
+    // El historial se suma al hilo, no lo sustituye.
+    expect(screen.getByText("Reciente")).toBeInTheDocument();
+    expect(vi.mocked(getConversationMessages)).toHaveBeenCalledWith(
+      "conversation-1",
+      "2026-08-10T18:00:00.000Z|reciente",
+    );
+  });
+
+  it("no pide historial cuando el cursor ya está agotado", async () => {
+    await openThread();
+    // El texto aparece en la fila de la lista y en la burbuja del hilo.
+    await screen.findAllByText("Quiero información");
+
+    // La primera página llegó con `nextCursor: null`: no hay nada que pedir, y
+    // ninguna llamada debe llevar cursor.
+    for (const call of vi.mocked(getConversationMessages).mock.calls) {
+      expect(call[1]).toBeUndefined();
+    }
+  });
+
+  it("pide más conversaciones cuando el final de la lista queda a la vista", async () => {
+    vi.mocked(listConversations).mockImplementation(async (_status, cursor) =>
+      cursor === undefined
+        ? { conversations: [conversation], nextCursor: "2026-08-10T18:00:00.000Z|conversation-1" }
+        : {
+            conversations: [{
+              ...conversation,
+              id: "conversation-2",
+              contactDisplayName: "Ana",
+              lastMessageAt: "2026-08-09T18:00:00.000Z",
+            }],
+            nextCursor: null,
+          },
+    );
+    renderInbox();
+
+    expect(await screen.findByText("Ana")).toBeInTheDocument();
+    expect(screen.getByText("María")).toBeInTheDocument();
   });
 
   it("identifica un adjunto conservado por su nombre y ofrece abrirlo", async () => {
@@ -289,6 +356,7 @@ describe("inbox de conversaciones", () => {
           },
         ],
       })],
+      nextCursor: null,
     });
     await openThread();
 
@@ -320,6 +388,7 @@ describe("inbox de conversaciones", () => {
           failureReason: "ATTACHMENT_UNAVAILABLE_400",
         }],
       })],
+      nextCursor: null,
     });
     await openThread();
 
@@ -334,6 +403,7 @@ describe("inbox de conversaciones", () => {
     vi.mocked(getConversationMessages).mockResolvedValue({
       conversation,
       messages: [message({ id: "message-sin-medio", messageType: "audio", text: null })],
+      nextCursor: null,
     });
     await openThread();
 
@@ -352,6 +422,7 @@ describe("inbox de conversaciones", () => {
         text: "No llegó",
         status: "failed",
       })],
+      nextCursor: null,
     });
     await openThread();
     expect(await screen.findByText(/No enviado/)).toBeInTheDocument();

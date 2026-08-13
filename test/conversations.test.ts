@@ -59,9 +59,12 @@ describe.sequential("conversaciones canónicas", () => {
     const first = await repository.upsertInbound(input);
     const repeated = await repository.upsertInbound(input);
     expect(repeated).toEqual(first);
-    await expect(repository.list(organizationId, { limit: 30 })).resolves.toHaveLength(1);
-    await expect(repository.list(otherOrganizationId, { limit: 30 })).resolves.toEqual([]);
-    await expect(repository.listMessages(organizationId, first.conversationId, { limit: 50 }))
+    await expect(repository.list(organizationId, { limit: 30 })
+      .then((page) => page.conversations)).resolves.toHaveLength(1);
+    await expect(repository.list(otherOrganizationId, { limit: 30 })
+      .then((page) => page.conversations)).resolves.toEqual([]);
+    await expect(repository.listMessages(organizationId, first.conversationId, { limit: 50 })
+      .then((page) => page.messages))
       .resolves.toMatchObject([{ id: first.messageId, text: input.text, status: "received" }]);
     const counts = await env.DB.prepare(`SELECT
       (SELECT COUNT(*) FROM contacts WHERE organization_id = ?) AS contacts,
@@ -822,7 +825,7 @@ describe.sequential("conversaciones canónicas", () => {
     const withAttachment = await repository.listMessages(
       organizationId, inbound.conversationId, { limit: 50 },
     );
-    expect(withAttachment.at(-1)?.attachments).toEqual([
+    expect(withAttachment.messages.at(-1)?.attachments).toEqual([
       expect.objectContaining({
         type: "image",
         status: "stored",
@@ -880,12 +883,12 @@ describe.sequential("conversaciones canónicas", () => {
     );
 
     const repository = new ConversationRepository(env.DB);
-    const conversations = await repository.list(organizationId, { limit: 30 });
+    const { conversations } = await repository.list(organizationId, { limit: 30 });
     const conversation = conversations.find(
       (item) => item.lastMessageAt === "2026-08-12T08:00:00.000Z",
     );
     expect(conversation).toBeDefined();
-    const messages = await repository.listMessages(
+    const { messages } = await repository.listMessages(
       organizationId, conversation!.id, { limit: 50 },
     );
     expect(messages).toHaveLength(1);
