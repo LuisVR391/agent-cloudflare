@@ -21,6 +21,8 @@ import {
 import { LoginForm } from "@/components/login-form";
 import { ContactDirectory } from "@/components/contact-directory";
 import { ConversationInbox } from "@/components/conversation-inbox";
+import { InvitationAcceptance } from "@/components/invitation-acceptance";
+import { TeamDirectory } from "@/components/team-directory";
 import { PanelOverview } from "@/components/panel-overview";
 import { PanelShell } from "@/components/panel-shell";
 import { Button } from "@/components/ui/button";
@@ -476,10 +478,13 @@ export function App() {
         <Route element={<LandingPage />} path="/" />
         <Route element={<LoginPage />} path="/login" />
         <Route element={<SetupPage />} path="/setup" />
+        {/* Fuera del panel: quien acepta todavía no tiene cuenta ni sesión. */}
+        <Route element={<InvitationAcceptance />} path="/invitacion" />
         <Route element={<PanelPage />} path="/app">
           <Route element={<PanelOverview />} index />
           <Route element={<ConversationInbox />} path="conversaciones" />
           <Route element={<ContactDirectory />} path="contactos" />
+          <Route element={<TeamDirectory />} path="equipo" />
           <Route element={<Navigate replace to="/app" />} path="*" />
         </Route>
         <Route element={<Navigate replace to="/" />} path="*" />

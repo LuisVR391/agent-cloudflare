@@ -15,6 +15,10 @@ vi.mock("../../src/client/lib/api", () => ({
   getConversationMessages: vi.fn(),
   sendConversationMessage: vi.fn(),
   updateConversation: vi.fn(),
+  listTeamMembers: vi.fn(),
+  listTeamInvitations: vi.fn(),
+  previewInvitation: vi.fn(),
+  acceptInvitation: vi.fn(),
 }));
 
 const api = await import("../../src/client/lib/api");
@@ -28,7 +32,13 @@ const context = {
     organizationSlug: "salon-uno",
     membershipId: "membership-1",
     role: "owner" as const,
-    permissions: ["panel.read", "conversations.read", "conversations.manage"],
+    permissions: [
+      "panel.read",
+      "conversations.read",
+      "conversations.manage",
+      "users.read",
+      "users.manage",
+    ],
   },
   requiresOrganizationSelection: false,
 };
@@ -105,8 +115,24 @@ describe("shell del panel", () => {
     render(<App />);
     await screen.findByText("Hola, Ana");
 
-    for (const label of ["Agentes", "Equipo", "Configuración"]) {
+    for (const label of ["Agentes", "Configuración"]) {
       expect(screen.getByRole("button", { name: label })).toBeDisabled();
     }
+  });
+
+  it("abre el equipo, que deja de ser una sección planeada", async () => {
+    window.history.replaceState({}, "", "/app/equipo");
+    vi.mocked(api.listTeamMembers).mockResolvedValue([]);
+    vi.mocked(api.listTeamInvitations).mockResolvedValue([]);
+
+    render(<App />);
+
+    expect(
+      await screen.findByRole("heading", { name: "Equipo", level: 1 }),
+    ).toBeInTheDocument();
+    const item = screen
+      .getAllByRole("link", { name: "Equipo" })
+      .find((element) => element.dataset.slot === "sidebar-menu-button");
+    expect(item?.dataset.active).toBe("true");
   });
 });

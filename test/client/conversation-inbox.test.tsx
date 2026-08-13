@@ -32,6 +32,7 @@ const conversation = {
   channelDisplayName: "WhatsApp principal",
   status: "open" as const,
   attentionMode: "human" as const,
+  assignee: null,
   version: 1,
   lastMessageAt: "2026-08-10T18:00:00.000Z",
   lastMessageText: "Quiero información",
