@@ -24,7 +24,7 @@ cuando satisface sus criterios y el PR correspondiente está fusionado en
 | --- | --- | --- | --- |
 | 0. Fundamentos | Completado | Ninguna | Fundamentos documentales, datos, seguridad y entornos validados; staging preparado sin crear producción sin autorización. |
 | 1. WhatsApp funcional | Completado | Fase 0 | Mensajes de WhatsApp procesados de extremo a extremo con seguridad, durabilidad, inbox y handoff humano. |
-| 2. CRM | Planificado | Fase 1 | El flujo comercial desde contacto hasta cita puede operarse y medirse desde el CRM. |
+| 2. CRM | En progreso | Fase 1 | El flujo comercial desde contacto hasta cita puede operarse y medirse desde el CRM. |
 | 3. Agentes | Planificado | Fase 2 | Agentes versionados usan conocimiento y herramientas autorizadas con aislamiento y supervisión. |
 | 4. Automatización | Planificado | Fase 3 | Procesos de seguimiento se ejecutan como Workflows durables, recuperables y observables. |
 | 5. Mejora continua | Planificado | Fase 4 | Los cambios se evalúan, aprueban, publican y revierten de forma segura; el MVP queda cerrado. |
@@ -128,7 +128,7 @@ métricas iniciales [#39](https://github.com/LuisVR391/agent-cloudflare/issues/3
 
 | Entregable | Estado | Dependencia | Evidencia |
 | --- | --- | --- | --- |
-| Contactos con ficha, teléfono y etiquetas | Planificado | Fase 1 | [Issue #34](https://github.com/LuisVR391/agent-cloudflare/issues/34) |
+| Contactos con ficha, teléfono y etiquetas | Completado | Fase 1 | [Issue #34](https://github.com/LuisVR391/agent-cloudflare/issues/34) y [PR #41](https://github.com/LuisVR391/agent-cloudflare/pull/41) |
 | Equipo, invitaciones y asignación de conversaciones | Planificado | Contactos de #34 | [Issue #35](https://github.com/LuisVR391/agent-cloudflare/issues/35) y [ADR-0011](../decisions/ADR-0011-collaborator-invitations.md) |
 | Servicios, pipeline y oportunidades | Planificado | Contactos de #34 | [Issue #36](https://github.com/LuisVR391/agent-cloudflare/issues/36) y [ADR-0010](../decisions/ADR-0010-crm-commercial-model.md) |
 | Notas y tareas con responsable | Planificado | Equipo de #35 | [Issue #37](https://github.com/LuisVR391/agent-cloudflare/issues/37) |
