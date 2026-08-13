@@ -32,6 +32,7 @@ const permissionDefinitions = [
   ["contacts.manage", "Gestionar contactos"],
   ["agents.read", "Consultar agentes"],
   ["agents.manage", "Gestionar agentes"],
+  ["users.read", "Consultar el equipo y sus roles"],
   ["users.manage", "Gestionar usuarios y membresías"],
   ["organization.manage", "Gestionar la organización"],
 ] as const;
@@ -46,15 +47,19 @@ const permissionsByRole: Record<OrganizationAccess["role"], string[]> = {
     "contacts.manage",
     "agents.read",
     "agents.manage",
+    "users.read",
   ],
   // Quien atiende la conversación es quien descubre el nombre correcto del
   // contacto mientras habla con él, así que también puede corregir la ficha.
+  // Y quien puede asignar una conversación necesita ver a quién asignarla, así
+  // que los tres roles leen el equipo; solo `owner` lo administra.
   operator: [
     "panel.read",
     "conversations.read",
     "conversations.manage",
     "contacts.read",
     "contacts.manage",
+    "users.read",
   ],
 };
 
