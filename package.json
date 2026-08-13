@@ -21,6 +21,7 @@
     "cf-typegen": "wrangler types",
     "db:migrate": "wrangler d1 migrations apply agent-cloudflare-db --local",
     "db:migrations:list": "wrangler d1 migrations list agent-cloudflare-db --local",
+    "dev:inbound": "node scripts/local-inbound-message.mjs",
     "test": "npm run test:worker && npm run test:client",
     "test:worker": "vitest run --config vitest.config.ts",
     "test:client": "vitest run --config vitest.client.config.ts",

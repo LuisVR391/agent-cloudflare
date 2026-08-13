@@ -49,6 +49,37 @@ npx wrangler d1 execute agent-cloudflare-db --local \
 Una consulta manual no sustituye a los repositorios: el código de la aplicación
 accede a D1 únicamente a través de `src/worker/repositories/`.
 
+## Sembrar una conversación
+
+Una base recién migrada no tiene canales ni conversaciones, así que el panel se
+abre vacío y no hay nada que validar en el inbox ni en los contactos. Insertar
+filas a mano tampoco sirve de mucho: se saltaría la deduplicación, la cola y el
+runtime, que es justo lo que conviene ejercitar.
+
+Con `npm run dev` en marcha y la instalación completada en `/setup`:
+
+```bash
+npm run dev:inbound -- --text "¿Tienen espacio hoy?" --phone "+52 55 1234 5678"
+```
+
+El script firma un evento `message.received` con `ZERNIO_WEBHOOK_SECRET` y lo
+envía a `/webhooks/zernio`, de modo que el mensaje recorre webhook, cola,
+Durable Object y D1 igual que uno real. La primera ejecución crea también el
+canal local que el webhook necesita para resolver organización y hilo; sin él
+respondería `UNKNOWN_CHANNEL`.
+
+| Opción | Para qué |
+| --- | --- |
+| `--conversation <id>` | Repetir el mismo identificador continúa el hilo en vez de abrir otro |
+| `--event <id>` | Repetir el mismo identificador comprueba que la deduplicación ignora el reenvío |
+| `--phone <número>` | Cambiarlo produce un contacto distinto |
+| `--origin <url>` | Otro puerto local |
+
+El script solo acepta `localhost`. Firmar eventos falsos contra staging o
+producción inventaría conversaciones en una base real, así que el límite es
+parte del diseño y no una comodidad. El secreto se lee de `.dev.vars` dentro
+del proceso y nunca se imprime.
+
 ## Restablecer
 
 ```bash
