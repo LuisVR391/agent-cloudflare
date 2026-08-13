@@ -7,6 +7,8 @@ import type {
   Contact,
   ContactIdentity,
   ContactStatus,
+  ContactTag,
+  ContactTagColor,
   IdentityProvider,
   InboundWebhookEvent,
   InboundWebhookEventStatus,
@@ -34,7 +36,19 @@ export type ContactRow = {
   id: string;
   organization_id: string;
   display_name: string | null;
+  phone_number: string | null;
+  email: string | null;
   status: string;
+  version: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ContactTagRow = {
+  id: string;
+  organization_id: string;
+  name: string;
+  color: string;
   created_at: string;
   updated_at: string;
 };
@@ -83,6 +97,13 @@ const organizationStatuses: readonly OrganizationStatus[] = [
   "suspended",
 ];
 const contactStatuses: readonly ContactStatus[] = ["active", "archived"];
+const contactTagColors: readonly ContactTagColor[] = [
+  "neutral",
+  "info",
+  "success",
+  "warning",
+  "danger",
+];
 const identityProviders: readonly IdentityProvider[] = ["whatsapp"];
 const channelProviders: readonly ChannelProvider[] = ["whatsapp"];
 const channelAdapters: readonly ChannelAdapter[] = ["zernio"];
@@ -130,7 +151,21 @@ export function toContact(row: ContactRow): Contact {
     id: row.id,
     organizationId: row.organization_id,
     displayName: row.display_name,
+    phoneNumber: row.phone_number,
+    email: row.email,
     status: asMember(contactStatuses, row.status, "contacts.status"),
+    version: row.version,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function toContactTag(row: ContactTagRow): ContactTag {
+  return {
+    id: row.id,
+    organizationId: row.organization_id,
+    name: row.name,
+    color: asMember(contactTagColors, row.color, "contact_tags.color"),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

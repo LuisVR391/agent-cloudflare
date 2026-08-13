@@ -56,17 +56,37 @@ abre vacío y no hay nada que validar en el inbox ni en los contactos. Insertar
 filas a mano tampoco sirve de mucho: se saltaría la deduplicación, la cola y el
 runtime, que es justo lo que conviene ejercitar.
 
+Hay dos caminos, y ambos recorren webhook, cola, Durable Object y D1 igual que
+un mensaje del proveedor.
+
+### Desde el panel
+
+Con `npm run dev` en marcha y la sesión iniciada, el panel muestra dos botones
+que no existen en el artefacto desplegado:
+
+- **Simular contacto**, en la cabecera del inbox y en la del directorio de
+  contactos: genera un teléfono nuevo y un primer mensaje.
+- **Simular respuesta**, en la cabecera de una conversación abierta: añade un
+  mensaje entrante a ese mismo hilo.
+
+El contacto nace **sin nombre**, igual que con el canal real, y la presentación
+viaja en el texto («Hola, soy Lucía, quiero información»). Escribir el nombre
+en la ficha sigue siendo trabajo de quien atiende, que es justo lo que conviene
+validar.
+
+Detrás, el panel llama a `POST /api/dev/inbound-messages`, que firma el evento
+con `ZERNIO_WEBHOOK_SECRET` y lo entrega al webhook real. Las defensas de esa
+ruta están en el
+[modelo de seguridad](../architecture/security-model.md#utillaje-de-desarrollo).
+
+### Desde la terminal
+
+Útil cuando no hay sesión iniciada o para guionizar varias siembras seguidas.
 Con `npm run dev` en marcha y la instalación completada en `/setup`:
 
 ```bash
 npm run dev:inbound -- --text "¿Tienen espacio hoy?" --phone "+52 55 1234 5678"
 ```
-
-El script firma un evento `message.received` con `ZERNIO_WEBHOOK_SECRET` y lo
-envía a `/webhooks/zernio`, de modo que el mensaje recorre webhook, cola,
-Durable Object y D1 igual que uno real. La primera ejecución crea también el
-canal local que el webhook necesita para resolver organización y hilo; sin él
-respondería `UNKNOWN_CHANNEL`.
 
 | Opción | Para qué |
 | --- | --- |
@@ -79,6 +99,9 @@ El script solo acepta `localhost`. Firmar eventos falsos contra staging o
 producción inventaría conversaciones en una base real, así que el límite es
 parte del diseño y no una comodidad. El secreto se lee de `.dev.vars` dentro
 del proceso y nunca se imprime.
+
+Cualquiera de los dos crea el canal local que el webhook necesita para resolver
+organización y hilo; sin él respondería `UNKNOWN_CHANNEL`.
 
 ## Restablecer
 

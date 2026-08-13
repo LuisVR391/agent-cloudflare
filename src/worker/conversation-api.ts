@@ -3,8 +3,8 @@ import { z } from "zod";
 import { error, resolveAuthorizationContext } from "./auth/http";
 import type { WorkerEnv } from "./auth/types";
 import type { CustomerSupportAgent } from "./customer-support-agent";
+import { encodeCursor, json, parseCursor, parseLimit } from "./http/api-helpers";
 import type { OutboundQueueMessage } from "./integrations/zernio/contracts";
-import type { PageCursor } from "./domain/types";
 import { ConversationRepository } from "./repositories/conversation-repository";
 
 type ConversationEnv = WorkerEnv & {
@@ -21,39 +21,6 @@ const sendSchema = z.object({
   clientRequestId: z.uuid(),
   text: z.string().trim().min(1).max(65_536),
 });
-
-function json(value: unknown, status = 200): Response {
-  return Response.json(value, { status, headers: { "Cache-Control": "no-store" } });
-}
-
-function parseLimit(value: string | null, fallback: number): number | null {
-  const parsed = Number(value ?? fallback);
-  return Number.isInteger(parsed) && parsed >= 1 ? Math.min(parsed, 100) : null;
-}
-
-/**
- * El cursor es opaco para el cliente: transporta la tupla que ordena la
- * consulta, no un dato con significado propio. Se valida antes de tocar SQL y
- * falla cerrado, como cualquier otra entrada no confiable.
- */
-const CURSOR_MAX_LENGTH = 128;
-
-function encodeCursor(cursor: PageCursor | null): string | null {
-  return cursor ? `${cursor.timestamp}|${cursor.id}` : null;
-}
-
-function parseCursor(value: string | null): { cursor?: PageCursor } | null {
-  if (value === null) return { cursor: undefined };
-  if (value.length === 0 || value.length > CURSOR_MAX_LENGTH) return null;
-  const separator = value.indexOf("|");
-  if (separator <= 0 || separator === value.length - 1) return null;
-  return {
-    cursor: {
-      timestamp: value.slice(0, separator),
-      id: value.slice(separator + 1),
-    },
-  };
-}
 
 export async function routeConversationApi(
   request: Request,

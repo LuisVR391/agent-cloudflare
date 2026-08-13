@@ -4,9 +4,11 @@ import { MemoryRouter, Outlet, Route, Routes } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ConversationInbox } from "../../src/client/components/conversation-inbox";
 import {
+  getContact,
   getConversationMessages,
   listConversations,
   sendConversationMessage,
+  simulateInboundMessage,
   type ConversationMessage,
 } from "../../src/client/lib/api";
 
@@ -15,10 +17,16 @@ vi.mock("../../src/client/lib/api", () => ({
   getConversationMessages: vi.fn(),
   sendConversationMessage: vi.fn(),
   updateConversation: vi.fn(),
+  getContact: vi.fn(),
+  updateContact: vi.fn(),
+  addContactTag: vi.fn(),
+  removeContactTag: vi.fn(),
+  simulateInboundMessage: vi.fn(),
 }));
 
 const conversation = {
   id: "conversation-1",
+  contactId: "contact-1",
   contactDisplayName: "María",
   contactExternalId: "wa-contact-1",
   channelDisplayName: "WhatsApp principal",
@@ -29,27 +37,33 @@ const conversation = {
   lastMessageText: "Quiero información",
 };
 
-const panelContext = {
-  user: { id: "user-1", name: "Ana Propietaria", email: "ana@example.com" },
-  organizations: [],
-  activeOrganization: {
-    organizationId: "11111111-1111-4111-8111-111111111111",
-    organizationName: "Salón Uno",
-    organizationSlug: "salon-uno",
-    membershipId: "membership-1",
-    role: "owner" as const,
-    permissions: ["conversations.read", "conversations.manage"],
-  },
-  requiresOrganizationSelection: false,
-};
+const sessionUserId = "user-1";
+
+function panelContext(
+  permissions = ["conversations.read", "conversations.manage"],
+) {
+  return {
+    user: { id: sessionUserId, name: "Ana Propietaria", email: "ana@example.com" },
+    organizations: [],
+    activeOrganization: {
+      organizationId: "11111111-1111-4111-8111-111111111111",
+      organizationName: "Salón Uno",
+      organizationSlug: "salon-uno",
+      membershipId: "membership-1",
+      role: "owner" as const,
+      permissions,
+    },
+    requiresOrganizationSelection: false,
+  };
+}
 
 // El inbox toma la identidad de la sesión del contexto del shell, así que la
 // prueba lo monta dentro de una ruta que lo provee.
-function renderInbox() {
+function renderInbox(permissions?: string[]) {
   return render(
     <MemoryRouter initialEntries={["/app/conversaciones"]}>
       <Routes>
-        <Route element={<Outlet context={panelContext} />} path="/app">
+        <Route element={<Outlet context={panelContext(permissions)} />} path="/app">
           <Route element={<ConversationInbox />} path="conversaciones" />
         </Route>
       </Routes>
@@ -146,7 +160,7 @@ describe("inbox de conversaciones", () => {
           id: "out-1",
           direction: "outgoing",
           senderType: "staff",
-          senderId: panelContext.user.id,
+          senderId: sessionUserId,
           text: "Claro que sí",
           status: "sent",
         }),
@@ -169,7 +183,7 @@ describe("inbox de conversaciones", () => {
           id: "out-1",
           direction: "outgoing",
           senderType: "staff",
-          senderId: panelContext.user.id,
+          senderId: sessionUserId,
           text: "Con gusto",
           status: "sent",
         }),
@@ -222,7 +236,7 @@ describe("inbox de conversaciones", () => {
           id: `out-${index}`,
           direction: "outgoing",
           senderType: "staff",
-          senderId: panelContext.user.id,
+          senderId: sessionUserId,
           text,
           status: "sent",
         }),
@@ -244,7 +258,7 @@ describe("inbox de conversaciones", () => {
           id: "out-failed",
           direction: "outgoing",
           senderType: "staff",
-          senderId: panelContext.user.id,
+          senderId: sessionUserId,
           text: "No llegó",
           status: "failed",
         }),
@@ -252,7 +266,7 @@ describe("inbox de conversaciones", () => {
           id: "out-ok",
           direction: "outgoing",
           senderType: "staff",
-          senderId: panelContext.user.id,
+          senderId: sessionUserId,
           text: "Este sí llegó",
           status: "delivered",
         }),
@@ -411,6 +425,56 @@ describe("inbox de conversaciones", () => {
     expect(screen.getByText("No se conservó desde el canal")).toBeInTheDocument();
   });
 
+  it("simula un contacto desde la lista y una respuesta dentro del hilo", async () => {
+    vi.mocked(simulateInboundMessage).mockResolvedValue({
+      conversationId: "local-1",
+      phoneNumber: "+525512345678",
+      text: "Hola, soy Lucía, quiero información de precios",
+    });
+    const user = await openThread();
+
+    // Sin hilo: siembra un contacto nuevo.
+    await user.click(screen.getByRole("button", { name: /Simular contacto/ }));
+    await waitFor(() =>
+      expect(simulateInboundMessage).toHaveBeenCalledWith(undefined),
+    );
+
+    // Dentro del hilo: continúa esa conversación.
+    await user.click(screen.getByRole("button", { name: /Simular respuesta/ }));
+    await waitFor(() =>
+      expect(simulateInboundMessage).toHaveBeenCalledWith("conversation-1"),
+    );
+  });
+
+  it("abre la ficha del contacto desde el hilo solo con permiso de lectura", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getContact).mockResolvedValue({
+      id: "contact-1",
+      displayName: "María",
+      phoneNumber: "+52 55 1234 5678",
+      email: null,
+      status: "active",
+      version: 1,
+      createdAt: conversation.lastMessageAt,
+      identities: [{ id: "identity-1", provider: "whatsapp", externalId: "wa-contact-1" }],
+      tags: [],
+    });
+
+    renderInbox(["conversations.read", "conversations.manage", "contacts.read"]);
+    await user.click(await screen.findByRole("button", { name: /María/i }));
+    await user.click(screen.getByRole("button", { name: "Ficha" }));
+
+    expect(await screen.findByText("Ficha del contacto")).toBeInTheDocument();
+    await waitFor(() => expect(getContact).toHaveBeenCalledWith("contact-1"));
+    // Sin `contacts.manage` la ficha se consulta, no se edita.
+    expect(screen.queryByRole("button", { name: /Guardar ficha/ })).toBeNull();
+  });
+
+  it("no anuncia la ficha a quien no puede consultar contactos", async () => {
+    await openThread();
+    expect(screen.queryByRole("button", { name: "Ficha" })).toBeNull();
+  });
+
   it("muestra un fallo saliente con una etiqueta comprensible", async () => {
     vi.mocked(getConversationMessages).mockResolvedValue({
       conversation,
@@ -418,7 +482,7 @@ describe("inbox de conversaciones", () => {
         id: "message-failed",
         direction: "outgoing",
         senderType: "staff",
-        senderId: panelContext.user.id,
+        senderId: sessionUserId,
         text: "No llegó",
         status: "failed",
       })],

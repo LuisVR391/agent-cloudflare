@@ -128,6 +128,9 @@ function toQueueMessage(
         payload.message.sender.businessScopedUserId ??
         payload.message.sender.phoneNumber ??
         payload.message.sender.id,
+      // El identificador externo puede ser el teléfono o un id opaco de la
+      // cuenta; este campo conserva el número aunque no sea la identidad.
+      contactPhoneNumber: payload.message.sender.phoneNumber ?? null,
       text: payload.message.text,
       attachments: payload.message.attachments,
     };

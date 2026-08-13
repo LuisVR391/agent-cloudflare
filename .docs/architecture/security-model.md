@@ -41,13 +41,33 @@ Los roles son fijos en este corte y no existe editor:
 
 | Rol | Alcance inicial |
 | --- | --- |
-| `owner` | Panel, conversaciones, agentes, usuarios y organización |
-| `manager` | Panel, conversaciones y agentes |
-| `operator` | Panel y operación de conversaciones |
+| `owner` | Panel, conversaciones, contactos, agentes, usuarios y organización |
+| `manager` | Panel, conversaciones, contactos y agentes |
+| `operator` | Panel, operación de conversaciones y contactos |
 
-Los módulos de conversaciones, agentes y equipo todavía están planificados. El
-panel muestra su lugar futuro deshabilitado; los permisos no implican que esas
-interfaces o contratos ya existan.
+Los tres roles gestionan contactos: quien atiende la conversación es quien
+descubre el nombre correcto de la persona mientras habla con ella.
+
+Los módulos de agentes y equipo todavía están planificados. El panel muestra su
+lugar futuro deshabilitado; los permisos no implican que esas interfaces o
+contratos ya existan.
+
+### Crecimiento del catálogo de permisos
+
+`AuthorizationRepository.seedOwner` siembra el catálogo únicamente durante la
+instalación, así que una organización ya instalada nunca vuelve a pasar por
+ahí. Un permiso nuevo que solo se declarara en código dejaría a esa
+organización sin acceso a la capacidad que lo exige.
+
+Por eso, cada corte que añade permisos hace las tres cosas:
+
+1. Declara el permiso en `permissionDefinitions` y `permissionsByRole`, que
+   gobiernan las instalaciones nuevas.
+2. Añade una migración aditiva que lo inserta y lo concede a los roles
+   existentes por `role_key`, con `ON CONFLICT DO NOTHING` para que reaplicarla
+   no duplique concesiones.
+3. Cubre con una prueba que una instalación nueva y una migrada terminan con el
+   mismo catálogo `(role_key, permission_key)`.
 
 ## Instalación y registro
 
@@ -78,6 +98,30 @@ interfaces o contratos ya existan.
   operativos redactados con acción, motivo y `correlationId`. No incluyen
   credenciales, tokens, cuerpos, correos ni el identificador empresarial
   solicitado.
+
+## Utillaje de desarrollo
+
+El panel local expone `POST /api/dev/inbound-messages` para simular un mensaje
+entrante sin salir del navegador. Una ruta capaz de inyectar mensajes falsos es
+justo lo que nunca debe alcanzar un entorno real, así que se protege por capas
+y ninguna basta sola:
+
+1. `src/worker/index.ts` solo la importa dentro de `import.meta.env.DEV`, de
+   modo que el artefacto construido no la contiene.
+2. `scripts/validate-staging-build.mjs` comprueba esa ausencia sobre el bundle
+   generado, dentro de `npm run check`. Si el guard fallara, el gate lo detecta
+   antes de publicar.
+3. La ruta solo responde cuando el origen de autenticación configurado es
+   local. Se comprueba `BETTER_AUTH_URL` —configuración del entorno— y no solo
+   el `Host` de la petición, que lo fija quien llama.
+4. Exige sesión válida y `conversations.manage`, como cualquier otra escritura.
+
+Fuera de un entorno local la ruta no se niega: no existe. La petición cae en el
+`404` genérico de `/api/`, sin revelar que hubo algo ahí.
+
+La simulación no escribe en D1: firma el evento y lo entrega al webhook real,
+de modo que la deduplicación, la resolución de canal y el runtime se ejercitan
+igual que con tráfico del proveedor.
 
 ## Fuera de alcance
 

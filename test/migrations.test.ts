@@ -22,6 +22,8 @@ describe("migraciones de D1", () => {
         "auth_rate_limits",
         "auth_verifications",
         "contact_identities",
+        "contact_tag_assignments",
+        "contact_tags",
         "contacts",
         "inbound_webhook_events",
         "installation_state",
@@ -53,6 +55,7 @@ describe("migraciones de D1", () => {
       "0007_conversation_read_receipts.sql",
       "0008_drop_conversation_read_receipts.sql",
       "0009_message_attachment_recovery.sql",
+      "0010_contacts_profile_and_tags.sql",
     ]);
   });
 
@@ -61,6 +64,9 @@ describe("migraciones de D1", () => {
       expect.arrayContaining([
         "contact_identities_contact_idx",
         "contact_identities_scope_unique",
+        "contact_tag_assignments_organization_tag_idx",
+        "contact_tags_organization_name_unique",
+        "contacts_organization_display_name_idx",
         "communication_channels_organization_status_idx",
         "inbound_webhook_events_organization_received_idx",
         "inbound_webhook_events_organization_status_idx",

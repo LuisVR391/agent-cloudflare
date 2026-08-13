@@ -137,19 +137,22 @@ export class ConversationRepository {
 
   async upsertInbound(input: {
     organizationId: string; channelId: string; externalConversationId: string;
-    externalContactId: string; externalMessageId: string; platformMessageId: string;
+    externalContactId: string; contactPhoneNumber?: string | null;
+    externalMessageId: string; platformMessageId: string;
     text: string | null; messageType?: ConversationMessage["messageType"];
     occurredAt: string; correlationId: string;
   }): Promise<{ conversationId: string; messageId: string }> {
     const scope = requireOrganizationScope(input.organizationId, "ConversationRepository.upsertInbound");
+    const phoneNumber = input.contactPhoneNumber?.trim() || null;
     let contact = await this.findContact(scope, input.externalContactId);
     if (!contact) {
       const now = new Date().toISOString();
       const candidateId = crypto.randomUUID();
       await this.db.batch([
         this.db.prepare(`INSERT INTO contacts
-          (id, organization_id, display_name, status, created_at, updated_at)
-          VALUES (?, ?, NULL, 'active', ?, ?)`).bind(candidateId, scope, now, now),
+          (id, organization_id, display_name, phone_number, status, created_at, updated_at)
+          VALUES (?, ?, NULL, ?, 'active', ?, ?)`)
+          .bind(candidateId, scope, phoneNumber, now, now),
         this.db.prepare(`INSERT OR IGNORE INTO contact_identities
           (id, organization_id, contact_id, provider, external_id, created_at, updated_at)
           VALUES (?, ?, ?, 'whatsapp', ?, ?, ?)`)
@@ -163,6 +166,13 @@ export class ConversationRepository {
             WHERE organization_id = ? AND contact_id = ?)`)
           .bind(scope, candidateId, scope, candidateId).run();
       }
+    }
+    // El canal completa el hueco, no corrige lo que una persona escribió: la
+    // condición `IS NULL` deja intacta cualquier edición de la ficha.
+    if (phoneNumber) {
+      await this.db.prepare(`UPDATE contacts SET phone_number = ?, updated_at = ?
+        WHERE organization_id = ? AND id = ? AND phone_number IS NULL`)
+        .bind(phoneNumber, new Date().toISOString(), scope, contact.id).run();
     }
     const now = new Date().toISOString();
     const conversation = await this.db.prepare(`INSERT INTO conversations

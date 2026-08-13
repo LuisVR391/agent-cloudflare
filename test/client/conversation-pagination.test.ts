@@ -24,6 +24,7 @@ function message(overrides: Partial<ConversationMessage>): ConversationMessage {
 function conversation(overrides: Partial<ConversationSummary>): ConversationSummary {
   return {
     id: "conversation-1",
+    contactId: "contact-1",
     contactDisplayName: "María",
     contactExternalId: "wa-1",
     channelDisplayName: "WhatsApp",

@@ -54,9 +54,40 @@ export type Contact = {
   id: string;
   organizationId: string;
   displayName: string | null;
+  /**
+   * Tal como lo reporta el canal o lo escribe una persona. No se presume E.164
+   * ni se normaliza: el proveedor no garantiza un formato y reescribirlo
+   * perdería el valor observado.
+   */
+  phoneNumber: string | null;
+  email: string | null;
   status: ContactStatus;
+  version: number;
   createdAt: string;
   updatedAt: string;
+};
+
+/** Token semántico; el cliente lo traduce a una variante de `Badge`. */
+export type ContactTagColor =
+  | "neutral"
+  | "info"
+  | "success"
+  | "warning"
+  | "danger";
+
+export type ContactTag = {
+  id: string;
+  organizationId: string;
+  name: string;
+  color: ContactTagColor;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/** Ficha completa: el contacto, cómo lo alcanza cada canal y sus etiquetas. */
+export type ContactProfile = Contact & {
+  identities: ContactIdentity[];
+  tags: ContactTag[];
 };
 
 export type ContactIdentity = {
@@ -168,6 +199,20 @@ export type CreateOrganizationInput = {
 
 export type CreateContactInput = {
   displayName?: string | null;
+  phoneNumber?: string | null;
+  email?: string | null;
+  status?: ContactStatus;
+};
+
+/**
+ * Campos ausentes se conservan; `null` los borra. La distinción importa: una
+ * ficha que solo edita el correo no debe vaciar el teléfono.
+ */
+export type UpdateContactInput = {
+  expectedVersion: number;
+  displayName?: string | null;
+  phoneNumber?: string | null;
+  email?: string | null;
   status?: ContactStatus;
 };
 

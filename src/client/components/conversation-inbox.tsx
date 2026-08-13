@@ -238,6 +238,10 @@ export function ConversationInbox() {
           canLoadOlder={olderCursor !== null && !loadingOlder}
           composerDisabled={composerDisabled}
           composerPlaceholder={composerPlaceholder}
+          contactAccess={{
+            canRead: panel.activeOrganization.permissions.includes("contacts.read"),
+            canManage: panel.activeOrganization.permissions.includes("contacts.manage"),
+          }}
           currentUser={panel.user}
           loadingOlder={loadingOlder}
           messages={messages}
@@ -254,6 +258,10 @@ export function ConversationInbox() {
           }}
           onLoadOlder={() => void loadOlderMessages()}
           onSend={() => void send()}
+          onSimulatedInbound={() => {
+            if (selected) void refreshThread(selected);
+            void refreshList();
+          }}
           selected={selected}
           sending={sending}
           text={text}

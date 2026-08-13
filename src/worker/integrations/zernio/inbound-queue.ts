@@ -52,6 +52,7 @@ export async function processInboundQueueMessage(
       channelId: parsed.channelId,
       externalConversationId: parsed.externalConversationId,
       externalContactId: parsed.externalContactId,
+      contactPhoneNumber: parsed.contactPhoneNumber ?? null,
       externalMessageId: parsed.externalMessageId,
       platformMessageId: parsed.platformMessageId,
       text: parsed.text,
