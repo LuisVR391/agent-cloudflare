@@ -2,13 +2,16 @@ import { z } from "zod";
 
 import { OrganizationRepository } from "../repositories/organization-repository";
 import { AuthorizationRepository } from "../repositories/auth/authorization-repository";
+import { createRateLimitStorage } from "../repositories/auth/rate-limit-storage";
 import { SetupRepository } from "../repositories/auth/setup-repository";
 import { UserRepository } from "../repositories/auth/user-repository";
+import { TeamRepository } from "../repositories/team-repository";
 import {
   createActiveOrganizationCookie,
   readActiveOrganization,
 } from "./active-organization";
 import { createAuth, getConfiguredAuthOrigin } from "./auth";
+import { hashInvitationToken } from "./invitation-token";
 import type {
   AuthenticatedUser,
   AuthorizationResolution,
@@ -36,6 +39,19 @@ const setupSchema = z.object({
 
 const organizationSelectionSchema = z.object({
   organizationId: z.uuid(),
+});
+
+const invitationPreviewSchema = z.object({
+  token: z.string().trim().min(16).max(512),
+});
+
+const invitationAcceptanceSchema = invitationPreviewSchema.extend({
+  // El correo se pide aunque la invitación ya lo conozca: escribirlo demuestra
+  // saber a quién se invitó. Si la previsualización lo devolviera, esta
+  // comprobación sería decorativa.
+  email: z.email().max(254),
+  name: z.string().trim().min(2).max(100),
+  password: z.string().min(12).max(128),
 });
 
 function json(body: unknown, status = 200, headers?: HeadersInit): Response {
@@ -443,6 +459,274 @@ async function handleOrganizationSelection(
   );
 }
 
+/**
+ * Toda invitación que no puede usarse responde lo mismo: inexistente,
+ * vencida, revocada, ya consumida o dirigida a otro correo. Distinguirlas
+ * convertiría la ruta en un oráculo que confirma qué tokens existen.
+ */
+function invitationUnavailable(correlationId: string): Response {
+  return error(
+    404,
+    "INVITATION_NOT_AVAILABLE",
+    "La invitación no está disponible.",
+    correlationId,
+  );
+}
+
+/**
+ * Las rutas de invitación no pasan por el pipeline de Better Auth, así que
+ * consumen el límite persistente por su cuenta. La clave se deriva de la IP y
+ * se guarda hasheada, como el resto de `auth_rate_limits`.
+ */
+async function consumeInvitationAttempt(
+  request: Request,
+  env: WorkerEnv,
+  scope: string,
+  rule: { window: number; max: number },
+): Promise<{ allowed: boolean; retryAfter: number | null }> {
+  const address = request.headers.get("cf-connecting-ip") ?? "unknown";
+  return createRateLimitStorage(env.DB, env.BETTER_AUTH_SECRET).consume(
+    `${scope}:${address}`,
+    rule,
+  );
+}
+
+function tooManyAttempts(
+  action: string,
+  retryAfter: number | null,
+  correlationId: string,
+): Response {
+  logSecurityRejection(action, "rate_limited", correlationId);
+  return json(
+    {
+      error: {
+        code: "TOO_MANY_REQUESTS",
+        message: "Demasiados intentos. Espera antes de volver a intentarlo.",
+        correlationId,
+      },
+    },
+    429,
+    retryAfter ? { "Retry-After": String(retryAfter) } : undefined,
+  );
+}
+
+async function readInvitationInput<Schema extends z.ZodType>(
+  request: Request,
+  schema: Schema,
+): Promise<z.infer<Schema> | { failure: "PAYLOAD_TOO_LARGE" | "INVALID" }> {
+  try {
+    return schema.parse(await readJson(request)) as z.infer<Schema>;
+  } catch (caught) {
+    return {
+      failure:
+        caught instanceof Error && caught.message === "PAYLOAD_TOO_LARGE"
+          ? "PAYLOAD_TOO_LARGE"
+          : "INVALID",
+    };
+  }
+}
+
+async function handleInvitationPreview(
+  request: Request,
+  env: WorkerEnv,
+  correlationId: string,
+): Promise<Response> {
+  const limit = await consumeInvitationAttempt(
+    request,
+    env,
+    "invitation-preview",
+    { window: 60, max: 20 },
+  );
+  if (!limit.allowed) {
+    return tooManyAttempts("invitation.preview", limit.retryAfter, correlationId);
+  }
+
+  const input = await readInvitationInput(request, invitationPreviewSchema);
+  if ("failure" in input) {
+    return error(
+      input.failure === "PAYLOAD_TOO_LARGE" ? 413 : 400,
+      input.failure === "PAYLOAD_TOO_LARGE"
+        ? "PAYLOAD_TOO_LARGE"
+        : "INVALID_INVITATION_INPUT",
+      "La invitación solicitada no es válida.",
+      correlationId,
+    );
+  }
+
+  const repository = new TeamRepository(env.DB);
+  const invitation = await repository.findByTokenHash(
+    await hashInvitationToken(env.BETTER_AUTH_SECRET, input.token),
+  );
+  if (
+    !invitation ||
+    invitation.status !== "pending" ||
+    Date.parse(invitation.expiresAt) <= Date.now()
+  ) {
+    logSecurityRejection("invitation.preview", "not_available", correlationId);
+    return invitationUnavailable(correlationId);
+  }
+
+  return json({
+    invitation: {
+      organizationName: invitation.organizationName,
+      role: invitation.role,
+      expiresAt: invitation.expiresAt,
+    },
+  });
+}
+
+async function handleInvitationAcceptance(
+  request: Request,
+  env: WorkerEnv,
+  correlationId: string,
+): Promise<Response> {
+  const limit = await consumeInvitationAttempt(
+    request,
+    env,
+    "invitation-accept",
+    { window: 300, max: 5 },
+  );
+  if (!limit.allowed) {
+    return tooManyAttempts("invitation.accept", limit.retryAfter, correlationId);
+  }
+
+  const input = await readInvitationInput(request, invitationAcceptanceSchema);
+  if ("failure" in input) {
+    return error(
+      input.failure === "PAYLOAD_TOO_LARGE" ? 413 : 400,
+      input.failure === "PAYLOAD_TOO_LARGE"
+        ? "PAYLOAD_TOO_LARGE"
+        : "INVALID_INVITATION_INPUT",
+      "Los datos de la invitación no son válidos.",
+      correlationId,
+    );
+  }
+
+  const repository = new TeamRepository(env.DB);
+  const tokenHash = await hashInvitationToken(
+    env.BETTER_AUTH_SECRET,
+    input.token,
+  );
+  const invitation = await repository.findByTokenHash(tokenHash);
+  if (!invitation) {
+    // Sin invitación no hay organización validada, así que este rechazo no
+    // puede escribirse en `audit_logs`: se emite como evento operativo.
+    logSecurityRejection("invitation.accept", "token_not_found", correlationId);
+    return invitationUnavailable(correlationId);
+  }
+
+  const rejectAcceptance = async (
+    reason: string,
+    action: "invitation.expired" | "invitation.rejected",
+  ) => {
+    logSecurityRejection("invitation.accept", reason, correlationId);
+    await repository.recordAudit(invitation.organizationId, {
+      action,
+      actorType: "system",
+      actorId: null,
+      invitationId: invitation.id,
+      result: "rejected",
+      correlationId,
+    });
+    return invitationUnavailable(correlationId);
+  };
+
+  if (Date.parse(invitation.expiresAt) <= Date.now()) {
+    await repository.markExpired(invitation.id);
+    return rejectAcceptance("expired", "invitation.expired");
+  }
+  if (invitation.status !== "pending" && invitation.status !== "accepting") {
+    return rejectAcceptance("already_consumed", "invitation.rejected");
+  }
+  if (invitation.email !== input.email.trim().toLowerCase()) {
+    return rejectAcceptance("email_mismatch", "invitation.rejected");
+  }
+  if (await new UserRepository(env.DB).existsByEmail(invitation.email)) {
+    logSecurityRejection("invitation.accept", "email_in_use", correlationId);
+    await repository.recordAudit(invitation.organizationId, {
+      action: "invitation.rejected",
+      actorType: "system",
+      actorId: null,
+      invitationId: invitation.id,
+      result: "rejected",
+      correlationId,
+    });
+    return error(
+      409,
+      "EMAIL_ALREADY_REGISTERED",
+      "Ese correo ya tiene una cuenta en el producto.",
+      correlationId,
+    );
+  }
+
+  // Reclamar es lo que autoriza: dos aceptaciones simultáneas compiten aquí y
+  // solo una cambia la fila, así que solo una crea identidad y membresía.
+  const claimId = crypto.randomUUID();
+  const claimed = await repository.claimByTokenHash(tokenHash, claimId);
+  if (!claimed) {
+    logSecurityRejection("invitation.accept", "claim_lost", correlationId);
+    return invitationUnavailable(correlationId);
+  }
+
+  const authorization = new AuthorizationRepository(env.DB);
+  let userId: string | null = null;
+  let membershipId: string | null = null;
+  try {
+    const registration = await createAuth(env, true).api.signUpEmail({
+      body: {
+        name: input.name,
+        // El correo lo dicta la invitación, no el cuerpo de la petición.
+        email: claimed.email,
+        password: input.password,
+      },
+    });
+    userId = registration.user.id;
+    membershipId = await authorization.addMember(
+      claimed.organizationId,
+      userId,
+      claimed.role,
+    );
+    await repository.completeInvitation(claimed.id, claimId, userId);
+    await repository.recordAudit(claimed.organizationId, {
+      action: "invitation.accepted",
+      actorType: "staff",
+      actorId: userId,
+      invitationId: claimed.id,
+      result: "allowed",
+      correlationId,
+    });
+
+    return json(
+      { organization: { name: invitation.organizationName } },
+      201,
+    );
+  } catch {
+    // Compensa lo creado y devuelve la invitación a `pending`: un fallo
+    // transitorio no debe quemar el enlace de quien todavía no entró.
+    if (membershipId) {
+      await authorization.deleteMembership(claimed.organizationId, membershipId);
+    }
+    if (userId) {
+      await new UserRepository(env.DB).deleteById(userId);
+    }
+    await repository.releaseInvitation(claimed.id, claimId);
+    await repository.recordAudit(claimed.organizationId, {
+      action: "invitation.accepted",
+      actorType: "system",
+      actorId: null,
+      invitationId: claimed.id,
+      result: "failed",
+      correlationId,
+    });
+    return error(
+      500,
+      "INVITATION_ACCEPTANCE_FAILED",
+      "No fue posible completar el alta. Intenta nuevamente.",
+      correlationId,
+    );
+  }
+}
+
 export async function routeAuthRequest(
   request: Request,
   env: WorkerEnv,
@@ -454,12 +738,16 @@ export async function routeAuthRequest(
   if (url.pathname === "/api/setup/status" && request.method === "GET") {
     return handleSetupStatus(env);
   }
+  const isInvitationRoute =
+    url.pathname === "/api/invitations/preview" ||
+    url.pathname === "/api/invitations/accept";
   const configurationFailure = authConfigurationFailure(request, env);
   if (
     (url.pathname.startsWith("/api/auth/") ||
       (url.pathname === "/api/setup" && request.method === "POST") ||
       url.pathname === "/api/context" ||
-      url.pathname === "/api/context/organization") &&
+      url.pathname === "/api/context/organization" ||
+      isInvitationRoute) &&
     configurationFailure
   ) {
     logSecurityRejection(
@@ -488,6 +776,23 @@ export async function routeAuthRequest(
       );
     }
     return handleSetup(request, env, correlationId);
+  }
+  // Aceptar una invitación es el único otro camino que habilita el alta de
+  // credenciales, así que vive junto a la instalación: ambos son las dos
+  // llamadas a `createAuth(env, true)` del repositorio y quedan auditables en
+  // un solo archivo.
+  if (isInvitationRoute && request.method === "POST") {
+    return url.pathname === "/api/invitations/preview"
+      ? handleInvitationPreview(request, env, correlationId)
+      : handleInvitationAcceptance(request, env, correlationId);
+  }
+  if (isInvitationRoute) {
+    return error(
+      405,
+      "METHOD_NOT_ALLOWED",
+      "El método solicitado no está permitido.",
+      correlationId,
+    );
   }
   if (url.pathname.startsWith("/api/auth/")) {
     const response = await createAuth(env).handler(request);

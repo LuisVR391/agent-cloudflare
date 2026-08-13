@@ -129,7 +129,7 @@ métricas iniciales [#39](https://github.com/LuisVR391/agent-cloudflare/issues/3
 | Entregable | Estado | Dependencia | Evidencia |
 | --- | --- | --- | --- |
 | Contactos con ficha, teléfono y etiquetas | Completado | Fase 1 | [Issue #34](https://github.com/LuisVR391/agent-cloudflare/issues/34) y [PR #41](https://github.com/LuisVR391/agent-cloudflare/pull/41) |
-| Equipo, invitaciones y asignación de conversaciones | Planificado | Contactos de #34 | [Issue #35](https://github.com/LuisVR391/agent-cloudflare/issues/35) y [ADR-0011](../decisions/ADR-0011-collaborator-invitations.md) |
+| Equipo, invitaciones y asignación de conversaciones | Completado | Contactos de #34 | [Issue #35](https://github.com/LuisVR391/agent-cloudflare/issues/35), [PR #44](https://github.com/LuisVR391/agent-cloudflare/pull/44) y [ADR-0011](../decisions/ADR-0011-collaborator-invitations.md) |
 | Servicios, pipeline y oportunidades | Planificado | Contactos de #34 | [Issue #36](https://github.com/LuisVR391/agent-cloudflare/issues/36) y [ADR-0010](../decisions/ADR-0010-crm-commercial-model.md) |
 | Notas y tareas con responsable | Planificado | Equipo de #35 | [Issue #37](https://github.com/LuisVR391/agent-cloudflare/issues/37) |
 | Citas desde la conversación | Planificado | Equipo de #35 y pipeline de #36 | [Issue #38](https://github.com/LuisVR391/agent-cloudflare/issues/38) |
@@ -143,9 +143,10 @@ satisface su criterio, y agrega ese PR a su fila.
 asignaciones, equipos, pipeline y oportunidades, notas y tareas, citas y
 métricas iniciales.
 
-**Decisiones de la fase:** [ADR-0010](../decisions/ADR-0010-crm-commercial-model.md),
-[ADR-0011](../decisions/ADR-0011-collaborator-invitations.md) y
-[ADR-0012](../decisions/ADR-0012-initial-metrics.md) están `Propuesto`. Cada
+**Decisiones de la fase:**
+[ADR-0011](../decisions/ADR-0011-collaborator-invitations.md) está `Aceptado`
+desde el corte de equipo. [ADR-0010](../decisions/ADR-0010-crm-commercial-model.md)
+y [ADR-0012](../decisions/ADR-0012-initial-metrics.md) siguen `Propuesto`; cada
 corte cambia a `Aceptado` el ADR que adopta.
 
 **Requisito transversal:** el catálogo de permisos se siembra hoy únicamente

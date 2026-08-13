@@ -57,6 +57,8 @@ existen en `migrations/` estas tablas:
 | `installation_state`, `auth_rate_limits` | Instalación única y protección contra abuso | `0002_authentication_and_authorization.sql` |
 | `audit_logs` | Acciones autorizadas relevantes por organización | `0002_authentication_and_authorization.sql` |
 | `contact_tags`, `contact_tag_assignments` | Etiquetas de la organización y su asignación al contacto | `0010_contacts_profile_and_tags.sql` |
+| `organization_invitations` | Alta por invitación: correo, rol, vencimiento y el HMAC del token | `0011_team_invitations_and_conversation_assignment.sql` |
+| `conversation_assignments` | Historial de responsables de cada conversación | `0011_team_invitations_and_conversation_assignment.sql` |
 | `communication_channels`, `inbound_webhook_events` | Canal confiable y recepción deduplicada de Zernio | `0003_zernio_whatsapp_channel.sql` y `0005_message_sent_reconciliation.sql` |
 | `conversations`, `messages`, `message_attachments` | Historial canónico y metadatos de medios | `0004_conversations_and_messages.sql` y `0009_message_attachment_recovery.sql` |
 | `outbound_message_deliveries`, `message_status_events` | Idempotencia, intentos e historial de reconciliación por identificadores opacos | `0004` a `0006` |

@@ -28,6 +28,23 @@ export class ContactNotInOrganizationError extends Error {
 }
 
 /**
+ * La membresía indicada como responsable no existe, no está activa o pertenece
+ * a otra organización. Las tres se confunden a propósito: distinguirlas
+ * revelaría a quién pertenece un identificador ajeno.
+ */
+export class MembershipNotActiveInOrganizationError extends Error {
+  readonly membershipId: string;
+
+  constructor(membershipId: string) {
+    super(
+      `La membresía "${membershipId}" no está activa en la organización indicada.`,
+    );
+    this.name = "MembershipNotActiveInOrganizationError";
+    this.membershipId = membershipId;
+  }
+}
+
+/**
  * Una fila persistida contiene un valor fuera del dominio esperado. Indica
  * corrupción o una migración incompleta, no una entrada del usuario.
  */

@@ -30,6 +30,7 @@ function conversation(overrides: Partial<ConversationSummary>): ConversationSumm
     channelDisplayName: "WhatsApp",
     status: "open",
     attentionMode: "human",
+    assignee: null,
     version: 1,
     lastMessageAt: "2026-08-12T08:00:00.000Z",
     lastMessageText: "Hola",

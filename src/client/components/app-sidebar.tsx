@@ -36,7 +36,7 @@ export const panelSections = [
   { label: "Conversaciones", icon: Inbox, path: "/app/conversaciones" },
   { label: "Contactos", icon: Contact, path: "/app/contactos" },
   { label: "Agentes", icon: Bot, path: null },
-  { label: "Equipo", icon: Users, path: null },
+  { label: "Equipo", icon: Users, path: "/app/equipo" },
   { label: "Configuración", icon: Settings2, path: null },
 ] as const;
 

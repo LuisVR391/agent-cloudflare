@@ -5,7 +5,10 @@ de la organización activa.
 
 ## API
 
-- `GET /api/conversations`: lista paginada y filtrada por estado.
+- `GET /api/conversations`: lista paginada y filtrada por estado y responsable.
+  `assignee` acepta `me` —que el backend resuelve con la membresía de la
+  sesión—, `unassigned` o el identificador de una membresía; cualquier otro
+  valor se rechaza antes de tocar SQL.
 
 Ambas lecturas paginan por clave, no por desplazamiento. `limit` acepta de 1 a
 100 y se recorta en silencio por encima del máximo; el tamaño por defecto es 30
@@ -26,7 +29,9 @@ canal emite timestamps con precisión de segundos.
   colaborador, y tipo de contenido. Cada adjunto declara tipo, tipo de contenido,
   tamaño, nombre de archivo y estado de conservación.
 - `POST /api/conversations/:id/messages`: respuesta humana idempotente.
-- `PATCH /api/conversations/:id`: modo o estado con control optimista.
+- `PATCH /api/conversations/:id`: modo, estado o responsable con control
+  optimista. El responsable se describe en el
+  [módulo de equipo](./teams-and-permissions.md).
 - `GET /api/conversations/:id/live`: WebSocket derivado y autorizado en
   backend.
 
@@ -68,10 +73,14 @@ fallo no quede tapado por el estado del bloque.
 El avatar es de iniciales: no existe imagen de contacto ni de usuario en la
 fuente de verdad. Un mensaje entrante se atribuye al contacto por su nombre
 declarado o, si no lo tiene, por su identificador en el canal. Un saliente se
-atribuye a la persona de la sesión cuando `senderId` coincide con ella, y se
-anuncia como `Equipo` cuando lo envió otro colaborador: sin el directorio de
-miembros de Fase 2 no hay forma de resolver `senderId` a un nombre, y atribuirlo
-a la cuenta activa sería falso.
+atribuye a la persona de la sesión cuando `senderId` coincide con ella, y al
+nombre del colaborador que lo envió cuando el directorio del equipo lo resuelve.
+Sigue anunciándose como `Equipo` si la sesión no puede leer el equipo o quien
+envió ya no aparece en él, porque atribuirlo a la cuenta activa sería falso.
+
+La lista filtra por responsable junto al estado, y la cabecera del hilo permite
+asignarlo. Ambos controles solo aparecen con lectura de equipo, y asignar exige
+además gestionar conversaciones.
 
 Un adjunto se identifica por el nombre que declaró el canal cuando existe, y por
 su tipo cuando no. Una imagen muestra miniatura y un audio puede reproducirse en
@@ -93,5 +102,5 @@ conversación sale del filtro activo y una fusión la conservaría. Si falla el
 encolado, el compositor restaura el texto y conserva el mismo `clientRequestId`
 para un reintento seguro.
 
-Contacto enriquecido, equipos, asignación, notas, pipeline, citas y métricas
-pertenecen a Fase 2. Las respuestas automáticas y la IA pertenecen a Fase 3.
+Notas, pipeline, citas y métricas pertenecen a los cortes siguientes de Fase 2.
+Las respuestas automáticas y la IA pertenecen a Fase 3.

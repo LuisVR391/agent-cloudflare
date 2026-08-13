@@ -1,8 +1,16 @@
-import { Inbox, RefreshCw } from "lucide-react";
+import { Inbox, RefreshCw, UserRound } from "lucide-react";
 import { useEffect, useRef } from "react";
 
 import { DevInboundButton } from "@/components/dev-inbound-button";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Empty,
   EmptyDescription,
@@ -14,7 +22,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import type { ConversationSummary } from "@/lib/api";
+import type { AssigneeFilter, ConversationSummary, TeamMember } from "@/lib/api";
 
 /**
  * Con la lista paginada se alcanzan conversaciones de días anteriores, y una hora
@@ -29,6 +37,19 @@ function formatActivity(lastMessageAt: string): string {
   return occurred.toLocaleDateString([], { day: "numeric", month: "short" });
 }
 
+function assigneeFilterLabel(
+  assignee: AssigneeFilter,
+  members: TeamMember[],
+): string {
+  if (assignee === "all") return "Todas las conversaciones";
+  if (assignee === "me") return "Mías";
+  if (assignee === "unassigned") return "Sin responsable";
+  return (
+    members.find((member) => member.membershipId === assignee)?.name ??
+    "Responsable"
+  );
+}
+
 const attentionModeLabels: Record<ConversationSummary["attentionMode"], string> = {
   automatic: "Automático",
   supervised: "Supervisado",
@@ -37,11 +58,14 @@ const attentionModeLabels: Record<ConversationSummary["attentionMode"], string> 
 };
 
 export function ConversationList({
+  assignee,
   canLoadMore,
   className,
   conversations,
   loading,
   loadingMore,
+  members,
+  onAssigneeChange,
   onLoadMore,
   onRefresh,
   onSelect,
@@ -49,11 +73,15 @@ export function ConversationList({
   selectedId,
   status,
 }: {
+  assignee: AssigneeFilter;
   canLoadMore: boolean;
   className?: string;
   conversations: ConversationSummary[];
   loading: boolean;
   loadingMore: boolean;
+  /** `null` cuando la sesión no puede leer el equipo: no hay a quién filtrar. */
+  members: TeamMember[] | null;
+  onAssigneeChange: (assignee: AssigneeFilter) => void;
   onLoadMore: () => void;
   onRefresh: () => void;
   onSelect: (conversation: ConversationSummary) => void;
@@ -93,6 +121,39 @@ export function ConversationList({
             <TabsTrigger value="resolved">Resueltas</TabsTrigger>
           </TabsList>
         </Tabs>
+        {members ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button className="w-full justify-start" size="sm" variant="outline">
+                <UserRound />
+                {assigneeFilterLabel(assignee, members)}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-56">
+              <DropdownMenuRadioGroup
+                onValueChange={(value) => onAssigneeChange(value as AssigneeFilter)}
+                value={assignee}
+              >
+                <DropdownMenuRadioItem value="all">
+                  Todas las conversaciones
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="me">Mías</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="unassigned">
+                  Sin responsable
+                </DropdownMenuRadioItem>
+                <DropdownMenuSeparator />
+                {members.map((member) => (
+                  <DropdownMenuRadioItem
+                    key={member.membershipId}
+                    value={member.membershipId}
+                  >
+                    {member.name}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : null}
         <p className="text-xs text-muted-foreground">
           {conversations.length} {conversations.length === 1 ? "conversación" : "conversaciones"} ·
           WhatsApp atendido desde Agent Cloudflare
@@ -146,6 +207,9 @@ export function ConversationList({
             </span>
             <span className="text-xs text-muted-foreground">
               {attentionModeLabels[conversation.attentionMode]}
+              {conversation.assignee
+                ? ` · ${conversation.assignee.name}`
+                : " · Sin responsable"}
             </span>
           </button>
         ))}

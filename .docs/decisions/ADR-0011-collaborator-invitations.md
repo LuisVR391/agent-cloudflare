@@ -1,8 +1,12 @@
 # ADR-0011: Incorporación de colaboradores por invitación
 
-**Estado:** Propuesto
+**Estado:** Aceptado
 
 **Fecha:** 2026-08-12
+
+**Alcance de implementación:** Issue #35, migración
+`0011_team_invitations_and_conversation_assignment.sql` y el
+[módulo de equipo](../modules/teams-and-permissions.md).
 
 ## Contexto
 
@@ -110,6 +114,8 @@ la instalación y al inicio de sesión.
 ## Referencias
 
 - [ADR-0007: Better Auth y contexto organizacional](./ADR-0007-better-auth-and-organization-context.md)
+- [Equipo, invitaciones y asignación](../modules/teams-and-permissions.md), que
+  describe la implementación que adopta esta decisión
 - [Modelo de seguridad](../architecture/security-model.md)
 - [Operación de autenticación](../operations/authentication.md)
 - [Modelo de dominio](../architecture/domain-model.md)

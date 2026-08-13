@@ -139,6 +139,7 @@ export type ConversationSummary = {
   channelDisplayName: string | null;
   status: ConversationStatus;
   attentionMode: AttentionMode;
+  assignee: ConversationAssignee | null;
   version: number;
   lastMessageAt: string;
   lastMessageText: string | null;
@@ -237,4 +238,68 @@ export type RegisterInboundWebhookEventInput = {
   eventType: InboundWebhookEventType;
   correlationId: string;
   receivedAt: string;
+};
+
+export type RoleKey = "owner" | "manager" | "operator";
+
+export type MembershipStatus = "active" | "suspended" | "revoked";
+
+/**
+ * Persona del equipo tal como la ve el panel. `membershipId` es lo que
+ * identifica al responsable de una conversación: pertenece a la organización,
+ * mientras que `userId` es global y solo sirve para atribuir un mensaje ya
+ * enviado a quien lo escribió.
+ */
+export type TeamMember = {
+  membershipId: string;
+  userId: string;
+  name: string;
+  email: string;
+  role: RoleKey;
+  status: MembershipStatus;
+  joinedAt: string;
+};
+
+export type InvitationStatus =
+  | "pending"
+  | "accepting"
+  | "accepted"
+  | "revoked"
+  | "expired";
+
+/** Nunca transporta el token ni su hash. */
+export type TeamInvitation = {
+  id: string;
+  email: string;
+  role: RoleKey;
+  status: InvitationStatus;
+  expiresAt: string;
+  invitedBy: string;
+  createdAt: string;
+};
+
+/**
+ * Lo que la aceptación necesita saber antes de decidir. Se obtiene por hash
+ * del token, sin sesión ni organización activa, porque el token es lo único
+ * que puede resolverlas.
+ */
+export type InvitationLookup = {
+  id: string;
+  organizationId: string;
+  organizationName: string;
+  email: string;
+  role: RoleKey;
+  status: InvitationStatus;
+  expiresAt: string;
+};
+
+/**
+ * Responsable vigente de una conversación. Es una membresía, no un usuario
+ * suelto: `membershipId` pertenece a la organización y `userId` solo sirve
+ * para reconocer a quien ya escribió en el hilo.
+ */
+export type ConversationAssignee = {
+  membershipId: string;
+  userId: string;
+  name: string;
 };

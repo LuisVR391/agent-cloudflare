@@ -98,6 +98,12 @@ export async function selectOrganization(organizationId: string): Promise<void> 
   }
 }
 
+export type ConversationAssignee = {
+  membershipId: string;
+  userId: string;
+  name: string;
+};
+
 export type ConversationSummary = {
   id: string;
   contactId: string;
@@ -106,6 +112,7 @@ export type ConversationSummary = {
   channelDisplayName: string | null;
   status: "open" | "resolved";
   attentionMode: "automatic" | "supervised" | "human" | "paused";
+  assignee: ConversationAssignee | null;
   version: number;
   lastMessageAt: string;
   lastMessageText: string | null;
@@ -141,13 +148,23 @@ export type ConversationMessage = {
   }>;
 };
 
+/**
+ * Filtro por responsable. `me` lo resuelve el backend con la membresía de la
+ * sesión, así que el cliente no necesita conocer su identificador.
+ */
+export type AssigneeFilter = "all" | "me" | "unassigned" | (string & {});
+
 // El cursor es opaco: se reenvía tal como lo devolvió el servidor. El tamaño de
 // página lo decide el Worker, así que el cliente no envía `limit`.
 export async function listConversations(
   status: "open" | "resolved" = "open",
   cursor?: string,
+  assignee: AssigneeFilter = "all",
 ) {
-  const query = cursor ? `&cursor=${encodeURIComponent(cursor)}` : "";
+  const query = [
+    cursor ? `&cursor=${encodeURIComponent(cursor)}` : "",
+    assignee === "all" ? "" : `&assignee=${encodeURIComponent(assignee)}`,
+  ].join("");
   const response = await fetch(`/api/conversations?status=${status}${query}`, {
     credentials: "same-origin",
   });
@@ -185,7 +202,13 @@ export async function sendConversationMessage(
 
 export async function updateConversation(
   conversationId: string,
-  input: { expectedVersion: number; status?: "open" | "resolved"; attentionMode?: "human" | "paused" },
+  input: {
+    expectedVersion: number;
+    status?: "open" | "resolved";
+    attentionMode?: "human" | "paused";
+    // Ausente conserva el responsable; `null` lo retira.
+    assigneeMembershipId?: string | null;
+  },
 ) {
   const response = await fetch(`/api/conversations/${encodeURIComponent(conversationId)}`, {
     method: "PATCH",
@@ -298,4 +321,107 @@ export async function removeContactTag(contactId: string, tagId: string) {
   if (!response.ok) throw new Error(await parseError(response, "No fue posible quitar la etiqueta."));
   const body = (await response.json()) as { contact: ContactProfile };
   return body.contact;
+}
+
+export type TeamRole = "owner" | "manager" | "operator";
+
+export type TeamMember = {
+  membershipId: string;
+  userId: string;
+  name: string;
+  email: string;
+  role: TeamRole;
+  status: "active" | "suspended" | "revoked";
+  joinedAt: string;
+};
+
+export type TeamInvitation = {
+  id: string;
+  email: string;
+  role: TeamRole;
+  status: "pending" | "accepting" | "accepted" | "revoked" | "expired";
+  expiresAt: string;
+  invitedBy: string;
+  createdAt: string;
+};
+
+export async function listTeamMembers() {
+  const response = await fetch("/api/team/members", { credentials: "same-origin" });
+  if (!response.ok) throw new Error(await parseError(response, "No fue posible cargar el equipo."));
+  const body = (await response.json()) as { members: TeamMember[] };
+  return body.members;
+}
+
+export async function listTeamInvitations() {
+  const response = await fetch("/api/team/invitations", { credentials: "same-origin" });
+  if (!response.ok) throw new Error(await parseError(response, "No fue posible cargar las invitaciones."));
+  const body = (await response.json()) as { invitations: TeamInvitation[] };
+  return body.invitations;
+}
+
+/**
+ * El enlace vuelve una sola vez, en esta respuesta. Ninguna lectura posterior
+ * puede recuperarlo: el servidor solo conserva el hash del token.
+ */
+export async function createTeamInvitation(input: {
+  email: string;
+  role: TeamRole;
+  expiresInHours?: number;
+}) {
+  const response = await fetch("/api/team/invitations", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error(await parseError(response, "No fue posible crear la invitación."));
+  return response.json() as Promise<{
+    invitation: TeamInvitation;
+    acceptUrl: string;
+  }>;
+}
+
+export async function revokeTeamInvitation(invitationId: string) {
+  const response = await fetch(
+    `/api/team/invitations/${encodeURIComponent(invitationId)}/revoke`,
+    { method: "POST", credentials: "same-origin" },
+  );
+  if (!response.ok) throw new Error(await parseError(response, "No fue posible revocar la invitación."));
+  const body = (await response.json()) as { invitation: TeamInvitation };
+  return body.invitation;
+}
+
+/**
+ * El token viaja en el cuerpo y nunca en la URL: una query llegaría al servidor
+ * en la navegación y quedaría en el historial del navegador.
+ */
+export async function previewInvitation(token: string) {
+  const response = await fetch("/api/invitations/preview", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token }),
+  });
+  if (!response.ok) throw new Error(await parseError(response, "La invitación no está disponible."));
+  const body = (await response.json()) as {
+    invitation: { organizationName: string; role: TeamRole; expiresAt: string };
+  };
+  return body.invitation;
+}
+
+export async function acceptInvitation(input: {
+  token: string;
+  email: string;
+  name: string;
+  password: string;
+}) {
+  const response = await fetch("/api/invitations/accept", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error(await parseError(response, "No fue posible aceptar la invitación."));
+  const body = (await response.json()) as { organization: { name: string } };
+  return body.organization;
 }

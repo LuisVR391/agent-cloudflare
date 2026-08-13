@@ -170,7 +170,7 @@ export async function routeContactApi(
         actorId: context.user.id,
         contactId,
         action: "contact.profile.update",
-        result: "denied",
+        result: "rejected",
         correlationId,
       });
       return error(

@@ -104,7 +104,10 @@ de D1.
 - Los objetos de inbox, contacto o conversación de Zernio son referencias de
   transporte; no sustituyen estas entidades canónicas del producto.
 - La conversación referencia el modo de atención y las asignaciones vigentes;
-  su historial se registra por separado cuando sea necesario.
+  su historial se registra por separado. El responsable vigente es una
+  membresía —no un usuario suelto—, y cada cambio queda en
+  `conversation_assignments`, según el
+  [módulo de equipo](../modules/teams-and-permissions.md).
 - El runtime no sustituye el historial consultable de conversación ni los
   mensajes persistidos.
 

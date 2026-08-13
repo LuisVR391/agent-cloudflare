@@ -1,33 +1,28 @@
 import type { BetterAuthRateLimitStorage, RateLimit } from "better-auth";
 
+import { hmacHex } from "../../auth/hmac";
+
 type RateLimitRow = {
   request_count: number;
   last_request: number;
 };
 
-async function hashKey(secret: string, key: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const cryptoKey = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-  const digest = await crypto.subtle.sign("HMAC", cryptoKey, encoder.encode(key));
-
-  return Array.from(new Uint8Array(digest), (byte) =>
-    byte.toString(16).padStart(2, "0"),
-  ).join("");
-}
+/**
+ * Better Auth declara `consume` como opcional, pero esta implementación
+ * siempre lo provee y las rutas de invitación lo llaman directamente, fuera
+ * de su pipeline. Declararlo obligatorio evita que cada llamada tenga que
+ * comprobar si existe algo que sabemos que existe.
+ */
+type PersistentRateLimitStorage = BetterAuthRateLimitStorage &
+  Required<Pick<BetterAuthRateLimitStorage, "consume">>;
 
 export function createRateLimitStorage(
   db: D1Database,
   secret: string,
-): BetterAuthRateLimitStorage {
+): PersistentRateLimitStorage {
   return {
     async get(key): Promise<RateLimit | null> {
-      const keyHash = await hashKey(secret, key);
+      const keyHash = await hmacHex(secret, key);
       const row = await db
         .prepare(
           `SELECT request_count, last_request
@@ -43,7 +38,7 @@ export function createRateLimitStorage(
     },
 
     async set(key, value): Promise<void> {
-      const keyHash = await hashKey(secret, key);
+      const keyHash = await hmacHex(secret, key);
       await db
         .prepare(
           `INSERT INTO auth_rate_limits (key_hash, request_count, last_request)
@@ -57,7 +52,7 @@ export function createRateLimitStorage(
     },
 
     async consume(key, rule) {
-      const keyHash = await hashKey(secret, key);
+      const keyHash = await hmacHex(secret, key);
       const now = Date.now();
       const cutoff = now - rule.window * 1_000;
       const row = await db

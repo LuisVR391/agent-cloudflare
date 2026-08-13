@@ -1,4 +1,7 @@
-import { requireOrganizationScope } from "../domain/errors";
+import {
+  MembershipNotActiveInOrganizationError,
+  requireOrganizationScope,
+} from "../domain/errors";
 import type {
   AttentionMode,
   ConversationMessage,
@@ -12,8 +15,14 @@ type SummaryRow = {
   contact_display_name: string | null; contact_external_id: string;
   channel_display_name: string | null; status: ConversationStatus;
   attention_mode: AttentionMode; version: number; last_message_at: string;
-  last_message_text: string | null;
+  last_message_text: string | null; assignee_membership_id: string | null;
+  assignee_user_id: string | null; assignee_name: string | null;
 };
+
+/** Filtro del inbox: una membresía concreta o las conversaciones sin dueño. */
+export type AssigneeFilter =
+  | { kind: "membership"; membershipId: string }
+  | { kind: "unassigned" };
 type MessageRow = {
   id: string; organization_id: string; conversation_id: string;
   direction: "incoming" | "outgoing"; sender_type: "customer" | "staff" | "system";
@@ -27,10 +36,14 @@ type AttachmentRow = {
   status: "stored" | "rejected"; failure_reason: string | null;
 };
 
+// El responsable se resuelve a través de la membresía de la misma
+// organización. Unir `users` directamente por el identificador guardado
+// cruzaría el límite de aislamiento: `users` es una tabla global.
 const summarySelect = `SELECT c.id, c.organization_id, c.channel_id, c.contact_id,
   ct.display_name AS contact_display_name, ci.external_id AS contact_external_id,
   ch.display_name AS channel_display_name, c.status, c.attention_mode, c.version,
-  c.last_message_at,
+  c.last_message_at, am.id AS assignee_membership_id,
+  am.user_id AS assignee_user_id, au.name AS assignee_name,
   (SELECT m.text_content FROM messages m WHERE m.organization_id = c.organization_id
     AND m.conversation_id = c.id ORDER BY m.occurred_at DESC, m.id DESC LIMIT 1)
     AS last_message_text
@@ -39,14 +52,28 @@ const summarySelect = `SELECT c.id, c.organization_id, c.channel_id, c.contact_i
  JOIN contact_identities ci ON ci.organization_id = ct.organization_id
   AND ci.contact_id = ct.id AND ci.provider = 'whatsapp'
  JOIN communication_channels ch ON ch.organization_id = c.organization_id
-  AND ch.id = c.channel_id`;
+  AND ch.id = c.channel_id
+ LEFT JOIN memberships am ON am.organization_id = c.organization_id
+  AND am.id = c.assigned_membership_id
+ LEFT JOIN users au ON au.id = am.user_id`;
 
 function summary(row: SummaryRow): ConversationSummary {
   return {
     id: row.id, organizationId: row.organization_id, channelId: row.channel_id,
     contactId: row.contact_id, contactDisplayName: row.contact_display_name,
     contactExternalId: row.contact_external_id, channelDisplayName: row.channel_display_name,
-    status: row.status, attentionMode: row.attention_mode, version: row.version,
+    status: row.status, attentionMode: row.attention_mode,
+    // La membresía se muestra aunque haya dejado de estar activa: la
+    // conversación sigue apuntando a alguien y fingir que está libre ocultaría
+    // que nadie la tomó.
+    assignee: row.assignee_membership_id && row.assignee_user_id
+      ? {
+          membershipId: row.assignee_membership_id,
+          userId: row.assignee_user_id,
+          name: row.assignee_name ?? "",
+        }
+      : null,
+    version: row.version,
     lastMessageAt: row.last_message_at, lastMessageText: row.last_message_text,
   };
 }
@@ -55,12 +82,19 @@ export class ConversationRepository {
   constructor(private readonly db: D1Database) {}
 
   async list(organizationId: string, options: {
-    status?: ConversationStatus; limit: number; cursor?: PageCursor;
+    status?: ConversationStatus; assignee?: AssigneeFilter;
+    limit: number; cursor?: PageCursor;
   }): Promise<{ conversations: ConversationSummary[]; nextCursor: PageCursor | null }> {
     const scope = requireOrganizationScope(organizationId, "ConversationRepository.list");
     const clauses = ["c.organization_id = ?"];
     const bindings: unknown[] = [scope];
     if (options.status) { clauses.push("c.status = ?"); bindings.push(options.status); }
+    if (options.assignee?.kind === "unassigned") {
+      clauses.push("c.assigned_membership_id IS NULL");
+    } else if (options.assignee) {
+      clauses.push("c.assigned_membership_id = ?");
+      bindings.push(options.assignee.membershipId);
+    }
     if (options.cursor) {
       clauses.push("(c.last_message_at < ? OR (c.last_message_at = ? AND c.id < ?))");
       bindings.push(options.cursor.timestamp, options.cursor.timestamp, options.cursor.id);
@@ -345,28 +379,90 @@ export class ConversationRepository {
       ).run();
   }
 
+  /**
+   * Cambia estado, modo de atención o responsable con control optimista. Un
+   * campo ausente conserva su valor; en el responsable, `null` lo retira.
+   *
+   * La actualización y su historial viajan en un solo lote —que D1 ejecuta
+   * como transacción— y cada inserción comprueba que la conversación quedó en
+   * la versión y el instante que esta operación escribió. Así el historial no
+   * puede sobrevivir a una actualización que no ocurrió, ni registrar un
+   * cambio que hizo otra petición.
+   */
   async updateState(input: {
     organizationId: string; conversationId: string; expectedVersion: number;
     status?: ConversationStatus; attentionMode?: "human" | "paused";
+    assigneeMembershipId?: string | null;
     actorId: string; correlationId: string;
   }): Promise<ConversationSummary | null> {
-    const current = await this.find(input.organizationId, input.conversationId);
+    const scope = requireOrganizationScope(
+      input.organizationId, "ConversationRepository.updateState");
+    const current = await this.find(scope, input.conversationId);
     if (!current || current.version !== input.expectedVersion) return null;
     const now = new Date().toISOString();
-    const result = await this.db.prepare(`UPDATE conversations SET status = ?,
-      attention_mode = ?, version = version + 1, updated_at = ?
-      WHERE organization_id = ? AND id = ? AND version = ?`)
-      .bind(input.status ?? current.status, input.attentionMode ?? current.attentionMode,
-        now, input.organizationId, input.conversationId, input.expectedVersion).run();
-    if (result.meta.changes !== 1) return null;
-    await this.db.prepare(`INSERT INTO conversation_status_history
-      (id, organization_id, conversation_id, actor_type, actor_id, previous_status,
-       next_status, previous_attention_mode, next_attention_mode, correlation_id, occurred_at)
-      VALUES (?, ?, ?, 'staff', ?, ?, ?, ?, ?, ?, ?)`)
-      .bind(crypto.randomUUID(), input.organizationId, input.conversationId, input.actorId,
-        current.status, input.status ?? current.status, current.attentionMode,
-        input.attentionMode ?? current.attentionMode, input.correlationId, now).run();
-    return this.find(input.organizationId, input.conversationId);
+    const previousAssignee = current.assignee?.membershipId ?? null;
+    const nextAssignee = input.assigneeMembershipId === undefined
+      ? previousAssignee
+      : input.assigneeMembershipId;
+    const nextStatus = input.status ?? current.status;
+    const nextAttentionMode = input.attentionMode ?? current.attentionMode;
+    // Sondea que la fila quedó como la dejó esta operación. La versión sola no
+    // basta: otra petición podría haber alcanzado el mismo número.
+    const applied = `WHERE EXISTS (SELECT 1 FROM conversations
+      WHERE organization_id = ? AND id = ? AND version = ? AND updated_at = ?)`;
+    const appliedBindings = [
+      scope, input.conversationId, input.expectedVersion + 1, now,
+    ];
+
+    const statements = [
+      // El responsable solo se escribe si es una membresía activa de esta
+      // organización. Comprobarlo en la misma sentencia no deja ventana entre
+      // verificar y escribir.
+      this.db.prepare(`UPDATE conversations SET status = ?, attention_mode = ?,
+        assigned_membership_id = ?, version = version + 1, updated_at = ?
+        WHERE organization_id = ? AND id = ? AND version = ?
+          AND (? IS NULL OR EXISTS (SELECT 1 FROM memberships m
+                WHERE m.organization_id = conversations.organization_id
+                  AND m.id = ? AND m.status = 'active'))`)
+        .bind(nextStatus, nextAttentionMode, nextAssignee, now,
+          scope, input.conversationId, input.expectedVersion,
+          nextAssignee, nextAssignee),
+      this.db.prepare(`INSERT INTO conversation_status_history
+        (id, organization_id, conversation_id, actor_type, actor_id, previous_status,
+         next_status, previous_attention_mode, next_attention_mode, correlation_id, occurred_at)
+        SELECT ?, ?, ?, 'staff', ?, ?, ?, ?, ?, ?, ? ${applied}`)
+        .bind(crypto.randomUUID(), scope, input.conversationId, input.actorId,
+          current.status, nextStatus, current.attentionMode, nextAttentionMode,
+          input.correlationId, now, ...appliedBindings),
+    ];
+
+    if (nextAssignee !== previousAssignee) {
+      statements.push(this.db.prepare(`INSERT INTO conversation_assignments
+        (id, organization_id, conversation_id, previous_membership_id,
+         next_membership_id, actor_type, actor_id, correlation_id, occurred_at)
+        SELECT ?, ?, ?, ?, ?, 'staff', ?, ?, ? ${applied}`)
+        .bind(crypto.randomUUID(), scope, input.conversationId, previousAssignee,
+          nextAssignee, input.actorId, input.correlationId, now, ...appliedBindings));
+    }
+
+    const [update] = await this.db.batch(statements);
+    if (update.meta.changes !== 1) {
+      // El lote no cambió nada: o la versión quedó obsoleta, o la membresía no
+      // está activa aquí. Distinguirlo permite responder con precisión sin
+      // revelar a quién pertenece un identificador ajeno.
+      if (nextAssignee && !(await this.#isActiveMembership(scope, nextAssignee))) {
+        throw new MembershipNotActiveInOrganizationError(nextAssignee);
+      }
+      return null;
+    }
+    return this.find(scope, input.conversationId);
+  }
+
+  #isActiveMembership(organizationId: string, membershipId: string) {
+    return this.db.prepare(`SELECT 1 AS present FROM memberships
+      WHERE organization_id = ? AND id = ? AND status = 'active'`)
+      .bind(organizationId, membershipId).first<{ present: number }>()
+      .then((row) => row !== null);
   }
 
   private findContact(organizationId: string, externalId: string) {

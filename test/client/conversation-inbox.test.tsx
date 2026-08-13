@@ -7,8 +7,10 @@ import {
   getContact,
   getConversationMessages,
   listConversations,
+  listTeamMembers,
   sendConversationMessage,
   simulateInboundMessage,
+  updateConversation,
   type ConversationMessage,
 } from "../../src/client/lib/api";
 
@@ -17,6 +19,7 @@ vi.mock("../../src/client/lib/api", () => ({
   getConversationMessages: vi.fn(),
   sendConversationMessage: vi.fn(),
   updateConversation: vi.fn(),
+  listTeamMembers: vi.fn(),
   getContact: vi.fn(),
   updateContact: vi.fn(),
   addContactTag: vi.fn(),
@@ -32,6 +35,7 @@ const conversation = {
   channelDisplayName: "WhatsApp principal",
   status: "open" as const,
   attentionMode: "human" as const,
+  assignee: null,
   version: 1,
   lastMessageAt: "2026-08-10T18:00:00.000Z",
   lastMessageText: "Quiero información",
@@ -39,9 +43,19 @@ const conversation = {
 
 const sessionUserId = "user-1";
 
-function panelContext(
-  permissions = ["conversations.read", "conversations.manage"],
-) {
+const teammate = {
+  membershipId: "membership-2",
+  userId: "user-2",
+  name: "Rosa Responsable",
+  email: "rosa@example.com",
+  role: "operator" as const,
+  status: "active" as const,
+  joinedAt: "2026-08-12T10:00:00.000Z",
+};
+
+const defaultPermissions = ["conversations.read", "conversations.manage"];
+
+function panelContext(permissions = defaultPermissions) {
   return {
     user: { id: sessionUserId, name: "Ana Propietaria", email: "ana@example.com" },
     organizations: [],
@@ -108,6 +122,7 @@ describe("inbox de conversaciones", () => {
       nextCursor: null,
     });
     vi.mocked(sendConversationMessage).mockResolvedValue(undefined);
+    vi.mocked(listTeamMembers).mockResolvedValue([]);
   });
 
   it("abre el hilo y envía una respuesta humana", async () => {
@@ -490,5 +505,69 @@ describe("inbox de conversaciones", () => {
     });
     await openThread();
     expect(await screen.findByText(/No enviado/)).toBeInTheDocument();
+  });
+
+  it("filtra la lista por responsable", async () => {
+    vi.mocked(listTeamMembers).mockResolvedValue([teammate]);
+    const user = userEvent.setup();
+    renderInbox([...defaultPermissions, "users.read"]);
+
+    await user.click(
+      await screen.findByRole("button", { name: "Todas las conversaciones" }),
+    );
+    await user.click(await screen.findByRole("menuitemradio", { name: "Mías" }));
+
+    await waitFor(() =>
+      expect(listConversations).toHaveBeenCalledWith("open", undefined, "me"),
+    );
+  });
+
+  it("asigna la conversación desde la cabecera del hilo", async () => {
+    vi.mocked(listTeamMembers).mockResolvedValue([teammate]);
+    vi.mocked(updateConversation).mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    renderInbox([...defaultPermissions, "users.read"]);
+    await user.click(await screen.findByRole("button", { name: /María/i }));
+
+    await user.click(await screen.findByRole("button", { name: "Sin responsable" }));
+    await user.click(
+      await screen.findByRole("menuitemradio", { name: "Rosa Responsable" }),
+    );
+
+    await waitFor(() =>
+      expect(updateConversation).toHaveBeenCalledWith("conversation-1", {
+        expectedVersion: 1,
+        assigneeMembershipId: "membership-2",
+      }),
+    );
+  });
+
+  it("no ofrece responsable a quien no puede leer el equipo", async () => {
+    await openThread();
+
+    expect(screen.queryByRole("button", { name: "Sin responsable" })).toBeNull();
+    expect(listTeamMembers).not.toHaveBeenCalled();
+  });
+
+  it("atribuye a su nombre el mensaje que envió otra persona", async () => {
+    vi.mocked(listTeamMembers).mockResolvedValue([teammate]);
+    vi.mocked(getConversationMessages).mockResolvedValue({
+      conversation,
+      messages: [message({
+        id: "out-teammate",
+        direction: "outgoing",
+        senderType: "staff",
+        senderId: "user-2",
+        text: "Yo la atiendo",
+        status: "sent",
+      })],
+      nextCursor: null,
+    });
+    const user = userEvent.setup();
+    renderInbox([...defaultPermissions, "users.read"]);
+    await user.click(await screen.findByRole("button", { name: /María/i }));
+
+    expect(await screen.findByText("Rosa Responsable")).toBeInTheDocument();
+    expect(screen.queryByText("Equipo")).toBeNull();
   });
 });
