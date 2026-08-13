@@ -37,8 +37,35 @@ Confirma y conserva durante el trabajo:
 - idempotencia, observabilidad, recuperación y compatibilidad;
 - pruebas, documentación, ADR y fila del roadmap potencialmente afectados.
 
-Si falta una decisión que cambiaría materialmente el resultado, detente y
-solicita dirección. No inventes recursos, contratos ni backlog de fases futuras.
+Si falta una decisión que cambiaría materialmente el resultado, pregúntala por
+el canal de consulta del agente antes de implementarla, y sigue con lo que no
+dependa de la respuesta. No inventes recursos, contratos ni backlog de fases
+futuras.
+
+## 2 bis. Pedir autorizaciones y verificaciones sin detener el trabajo
+
+Dos clases de pausa aparecen a mitad de una entrega, y ninguna justifica
+terminar el turno para pedirlas por escrito:
+
+**Autorización de un efecto remoto.** Desplegar, migrar contra una base remota,
+`git push`, fusionar un PR o cambiar un recurso Cloudflare. Pregunta en el
+momento, nombrando la operación concreta —entorno y artefacto, base y entorno,
+rama y commits, recurso y entorno— y continúa con lo aprobado. Una autorización
+vale para esa operación y no se reutiliza. Si el bloqueo no es autorizable,
+explica por qué y ofrece la alternativa en vez de preguntar.
+
+**Verificación que solo puede hacer la persona.** Cómo se ve una pantalla, qué
+muestra un panel, si un mensaje llegó a un teléfono real. Pregunta también, y
+acompaña la pregunta de una comprobación guiada:
+
+1. Punto de partida: comando exacto, ruta del panel o URL.
+2. Pasos numerados, con los datos concretos que hay que escribir.
+3. Resultado esperado en cada paso, descrito de forma observable.
+4. Qué significa que falle y qué conviene copiar para diagnosticarlo.
+
+Mientras llega la respuesta, termina todo lo que no dependa de ella. Lo que la
+persona reporte se registra tal cual en `Validación`: una verificación que no se
+hizo no se declara como hecha.
 
 ## 3. Implementar el corte vertical mínimo
 
@@ -94,6 +121,30 @@ activo hasta que la persona usuaria lo haya revisado y confiado mediante
   declaraciones de impacto.
 - Espera el CI y reporta su resultado.
 - No fusiones ni despliegues sin autorización explícita.
+
+### GitHub por API
+
+Issues, PRs, comentarios y estado del CI van contra `https://api.github.com`, no
+por la CLI. El token se obtiene en el momento con `gh auth token`, se usa como
+credencial y nunca se escribe en un archivo, en la URL ni en un log.
+
+```bash
+TOKEN=$(gh auth token) && curl -sS -X POST \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Accept: application/vnd.github+json" \
+  --data @cuerpo.json \
+  https://api.github.com/repos/<owner>/<repo>/pulls
+```
+
+Crear y editar PRs, issues y comentarios no necesita marca. Fusionar, cerrar o
+reabrir exige `AGENT_MERGE_CONFIRMED=1`, con el cambio de estado escrito en el
+propio comando. Borrar por la API, publicar releases, escribir secretos y
+disparar workflows siguen prohibidos.
+
+Redacta el cuerpo **antes** de crear el PR: debe llevar `## Documentación`,
+`## ADR`, `## Roadmap` y `## Validación`, en ese orden y con contenido, porque
+`npm run check` los valida. Corregir el cuerpo después no basta para el CI: un
+`rerun` reutiliza el evento original, así que hace falta un commit nuevo.
 
 ## Formato de entrega
 

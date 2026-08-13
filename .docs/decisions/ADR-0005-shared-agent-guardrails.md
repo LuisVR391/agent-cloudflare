@@ -98,3 +98,6 @@ arquitectura del producto ni ninguna decisión de ADR-0001 a ADR-0004.
 - [Reglas compartidas](../../AGENTS.md)
 - [Continuidad de agentes de codificación](../operations/agent-continuity.md)
 - [Roadmap de producto](../product/roadmap.md)
+- [ADR-0013: Operaciones de GitHub por API](./ADR-0013-github-operations-by-api.md),
+  que redefine qué bloquea este núcleo frente a GitHub sin cambiar su
+  arquitectura
