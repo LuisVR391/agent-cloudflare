@@ -158,6 +158,38 @@ Además, debe declarar explícitamente el impacto en `Documentación`, `ADR`,
 `Roadmap` y `Validación`; si una categoría no aplica, incluye un motivo
 concreto.
 
+## Operaciones con GitHub
+
+Issues, PRs, comentarios y estado del CI se consultan y escriben contra
+`https://api.github.com`, no mediante la CLI. La API es estable, explícita en su
+método y su endpoint, y deja el efecto visible en el propio comando, que es lo
+que el guardrail audita.
+
+El token se obtiene en el momento con `gh auth token` y se usa solo como
+credencial: no se escribe en un archivo, no viaja en la URL, no se imprime y no
+se guarda en una variable persistente.
+
+```bash
+TOKEN=$(gh auth token) && curl -sS -X PATCH \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Accept: application/vnd.github+json" \
+  --data @cuerpo.json \
+  https://api.github.com/repos/<owner>/<repo>/pulls/<n>
+```
+
+- Crear y editar PRs, issues y comentarios no requiere autorización adicional.
+- Fusionar, cerrar o reabrir exige `AGENT_MERGE_CONFIRMED=1` y el cuerpo que
+  cambia el estado se escribe en el propio comando, no en un archivo, para que
+  la autorización quede junto al efecto que habilita.
+- Borrar por la API, publicar releases, escribir secretos o variables, disparar
+  workflows y transferir el repositorio siguen prohibidos sin excepción.
+
+El cuerpo del PR sigue `.github/pull_request_template.md`: los encabezados
+`## Documentación`, `## ADR`, `## Roadmap` y `## Validación` deben existir, en
+ese orden y con contenido, porque `npm run check` los valida en cada PR. Un
+`rerun` del workflow reutiliza el evento original, así que corregir el cuerpo
+después no basta: hace falta un commit nuevo para que el CI lo lea.
+
 Los agentes pueden crear commits locales atómicos como parte de un cambio
 solicitado, pero nunca ejecutan `git push` sin confirmación explícita del
 usuario para la rama y los commits actuales. Después de recibirla, el comando
@@ -186,6 +218,36 @@ ejecutarse y no se reutiliza. Cuando el agente dispone de un canal para
 consultar al usuario dentro de la entrega, la pide ahí y continúa con lo que se
 apruebe, en vez de interrumpir el trabajo; el guardrail del repositorio se lo
 indica en el propio bloqueo.
+
+Esa pregunta no es opcional ni se pospone al final del turno: aplazarla convierte
+una entrega en una espera. Cuando el trabajo llegue a un despliegue, una
+migración remota, un `git push`, la fusión de un PR o un cambio de recursos
+Cloudflare, el agente pregunta en ese momento, nombrando la operación concreta
+—entorno y artefacto, base y entorno, rama y commits, recurso y entorno— y
+continúa con lo aprobado. Si el bloqueo no es autorizable, explica por qué no
+puede ejecutarse y ofrece la alternativa, sin convertirlo en una pregunta.
+
+## Verificación manual
+
+Algunas comprobaciones no puede hacerlas el agente: mirar una interfaz, revisar
+un panel de Cloudflare, confirmar que un mensaje llegó a un teléfono real o
+juzgar si algo se ve como debería. Cuando la entrega dependa de una de ellas, el
+agente **pregunta por el mismo canal de consulta** en vez de detenerse o de dar
+por buena la funcionalidad.
+
+La pregunta va acompañada de una **comprobación guiada** que la persona pueda
+seguir sin conocer la implementación:
+
+1. Cómo llegar al punto de partida: comando exacto, ruta del panel o URL.
+2. Qué hacer, en pasos numerados y con los datos concretos que debe escribir.
+3. Qué debería ocurrir en cada paso, descrito de forma observable.
+4. Qué significa que no ocurra, y qué dato conviene copiar —mensaje de error,
+   identificador o captura— para diagnosticarlo.
+
+Mientras la respuesta llega, el agente termina todo lo que no depende de ella.
+El resultado de la comprobación se registra en la sección `Validación` de la
+entrega tal como lo reportó la persona, sin ampliarlo: una verificación que no
+se hizo no se declara como hecha.
 
 Permanecen prohibidas sin excepción, porque ninguna autorización las habilita:
 el force push, el descarte destructivo de trabajo local, la ejecución remota

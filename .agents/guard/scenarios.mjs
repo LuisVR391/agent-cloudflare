@@ -204,12 +204,77 @@ test("conserva la inspección remota y la creación de un PR", () => {
     "gh pr create --fill",
     "gh pr view 26",
     "gh api repos/example/agents/pulls/26",
+    "curl -sS https://api.github.com/repos/example/agents/pulls/26",
+    "curl -sS 'https://api.github.com/repos/example/agents/pulls?state=open'",
     "npx wrangler secret list",
     "npx wrangler versions list",
   ];
   for (const command of commands) {
     assert.equal(preTool(command, {}, staged("")), null, command);
   }
+});
+
+// Publicar por la API es el camino habitual del repositorio, así que crear y
+// editar un PR, un issue o un comentario no puede exigir una marca. Lo que sí
+// la exige es cambiar el estado, porque fusiona, cierra o reabre.
+test("permite crear y editar por la API de GitHub", () => {
+  const commands = [
+    "curl -sS -X POST https://api.github.com/repos/example/agents/pulls --data @body.json",
+    "curl -sS -X PATCH https://api.github.com/repos/example/agents/pulls/45 --data @body.json",
+    "curl -sS -X POST https://api.github.com/repos/example/agents/issues/45/comments --data @comment.json",
+    "gh api -X PATCH repos/example/agents/pulls/45 -f title=Nuevo",
+  ];
+  for (const command of commands) {
+    assert.equal(preTool(command, {}, staged("")), null, command);
+  }
+});
+
+test("fusionar, cerrar o reabrir por la API exige su marca", () => {
+  const merge =
+    "curl -sS -X PUT https://api.github.com/repos/example/agents/pulls/45/merge";
+  const close =
+    'curl -sS -X PATCH https://api.github.com/repos/example/agents/issues/45 -d \'{"state":"closed"}\'';
+  for (const command of [merge, close]) {
+    const blocked = preTool(command);
+    assert.equal(denied(blocked), true, command);
+    assert.match(
+      blocked.hookSpecificOutput.permissionDecisionReason,
+      /AGENT_MERGE_CONFIRMED=1/,
+      command,
+    );
+  }
+  assert.equal(preTool(`AGENT_MERGE_CONFIRMED=1 ${merge}`, {}, staged("")), null);
+});
+
+test("bloquea por la API lo que ninguna autorización habilita", () => {
+  const commands = [
+    "curl -sS -X DELETE https://api.github.com/repos/example/agents/issues/comments/1",
+    "curl -sS -X POST https://api.github.com/repos/example/agents/releases --data @release.json",
+    "curl -sS -X PUT https://api.github.com/repos/example/agents/actions/secrets/TOKEN --data @secret.json",
+    "curl -sS -X POST https://api.github.com/repos/example/agents/actions/workflows/ci.yml/dispatches",
+  ];
+  for (const command of commands) {
+    const blocked = preTool(command);
+    assert.equal(denied(blocked), true, command);
+    assert.doesNotMatch(
+      blocked.hookSpecificOutput.permissionDecisionReason,
+      /AGENT_MERGE_CONFIRMED/,
+      command,
+    );
+  }
+});
+
+// La auditoría del diff se disparaba solo con `gh pr create`. Publicar por la
+// API la evitaría, y con ella la comprobación de documentación, ADR y roadmap.
+test("audita el diff también al crear el PR por la API", () => {
+  const command =
+    "curl -sS -X POST https://api.github.com/repos/example/agents/pulls --data @body.json";
+  const blocked = preTool(command, {}, staged("M\tsrc/worker/index.ts"));
+  assert.equal(denied(blocked), true);
+  assert.match(
+    blocked.hookSpecificOutput.permissionDecisionReason,
+    /documentación|ADR|Roadmap/i,
+  );
 });
 
 test("bloquea secretos de alta confianza sin repetirlos", () => {
