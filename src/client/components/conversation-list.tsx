@@ -1,6 +1,7 @@
 import { Inbox, RefreshCw } from "lucide-react";
 import { useEffect, useRef } from "react";
 
+import { DevInboundButton } from "@/components/dev-inbound-button";
 import { Button } from "@/components/ui/button";
 import {
   Empty,
@@ -79,9 +80,12 @@ export function ConversationList({
       <div className="flex shrink-0 flex-col gap-3 border-b p-4">
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-lg font-semibold">Conversaciones</h2>
-          <Button aria-label="Actualizar" onClick={onRefresh} size="icon-sm" variant="outline">
-            <RefreshCw />
-          </Button>
+          <div className="flex items-center gap-1">
+            {import.meta.env.DEV ? <DevInboundButton onSimulated={onRefresh} /> : null}
+            <Button aria-label="Actualizar" onClick={onRefresh} size="icon-sm" variant="outline">
+              <RefreshCw />
+            </Button>
+          </div>
         </div>
         <Tabs onValueChange={(value) => onStatusChange(value as "open" | "resolved")} value={status}>
           <TabsList className="w-full">

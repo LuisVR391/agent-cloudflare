@@ -7,6 +7,7 @@ import {
   type MessageAuthor,
 } from "@/components/conversation-message";
 import { ContactSheet } from "@/components/contact-sheet";
+import { DevInboundButton } from "@/components/dev-inbound-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -154,6 +155,7 @@ export function ConversationThread({
   onComposerChange,
   onLoadOlder,
   onSend,
+  onSimulatedInbound,
   selected,
   sending,
   text,
@@ -175,6 +177,8 @@ export function ConversationThread({
   onComposerChange: (event: ChangeEvent<HTMLTextAreaElement>) => void;
   onLoadOlder: () => void;
   onSend: () => void;
+  // Solo la aporta el desarrollo local, para refrescar tras simular un mensaje.
+  onSimulatedInbound?: () => void;
   selected: ConversationSummary | null;
   sending: boolean;
   text: string;
@@ -224,6 +228,12 @@ export function ConversationThread({
         </div>
         <Badge variant={resolved ? "secondary" : "outline"}>{statusLabels[selected.status]}</Badge>
         <div className="flex gap-2">
+          {import.meta.env.DEV && onSimulatedInbound ? (
+            <DevInboundButton
+              conversationId={selected.id}
+              onSimulated={onSimulatedInbound}
+            />
+          ) : null}
           {contactAccess.canRead ? (
             <ContactSheet
               canManage={contactAccess.canManage}

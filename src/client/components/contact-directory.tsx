@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useOutletContext } from "react-router";
 
 import { ContactProfileCard } from "@/components/contact-profile";
+import { DevInboundButton } from "@/components/dev-inbound-button";
 import type { PanelContext } from "@/components/panel-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -46,6 +47,9 @@ export function ContactDirectory() {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Recargar con la misma búsqueda no cambia `query`, así que el contador es
+  // lo que vuelve a disparar el efecto.
+  const [reloads, setReloads] = useState(0);
   const sentinel = useRef<HTMLDivElement | null>(null);
 
   // La búsqueda espera a que la escritura se detenga: cada pulsación es una
@@ -69,7 +73,7 @@ export function ContactDirectory() {
       })();
     }, 250);
     return () => window.clearTimeout(timer);
-  }, [query]);
+  }, [query, reloads]);
 
   useEffect(() => {
     const element = sentinel.current;
@@ -134,7 +138,12 @@ export function ContactDirectory() {
       <div className="grid min-h-0 flex-1 md:grid-cols-[320px_1fr] lg:grid-cols-[360px_1fr]">
         <div className="flex min-h-0 flex-col md:border-r">
           <div className="flex shrink-0 flex-col gap-3 border-b p-4">
-            <h2 className="text-lg font-semibold">Contactos</h2>
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-lg font-semibold">Contactos</h2>
+              {import.meta.env.DEV ? (
+                <DevInboundButton onSimulated={() => setReloads((count) => count + 1)} />
+              ) : null}
+            </div>
             <div className="relative">
               <Search
                 aria-hidden="true"
