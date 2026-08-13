@@ -395,7 +395,9 @@ export class ContactRepository {
     actorId: string;
     contactId: string;
     action: "contact.profile.update" | "contact.tag.assign" | "contact.tag.remove";
-    result: "allowed" | "denied";
+    // `audit_logs` solo admite estos tres valores. Cualquier otro rompe el
+    // `CHECK` y convierte un rechazo previsto en un fallo del servidor.
+    result: "allowed" | "rejected" | "failed";
     correlationId: string;
   }): Promise<void> {
     const scope = requireOrganizationScope(

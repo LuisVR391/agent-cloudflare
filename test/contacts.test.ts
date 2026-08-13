@@ -305,6 +305,46 @@ describe.sequential("contactos del CRM", () => {
     expect(invalidPatch.status).toBe(400);
   });
 
+  it("audita el rechazo de la edición sin permiso de gestión", async () => {
+    const repository = new ContactRepository(env.DB);
+    const contact = await repository.create(organizationId, {
+      displayName: "Solo lectura",
+    });
+    await env.DB.prepare(
+      `DELETE FROM role_permissions
+        WHERE organization_id = ?
+          AND permission_id IN (
+            SELECT id FROM permissions WHERE permission_key = 'contacts.manage'
+          )`,
+    )
+      .bind(organizationId)
+      .run();
+    const correlationId = crypto.randomUUID();
+
+    const response = await fetchWorker(`/api/contacts/${contact.id}`, {
+      method: "PATCH",
+      headers: {
+        cookie: sessionCookie,
+        "Content-Type": "application/json",
+        "X-Correlation-Id": correlationId,
+      },
+      body: JSON.stringify({ expectedVersion: 1, displayName: "Otro nombre" }),
+    });
+
+    // El resultado auditado debe pertenecer al dominio del `CHECK`; uno fuera
+    // de él convertiría este 403 en un 500.
+    expect(response.status).toBe(403);
+    const audit = await env.DB.prepare(
+      `SELECT action, result FROM audit_logs WHERE correlation_id = ?`,
+    )
+      .bind(correlationId)
+      .first<{ action: string; result: string }>();
+    expect(audit).toEqual({
+      action: "contact.profile.update",
+      result: "rejected",
+    });
+  });
+
   it("rechaza la consulta sin el permiso de contactos", async () => {
     await env.DB.prepare(
       `DELETE FROM role_permissions
