@@ -57,6 +57,26 @@ No compartas el token de instalación ni lo incluyas en URLs, logs o capturas.
 Después de instalar un entorno, puedes rotarlo; el estado cerrado permanece en
 D1.
 
+## Incorporar a alguien más
+
+El registro público sigue cerrado: la segunda cuenta y las siguientes entran por
+invitación. El [módulo de equipo](../modules/teams-and-permissions.md) explica
+las garantías; el procedimiento es:
+
+1. Con una sesión que tenga `users.manage`, abre `Equipo` y crea la invitación
+   con el correo y el rol.
+2. Copia el enlace en ese momento. No vuelve a mostrarse: el producto solo
+   conserva la huella del token, y si se pierde hay que crear otra invitación.
+3. Compártelo por el medio que la empresa ya use. El producto no envía correo en
+   esta fase.
+4. Quien lo recibe abre el enlace, escribe su correo, su nombre y una contraseña
+   de al menos 12 caracteres, y a partir de ahí inicia sesión como cualquier
+   otra persona.
+
+El enlace vence en tres días, sirve una sola vez y puede revocarse desde el
+panel. Rotar `BETTER_AUTH_SECRET` invalida las invitaciones pendientes, además
+de las sesiones.
+
 ## Recuperación
 
 En desarrollo, para repetir desde cero, elimina únicamente el estado local

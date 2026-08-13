@@ -41,16 +41,19 @@ Los roles son fijos en este corte y no existe editor:
 
 | Rol | Alcance inicial |
 | --- | --- |
-| `owner` | Panel, conversaciones, contactos, agentes, usuarios y organización |
-| `manager` | Panel, conversaciones, contactos y agentes |
-| `operator` | Panel, operación de conversaciones y contactos |
+| `owner` | Panel, conversaciones, contactos, agentes, equipo, usuarios y organización |
+| `manager` | Panel, conversaciones, contactos, agentes y lectura de equipo |
+| `operator` | Panel, operación de conversaciones y contactos, y lectura de equipo |
 
 Los tres roles gestionan contactos: quien atiende la conversación es quien
-descubre el nombre correcto de la persona mientras habla con ella.
+descubre el nombre correcto de la persona mientras habla con ella. Y los tres
+leen el equipo, porque los tres asignan conversaciones y no se puede asignar una
+sin ver a quién. Invitar y revocar exigen `users.manage`, que solo tiene
+`owner`.
 
-Los módulos de agentes y equipo todavía están planificados. El panel muestra su
-lugar futuro deshabilitado; los permisos no implican que esas interfaces o
-contratos ya existan.
+El módulo de agentes todavía está planificado. El panel muestra su lugar futuro
+deshabilitado; los permisos no implican que esas interfaces o contratos ya
+existan.
 
 ### Crecimiento del catálogo de permisos
 
@@ -68,6 +71,27 @@ Por eso, cada corte que añade permisos hace las tres cosas:
    no duplique concesiones.
 3. Cubre con una prueba que una instalación nueva y una migrada terminan con el
    mismo catálogo `(role_key, permission_key)`.
+
+## Invitaciones
+
+El alta de colaboradores ocurre solo por invitación, según
+[ADR-0011](../decisions/ADR-0011-collaborator-invitations.md); el registro
+público sigue cerrado. El [módulo de equipo](../modules/teams-and-permissions.md)
+describe el flujo completo. Los controles son:
+
+- El token es opaco, de un solo uso y **se conserva hasheado**: D1 guarda su
+  HMAC con el secreto de sesión, nunca el valor.
+- Viaja en el fragmento del enlace, que el navegador no envía al servidor, y en
+  el cuerpo de las peticiones. Nunca en una query ni en `audit_logs`.
+- La aceptación consume el límite persistente de `auth_rate_limits` antes de
+  tocar el token, y reclama la invitación con un lease, de modo que dos
+  intentos simultáneos producen una sola membresía.
+- La identidad se crea con el correo de la invitación y la membresía con el rol
+  declarado al invitar; el cliente no elige ninguno de los dos.
+- Toda invitación inutilizable responde lo mismo. La previsualización no revela
+  el correo invitado.
+- Aceptar es el segundo y último punto que levanta `disableSignUp`, y vive junto
+  a la instalación para que ambos queden auditables en un solo archivo.
 
 ## Instalación y registro
 
@@ -125,7 +149,7 @@ igual que con tráfico del proveedor.
 
 ## Fuera de alcance
 
-No existen todavía recuperación de contraseña por correo, invitaciones, MFA,
-OAuth, edición de roles ni administración de usuarios. Tampoco existe un panel
-operativo de conversaciones o agentes. Estas capacidades requieren issues y
-pruebas proporcionales antes de activarse.
+No existen todavía recuperación de contraseña por correo, MFA, OAuth, edición de
+roles ni suspensión de membresías desde el panel. Tampoco existe un panel
+operativo de agentes. Estas capacidades requieren issues y pruebas
+proporcionales antes de activarse.

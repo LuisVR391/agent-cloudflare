@@ -62,5 +62,5 @@ histórica como si siempre hubiera sido distinta.
 | [ADR-0008](./ADR-0008-zernio-whatsapp-adapter.md) | Aceptado | Zernio como adaptador bidireccional de WhatsApp |
 | [ADR-0009](./ADR-0009-client-ui-composition.md) | Aceptado | Composición de la interfaz con primitivas de shadcn/ui |
 | [ADR-0010](./ADR-0010-crm-commercial-model.md) | Propuesto | Modelo comercial del CRM: pipeline configurable y oportunidad |
-| [ADR-0011](./ADR-0011-collaborator-invitations.md) | Propuesto | Incorporación de colaboradores por invitación |
+| [ADR-0011](./ADR-0011-collaborator-invitations.md) | Aceptado | Incorporación de colaboradores por invitación |
 | [ADR-0012](./ADR-0012-initial-metrics.md) | Propuesto | Métricas iniciales derivadas de D1 por consulta acotada |
