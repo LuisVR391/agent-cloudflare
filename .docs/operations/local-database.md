@@ -49,6 +49,35 @@ npx wrangler d1 execute agent-cloudflare-db --local \
 Una consulta manual no sustituye a los repositorios: el código de la aplicación
 accede a D1 únicamente a través de `src/worker/repositories/`.
 
+## Sembrar una conversación
+
+Una base recién migrada no tiene canales ni conversaciones, así que el panel se
+abre vacío y no hay nada que validar en el inbox ni en los contactos. Insertar
+filas a mano tampoco sirve de mucho: se saltaría la deduplicación, la cola y el
+runtime, que es justo lo que conviene ejercitar.
+
+Con `npm run dev` en marcha y la sesión iniciada, el panel muestra dos botones
+que no existen en el artefacto desplegado:
+
+- **Simular contacto**, en la cabecera del inbox y en la del directorio de
+  contactos: genera un teléfono nuevo y un primer mensaje.
+- **Simular respuesta**, en la cabecera de una conversación abierta: añade un
+  mensaje entrante a ese mismo hilo.
+
+El contacto nace **sin nombre**, igual que con el canal real, y la presentación
+viaja en el texto («Hola, soy Lucía, quiero información»). Escribir el nombre
+en la ficha sigue siendo trabajo de quien atiende, que es justo lo que conviene
+validar.
+
+Detrás, el panel llama a `POST /api/dev/inbound-messages`, que firma un evento
+con `ZERNIO_WEBHOOK_SECRET` y lo entrega al webhook real, de modo que el
+mensaje recorre firma, deduplicación, cola, Durable Object y D1. La primera
+llamada crea también el canal local que el webhook necesita para resolver
+organización y hilo.
+
+Las defensas de esa ruta están descritas en el
+[modelo de seguridad](../architecture/security-model.md#utillaje-de-desarrollo).
+
 ## Restablecer
 
 ```bash
