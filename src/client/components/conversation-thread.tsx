@@ -1,8 +1,8 @@
 import { ArrowLeft, MessageCircleMore, Pause, Send, UserRoundCheck } from "lucide-react";
-import type { ChangeEvent } from "react";
+import { useEffect, type ChangeEvent } from "react";
 
 import {
-  ConversationMessageGroup,
+  ConversationMessageRow,
   SystemNote,
   type MessageAuthor,
 } from "@/components/conversation-message";
@@ -23,6 +23,7 @@ import {
   MessageScrollerItem,
   MessageScrollerProvider,
   MessageScrollerViewport,
+  useMessageScrollerVisibility,
 } from "@/components/ui/message-scroller";
 import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
@@ -33,15 +34,23 @@ const statusLabels: Record<ConversationSummary["status"], string> = {
   resolved: "Resuelta",
 };
 
-type ThreadRow =
-  | { kind: "day"; key: string; label: string }
-  | { kind: "system"; key: string; message: ConversationMessage }
-  | {
-      kind: "group";
-      key: string;
-      author: MessageAuthor;
-      messages: ConversationMessage[];
-    };
+/**
+ * Una fila por mensaje, con la posición que ocupa dentro de su bloque de autor.
+ *
+ * El scroller detecta que se prependió historial comparando la identidad del
+ * nodo que era el primer hijo. Un item por bloque no sirve: al prepender, el
+ * bloque frontera gana mensajes más antiguos, cambia su primer mensaje y con él
+ * su clave, React remonta el nodo y la compensación de scroll no se aplica. No
+ * existe identidad de bloque estable, porque prepender cambia su primer mensaje
+ * y añadir cambia el último; la del mensaje sí lo es.
+ */
+export type ThreadRow = {
+  message: ConversationMessage;
+  author: MessageAuthor | null;
+  dayLabel: string | null;
+  startsGroup: boolean;
+  endsGroup: boolean;
+};
 
 /**
  * Resuelve quién firma un mensaje. Un saliente propio se atribuye a la persona
@@ -64,69 +73,94 @@ function messageAuthor(
 }
 
 /**
- * Intercala una marca por cada cambio de día y agrupa los mensajes consecutivos
- * del mismo autor, para que el avatar y el nombre no se repitan en cada mensaje.
- * Un cambio de día rompe el bloque; una nota del sistema nunca se agrupa.
+ * Marca el cambio de día y la pertenencia a un bloque de autor, para que el
+ * avatar y el nombre aparezcan una vez por bloque. Un cambio de día rompe el
+ * bloque; una nota del sistema nunca pertenece a uno.
  */
 export function threadRows(
   messages: ConversationMessage[],
   contactName: string,
   currentUser: { id: string; name: string },
 ): ThreadRow[] {
-  const rows: ThreadRow[] = [];
   let currentDay: string | null = null;
-  let open: Extract<ThreadRow, { kind: "group" }> | null = null;
-
-  for (const message of messages) {
+  const rows: ThreadRow[] = messages.map((message) => {
     const occurred = new Date(message.occurredAt);
     const day = occurred.toLocaleDateString();
-    if (day !== currentDay) {
-      currentDay = day;
-      open = null;
-      rows.push({
-        kind: "day",
-        key: `day-${day}`,
-        label: occurred.toLocaleDateString([], {
-          day: "numeric",
-          month: "long",
-          year: "numeric",
-        }),
-      });
-    }
+    const startsDay = day !== currentDay;
+    currentDay = day;
+    return {
+      message,
+      author: message.senderType === "system"
+        ? null
+        : messageAuthor(message, contactName, currentUser),
+      dayLabel: startsDay
+        ? occurred.toLocaleDateString([], { day: "numeric", month: "long", year: "numeric" })
+        : null,
+      startsGroup: true,
+      endsGroup: true,
+    };
+  });
 
-    if (message.senderType === "system") {
-      open = null;
-      rows.push({ kind: "system", key: message.id, message });
-      continue;
-    }
-
-    const author = messageAuthor(message, contactName, currentUser);
-    if (open && open.author.key === author.key) {
-      open.messages.push(message);
-      continue;
-    }
-    open = { kind: "group", key: message.id, author, messages: [message] };
-    rows.push(open);
-  }
+  // Un bloque continúa mientras el autor no cambie y no se abra un día nuevo.
+  rows.forEach((row, index) => {
+    const previous = rows[index - 1];
+    const next = rows[index + 1];
+    row.startsGroup =
+      row.author === null ||
+      previous === undefined ||
+      row.dayLabel !== null ||
+      previous.author?.key !== row.author.key;
+    row.endsGroup =
+      row.author === null ||
+      next === undefined ||
+      next.dayLabel !== null ||
+      next.author?.key !== row.author.key;
+  });
   return rows;
 }
 
+/**
+ * El primitivo no expone ningún callback de borde, así que la señal sale de su
+ * hook de visibilidad: cuando el mensaje más antiguo cargado entra en pantalla,
+ * hay que pedir la página anterior. Debe ser hijo del Provider para leer el hook.
+ */
+function LoadOlderOnReveal({
+  enabled,
+  oldestId,
+  onReveal,
+}: {
+  enabled: boolean;
+  oldestId: string | null;
+  onReveal: () => void;
+}) {
+  const { visibleMessageIds } = useMessageScrollerVisibility();
+  useEffect(() => {
+    if (enabled && oldestId !== null && visibleMessageIds.includes(oldestId)) onReveal();
+  }, [enabled, oldestId, onReveal, visibleMessageIds]);
+  return null;
+}
+
 export function ConversationThread({
+  canLoadOlder,
   composerDisabled,
   composerPlaceholder,
   currentUser,
+  loadingOlder,
   messages,
   onBack,
   onChangeState,
   onComposerChange,
+  onLoadOlder,
   onSend,
   selected,
   sending,
   text,
 }: {
+  canLoadOlder: boolean;
   composerDisabled: boolean;
   composerPlaceholder: string;
   currentUser: { id: string; name: string };
+  loadingOlder: boolean;
   messages: ConversationMessage[];
   onBack: () => void;
   onChangeState: (input: {
@@ -134,6 +168,7 @@ export function ConversationThread({
     attentionMode?: "human" | "paused";
   }) => void;
   onComposerChange: (event: ChangeEvent<HTMLTextAreaElement>) => void;
+  onLoadOlder: () => void;
   onSend: () => void;
   selected: ConversationSummary | null;
   sending: boolean;
@@ -160,6 +195,7 @@ export function ConversationThread({
   const paused = selected.attentionMode === "paused";
   const resolved = selected.status === "resolved";
   const contactName = selected.contactDisplayName ?? selected.contactExternalId;
+  const rows = threadRows(messages, contactName, currentUser);
 
   return (
     <div className="flex min-h-0 flex-col">
@@ -201,34 +237,44 @@ export function ConversationThread({
       <MessageScrollerProvider autoScroll defaultScrollPosition="end">
         <MessageScroller className="min-h-0 flex-1">
           <MessageScrollerViewport aria-label="Mensajes de la conversación">
-            <MessageScrollerContent className="gap-6 p-4">
-              {threadRows(messages, contactName, currentUser).map((row) => {
-                if (row.kind === "day") {
-                  return (
-                    <Marker key={row.key} variant="separator">
-                      <MarkerContent>{row.label}</MarkerContent>
+            <MessageScrollerContent className="gap-4 p-4">
+              {rows.map((row) => (
+                <MessageScrollerItem key={row.message.id} messageId={row.message.id}>
+                  {row.dayLabel ? (
+                    <Marker className="mb-4" variant="separator">
+                      <MarkerContent>{row.dayLabel}</MarkerContent>
                     </Marker>
-                  );
-                }
-                if (row.kind === "system") {
-                  return (
-                    <MessageScrollerItem key={row.key} messageId={row.message.id}>
-                      <SystemNote message={row.message} />
-                    </MessageScrollerItem>
-                  );
-                }
-                return (
-                  <MessageScrollerItem key={row.key} messageId={row.messages[0].id}>
-                    <ConversationMessageGroup
+                  ) : null}
+                  {row.author === null ? (
+                    <SystemNote message={row.message} />
+                  ) : (
+                    <ConversationMessageRow
                       author={row.author}
                       conversationId={selected.id}
-                      messages={row.messages}
+                      endsGroup={row.endsGroup}
+                      message={row.message}
+                      startsGroup={row.startsGroup}
                     />
-                  </MessageScrollerItem>
-                );
-              })}
+                  )}
+                </MessageScrollerItem>
+              ))}
             </MessageScrollerContent>
           </MessageScrollerViewport>
+          {/* El aviso vive fuera del contenido: un primer hijo fijo, o que se
+              monta y desmonta, rompe la detección de prepend del scroller. */}
+          {loadingOlder ? (
+            <div className="absolute inset-x-0 top-2 flex justify-center" role="status">
+              <span className="flex items-center gap-2 rounded-full border bg-background px-3 py-1 text-xs text-muted-foreground shadow-sm">
+                <Spinner />
+                Cargando historial…
+              </span>
+            </div>
+          ) : null}
+          <LoadOlderOnReveal
+            enabled={canLoadOlder}
+            oldestId={rows.at(0)?.message.id ?? null}
+            onReveal={onLoadOlder}
+          />
           <MessageScrollerButton />
         </MessageScroller>
       </MessageScrollerProvider>

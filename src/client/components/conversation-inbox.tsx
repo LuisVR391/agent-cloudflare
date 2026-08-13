@@ -5,6 +5,7 @@ import { ConversationList } from "@/components/conversation-list";
 import { ConversationThread } from "@/components/conversation-thread";
 import type { PanelContext } from "@/components/panel-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { mergeConversations, mergeMessages } from "@/lib/conversation-pagination";
 import { cn } from "@/lib/utils";
 import {
   getConversationMessages,
@@ -27,13 +28,23 @@ export function ConversationInbox() {
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [listCursor, setListCursor] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [olderCursor, setOlderCursor] = useState<string | null>(null);
+  const [loadingOlder, setLoadingOlder] = useState(false);
   const pendingSend = useRef<{ text: string; clientRequestId: string } | null>(null);
 
+  /**
+   * Refresca la primera página fusionando, no reemplazando: el polling y el
+   * WebSocket corren cada pocos segundos y sustituir el arreglo descartaría las
+   * páginas que el usuario acaba de cargar.
+   */
   async function refreshList() {
     setError(null);
     try {
       const result = await listConversations(status);
-      setConversations(result.conversations);
+      setConversations((previous) => mergeConversations(previous, result.conversations));
+      if (listCursor === null) setListCursor(result.nextCursor);
       if (selected) {
         const next = result.conversations.find((item) => item.id === selected.id);
         if (next) setSelected(next);
@@ -45,6 +56,35 @@ export function ConversationInbox() {
     }
   }
 
+  /** Vuelve a la primera página y descarta lo acumulado. */
+  async function resetList() {
+    setListCursor(null);
+    setError(null);
+    try {
+      const result = await listConversations(status);
+      setConversations(result.conversations);
+      setListCursor(result.nextCursor);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "No fue posible actualizar el inbox.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function loadMoreConversations() {
+    if (!listCursor || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const result = await listConversations(status, listCursor);
+      setConversations((previous) => mergeConversations(previous, result.conversations));
+      setListCursor(result.nextCursor);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "No fue posible cargar más conversaciones.");
+    } finally {
+      setLoadingMore(false);
+    }
+  }
+
   async function openConversation(conversation: ConversationSummary) {
     setSelected(conversation);
     setError(null);
@@ -52,14 +92,40 @@ export function ConversationInbox() {
       const result = await getConversationMessages(conversation.id);
       setSelected(result.conversation);
       setMessages(result.messages);
+      setOlderCursor(result.nextCursor);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "No fue posible abrir la conversación.");
     }
   }
 
+  /** El refresco del hilo conserva el historial ya cargado y su cursor. */
+  async function refreshThread(conversation: ConversationSummary) {
+    try {
+      const result = await getConversationMessages(conversation.id);
+      setSelected(result.conversation);
+      setMessages((previous) => mergeMessages(previous, result.messages));
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "No fue posible actualizar la conversación.");
+    }
+  }
+
+  async function loadOlderMessages() {
+    if (!selected || !olderCursor || loadingOlder) return;
+    setLoadingOlder(true);
+    try {
+      const result = await getConversationMessages(selected.id, olderCursor);
+      setMessages((previous) => mergeMessages(previous, result.messages));
+      setOlderCursor(result.nextCursor);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "No fue posible cargar el historial.");
+    } finally {
+      setLoadingOlder(false);
+    }
+  }
+
   useEffect(() => {
     setLoading(true);
-    void refreshList();
+    void resetList();
     const interval = window.setInterval(() => void refreshList(), 10_000);
     return () => window.clearInterval(interval);
   }, [status]);
@@ -70,7 +136,7 @@ export function ConversationInbox() {
     try {
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
       socket = new WebSocket(`${protocol}//${window.location.host}/api/conversations/${selected.id}/live`);
-      socket.addEventListener("message", () => void openConversation(selected));
+      socket.addEventListener("message", () => void refreshThread(selected));
     } catch {
       // El polling conserva la vista usable cuando WebSocket no está disponible.
     }
@@ -80,7 +146,7 @@ export function ConversationInbox() {
   useEffect(() => {
     if (!selected) return;
     const interval = window.setInterval(
-      () => void openConversation(selected),
+      () => void refreshThread(selected),
       10_000,
     );
     return () => window.clearInterval(interval);
@@ -108,7 +174,7 @@ export function ConversationInbox() {
         request.clientRequestId,
       );
       pendingSend.current = null;
-      await openConversation(selected);
+      await refreshThread(selected);
     } catch (caught) {
       setText(nextText);
       setError(caught instanceof Error ? caught.message : "No fue posible enviar el mensaje.");
@@ -121,8 +187,10 @@ export function ConversationInbox() {
     if (!selected) return;
     try {
       await updateConversation(selected.id, { expectedVersion: selected.version, ...input });
-      await openConversation(selected);
-      await refreshList();
+      await refreshThread(selected);
+      // Resolver o reabrir saca la conversación del filtro activo, y una fusión
+      // por identificador la conservaría: aquí sí hay que reiniciar la lista.
+      await resetList();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "No fue posible actualizar la conversación.");
     }
@@ -154,19 +222,24 @@ export function ConversationInbox() {
           hilo cuando hay una conversación abierta. */}
       <div className="grid min-h-0 flex-1 md:grid-cols-[320px_1fr] lg:grid-cols-[360px_1fr]">
         <ConversationList
+          canLoadMore={listCursor !== null}
           className={cn(selected && "hidden md:flex")}
           conversations={conversations}
           loading={loading}
-          onRefresh={() => void refreshList()}
+          loadingMore={loadingMore}
+          onLoadMore={() => void loadMoreConversations()}
+          onRefresh={() => void resetList()}
           onSelect={(conversation) => void openConversation(conversation)}
           onStatusChange={setStatus}
           selectedId={selected?.id ?? null}
           status={status}
         />
         <ConversationThread
+          canLoadOlder={olderCursor !== null && !loadingOlder}
           composerDisabled={composerDisabled}
           composerPlaceholder={composerPlaceholder}
           currentUser={panel.user}
+          loadingOlder={loadingOlder}
           messages={messages}
           onBack={() => setSelected(null)}
           onChangeState={(input) => void changeState(input)}
@@ -179,6 +252,7 @@ export function ConversationInbox() {
               pendingSend.current = null;
             }
           }}
+          onLoadOlder={() => void loadOlderMessages()}
           onSend={() => void send()}
           selected={selected}
           sending={sending}

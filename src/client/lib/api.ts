@@ -140,18 +140,32 @@ export type ConversationMessage = {
   }>;
 };
 
-export async function listConversations(status: "open" | "resolved" = "open") {
-  const response = await fetch(`/api/conversations?status=${status}`, { credentials: "same-origin" });
+// El cursor es opaco: se reenvía tal como lo devolvió el servidor. El tamaño de
+// página lo decide el Worker, así que el cliente no envía `limit`.
+export async function listConversations(
+  status: "open" | "resolved" = "open",
+  cursor?: string,
+) {
+  const query = cursor ? `&cursor=${encodeURIComponent(cursor)}` : "";
+  const response = await fetch(`/api/conversations?status=${status}${query}`, {
+    credentials: "same-origin",
+  });
   if (!response.ok) throw new Error(await parseError(response, "No fue posible cargar las conversaciones."));
   return response.json() as Promise<{ conversations: ConversationSummary[]; nextCursor: string | null }>;
 }
 
-export async function getConversationMessages(conversationId: string) {
-  const response = await fetch(`/api/conversations/${encodeURIComponent(conversationId)}/messages`, {
-    credentials: "same-origin",
-  });
+export async function getConversationMessages(conversationId: string, cursor?: string) {
+  const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
+  const response = await fetch(
+    `/api/conversations/${encodeURIComponent(conversationId)}/messages${query}`,
+    { credentials: "same-origin" },
+  );
   if (!response.ok) throw new Error(await parseError(response, "No fue posible cargar la conversación."));
-  return response.json() as Promise<{ conversation: ConversationSummary; messages: ConversationMessage[] }>;
+  return response.json() as Promise<{
+    conversation: ConversationSummary;
+    messages: ConversationMessage[];
+    nextCursor: string | null;
+  }>;
 }
 
 export async function sendConversationMessage(

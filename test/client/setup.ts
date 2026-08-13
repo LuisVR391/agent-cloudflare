@@ -26,6 +26,27 @@ if (typeof globalThis.ResizeObserver !== "function") {
   } as unknown as typeof ResizeObserver;
 }
 
+// La lista pide su página siguiente con un centinela observado, y el hilo deriva
+// de la visibilidad qué mensaje es el más antiguo en pantalla. En jsdom no hay
+// layout, así que el stub trata todo lo observado como visible: es el equivalente
+// a una conversación que cabe entera en la ventana.
+if (typeof globalThis.IntersectionObserver !== "function") {
+  globalThis.IntersectionObserver = class {
+    constructor(private readonly callback: IntersectionObserverCallback) {}
+    observe(element: Element) {
+      this.callback(
+        [{ isIntersecting: true, intersectionRatio: 1, target: element } as IntersectionObserverEntry],
+        this as unknown as IntersectionObserver,
+      );
+    }
+    unobserve() {}
+    disconnect() {}
+    takeRecords() {
+      return [];
+    }
+  } as unknown as typeof IntersectionObserver;
+}
+
 if (typeof Element.prototype.scrollTo !== "function") {
   Element.prototype.scrollTo = () => {};
 }

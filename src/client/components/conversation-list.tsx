@@ -1,4 +1,5 @@
 import { Inbox, RefreshCw } from "lucide-react";
+import { useEffect, useRef } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -9,9 +10,23 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import type { ConversationSummary } from "@/lib/api";
+
+/**
+ * Con la lista paginada se alcanzan conversaciones de días anteriores, y una hora
+ * suelta no las distingue: se muestra la hora solo si la actividad es de hoy.
+ */
+function formatActivity(lastMessageAt: string): string {
+  const occurred = new Date(lastMessageAt);
+  const today = new Date().toLocaleDateString();
+  if (occurred.toLocaleDateString() === today) {
+    return occurred.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
+  return occurred.toLocaleDateString([], { day: "numeric", month: "short" });
+}
 
 const attentionModeLabels: Record<ConversationSummary["attentionMode"], string> = {
   automatic: "Automático",
@@ -21,24 +36,44 @@ const attentionModeLabels: Record<ConversationSummary["attentionMode"], string> 
 };
 
 export function ConversationList({
+  canLoadMore,
   className,
   conversations,
   loading,
+  loadingMore,
+  onLoadMore,
   onRefresh,
   onSelect,
   onStatusChange,
   selectedId,
   status,
 }: {
+  canLoadMore: boolean;
   className?: string;
   conversations: ConversationSummary[];
   loading: boolean;
+  loadingMore: boolean;
+  onLoadMore: () => void;
   onRefresh: () => void;
   onSelect: (conversation: ConversationSummary) => void;
   onStatusChange: (status: "open" | "resolved") => void;
   selectedId: string | null;
   status: "open" | "resolved";
 }) {
+  const sentinel = useRef<HTMLDivElement | null>(null);
+
+  // La lista es un contenedor de scroll propio, no un `MessageScroller`, así que
+  // el centinela observado es la forma estándar de pedir la página siguiente.
+  useEffect(() => {
+    const element = sentinel.current;
+    if (!element || !canLoadMore) return;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) onLoadMore();
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [canLoadMore, onLoadMore]);
+
   return (
     <div className={cn("flex min-h-0 flex-col md:border-r", className)}>
       <div className="flex shrink-0 flex-col gap-3 border-b p-4">
@@ -99,10 +134,7 @@ export function ConversationList({
                 {conversation.contactDisplayName ?? conversation.contactExternalId}
               </span>
               <span className="ml-auto shrink-0 text-xs text-muted-foreground">
-                {new Date(conversation.lastMessageAt).toLocaleTimeString([], {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
+                {formatActivity(conversation.lastMessageAt)}
               </span>
             </span>
             <span className="line-clamp-2 w-full text-muted-foreground">
@@ -113,6 +145,16 @@ export function ConversationList({
             </span>
           </button>
         ))}
+        {canLoadMore || loadingMore ? (
+          <div className="flex shrink-0 items-center justify-center gap-2 p-4 text-xs text-muted-foreground" ref={sentinel}>
+            {loadingMore ? (
+              <>
+                <Spinner />
+                Cargando conversaciones…
+              </>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     </div>
   );

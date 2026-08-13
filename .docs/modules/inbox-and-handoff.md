@@ -6,6 +6,21 @@ de la organización activa.
 ## API
 
 - `GET /api/conversations`: lista paginada y filtrada por estado.
+
+Ambas lecturas paginan por clave, no por desplazamiento. `limit` acepta de 1 a
+100 y se recorta en silencio por encima del máximo; el tamaño por defecto es 30
+conversaciones y 50 mensajes, y lo decide el servidor. `cursor` es **opaco**:
+transporta la tupla que ordena la consulta —timestamp e identificador— y solo se
+reenvía tal como se recibió. Un cursor mal formado responde `INVALID_CURSOR` y no
+llega a la consulta; uno de otra organización no amplía el alcance, porque la
+consulta sigue acotada por la organización activa. `nextCursor` es `null` cuando
+no queda página siguiente, así que agotar el historial no exige una petición
+vacía.
+
+El cursor reproduce la tupla completa porque el orden lo es. Compararlo solo por
+el timestamp dejaba inalcanzables las filas empatadas que el límite cortaba, y el
+canal emite timestamps con precisión de segundos.
+
 - `GET /api/conversations/:id/messages`: resumen e historial cronológico. Cada
   mensaje declara dirección, tipo de remitente, `senderId` cuando lo envió un
   colaborador, y tipo de contenido. Cada adjunto declara tipo, tipo de contenido,
@@ -63,10 +78,20 @@ su tipo cuando no. Una imagen muestra miniatura y un audio puede reproducirse en
 el hilo. Un adjunto que no pudo conservarse se anuncia sin enlace, porque su
 descarga responde 409.
 
+El historial se recorre hacia atrás: al acercarse al inicio del hilo se pide la
+página anterior y se conserva la posición de lectura. La lista hace lo propio
+hacia abajo al acercarse a su final. Ninguna de las dos simula el recorrido en el
+cliente: el tamaño de página lo impone el servidor y el cliente solo reenvía el
+cursor que recibió.
+
 El WebSocket solicita una recarga de D1 cuando cambia un mensaje entrante o
 saliente. Un polling de respaldo actualiza lista e hilo cada diez segundos ante
-una desconexión. Si falla el encolado, el compositor restaura el texto y
-conserva el mismo `clientRequestId` para un reintento seguro.
+una desconexión. Ambas recargas piden la primera página y la **fusionan** con lo
+ya cargado, en vez de reemplazarlo: sustituir el hilo descartaría el historial que
+se acaba de recorrer. Al resolver o reabrir sí se reinicia la lista, porque la
+conversación sale del filtro activo y una fusión la conservaría. Si falla el
+encolado, el compositor restaura el texto y conserva el mismo `clientRequestId`
+para un reintento seguro.
 
 Contacto enriquecido, equipos, asignación, notas, pipeline, citas y métricas
 pertenecen a Fase 2. Las respuestas automáticas y la IA pertenecen a Fase 3.

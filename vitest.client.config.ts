@@ -11,7 +11,8 @@ export default defineConfig({
   },
   test: {
     environment: "jsdom",
-    include: ["test/client/**/*.test.tsx"],
+    // `.ts` además de `.tsx` para que la lógica pura no necesite fingir JSX.
+    include: ["test/client/**/*.test.ts", "test/client/**/*.test.tsx"],
     setupFiles: ["./test/client/setup.ts"],
   },
 });
