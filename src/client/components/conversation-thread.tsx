@@ -1,7 +1,11 @@
 import { ArrowLeft, MessageCircleMore, Pause, Send, UserRoundCheck } from "lucide-react";
 import type { ChangeEvent } from "react";
 
-import { ConversationMessageRow } from "@/components/conversation-message";
+import {
+  ConversationMessageGroup,
+  SystemNote,
+  type MessageAuthor,
+} from "@/components/conversation-message";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,20 +35,54 @@ const statusLabels: Record<ConversationSummary["status"], string> = {
 
 type ThreadRow =
   | { kind: "day"; key: string; label: string }
-  | { kind: "message"; key: string; message: ConversationMessage };
+  | { kind: "system"; key: string; message: ConversationMessage }
+  | {
+      kind: "group";
+      key: string;
+      author: MessageAuthor;
+      messages: ConversationMessage[];
+    };
 
 /**
- * Intercala una marca por cada cambio de día para que el hilo se lea sin
- * repetir la fecha completa en cada mensaje.
+ * Resuelve quién firma un mensaje. Un saliente propio se atribuye a la persona
+ * de la sesión; el de otro colaborador se anuncia como equipo, porque sin el
+ * directorio de miembros no hay forma de resolver `senderId` a un nombre y
+ * atribuirlo a la cuenta actual sería falso.
  */
-function threadRows(messages: ConversationMessage[]): ThreadRow[] {
+function messageAuthor(
+  message: ConversationMessage,
+  contactName: string,
+  currentUser: { id: string; name: string },
+): MessageAuthor {
+  if (message.direction === "incoming") {
+    return { key: "contact", name: contactName, anonymousTeam: false };
+  }
+  if (message.senderId && message.senderId === currentUser.id) {
+    return { key: `user:${currentUser.id}`, name: currentUser.name, anonymousTeam: false };
+  }
+  return { key: `team:${message.senderId ?? "desconocido"}`, name: "Equipo", anonymousTeam: true };
+}
+
+/**
+ * Intercala una marca por cada cambio de día y agrupa los mensajes consecutivos
+ * del mismo autor, para que el avatar y el nombre no se repitan en cada mensaje.
+ * Un cambio de día rompe el bloque; una nota del sistema nunca se agrupa.
+ */
+export function threadRows(
+  messages: ConversationMessage[],
+  contactName: string,
+  currentUser: { id: string; name: string },
+): ThreadRow[] {
   const rows: ThreadRow[] = [];
   let currentDay: string | null = null;
+  let open: Extract<ThreadRow, { kind: "group" }> | null = null;
+
   for (const message of messages) {
     const occurred = new Date(message.occurredAt);
     const day = occurred.toLocaleDateString();
     if (day !== currentDay) {
       currentDay = day;
+      open = null;
       rows.push({
         kind: "day",
         key: `day-${day}`,
@@ -55,7 +93,20 @@ function threadRows(messages: ConversationMessage[]): ThreadRow[] {
         }),
       });
     }
-    rows.push({ kind: "message", key: message.id, message });
+
+    if (message.senderType === "system") {
+      open = null;
+      rows.push({ kind: "system", key: message.id, message });
+      continue;
+    }
+
+    const author = messageAuthor(message, contactName, currentUser);
+    if (open && open.author.key === author.key) {
+      open.messages.push(message);
+      continue;
+    }
+    open = { kind: "group", key: message.id, author, messages: [message] };
+    rows.push(open);
   }
   return rows;
 }
@@ -63,6 +114,7 @@ function threadRows(messages: ConversationMessage[]): ThreadRow[] {
 export function ConversationThread({
   composerDisabled,
   composerPlaceholder,
+  currentUser,
   messages,
   onBack,
   onChangeState,
@@ -74,6 +126,7 @@ export function ConversationThread({
 }: {
   composerDisabled: boolean;
   composerPlaceholder: string;
+  currentUser: { id: string; name: string };
   messages: ConversationMessage[];
   onBack: () => void;
   onChangeState: (input: {
@@ -106,6 +159,7 @@ export function ConversationThread({
 
   const paused = selected.attentionMode === "paused";
   const resolved = selected.status === "resolved";
+  const contactName = selected.contactDisplayName ?? selected.contactExternalId;
 
   return (
     <div className="flex min-h-0 flex-col">
@@ -148,20 +202,31 @@ export function ConversationThread({
         <MessageScroller className="min-h-0 flex-1">
           <MessageScrollerViewport aria-label="Mensajes de la conversación">
             <MessageScrollerContent className="gap-6 p-4">
-              {threadRows(messages).map((row) =>
-                row.kind === "day" ? (
-                  <Marker key={row.key} variant="separator">
-                    <MarkerContent>{row.label}</MarkerContent>
-                  </Marker>
-                ) : (
-                  <MessageScrollerItem key={row.key} messageId={row.message.id}>
-                    <ConversationMessageRow
+              {threadRows(messages, contactName, currentUser).map((row) => {
+                if (row.kind === "day") {
+                  return (
+                    <Marker key={row.key} variant="separator">
+                      <MarkerContent>{row.label}</MarkerContent>
+                    </Marker>
+                  );
+                }
+                if (row.kind === "system") {
+                  return (
+                    <MessageScrollerItem key={row.key} messageId={row.message.id}>
+                      <SystemNote message={row.message} />
+                    </MessageScrollerItem>
+                  );
+                }
+                return (
+                  <MessageScrollerItem key={row.key} messageId={row.messages[0].id}>
+                    <ConversationMessageGroup
+                      author={row.author}
                       conversationId={selected.id}
-                      message={row.message}
+                      messages={row.messages}
                     />
                   </MessageScrollerItem>
-                ),
-              )}
+                );
+              })}
             </MessageScrollerContent>
           </MessageScrollerViewport>
           <MessageScrollerButton />

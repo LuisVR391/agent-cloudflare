@@ -16,12 +16,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
-
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/).slice(0, 2);
-  const letters = parts.map((part) => part.charAt(0)).join("");
-  return (letters || name.slice(0, 2)).toUpperCase();
-}
+import { initials } from "@/lib/utils";
 
 export function NavUser({
   user,

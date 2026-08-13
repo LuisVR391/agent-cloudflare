@@ -1,4 +1,5 @@
 import {
+  Download,
   FileAudio,
   FileText,
   FileVideo,
@@ -7,7 +8,7 @@ import {
   Paperclip,
   Share2,
   Smile,
-  Download,
+  Users,
 } from "lucide-react";
 import type { ComponentType } from "react";
 
@@ -21,17 +22,30 @@ import {
   AttachmentMedia,
   AttachmentTitle,
 } from "@/components/ui/attachment";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
 import { Marker, MarkerContent, MarkerIcon } from "@/components/ui/marker";
 import {
   Message,
+  MessageAvatar,
   MessageContent,
   MessageFooter,
+  MessageGroup,
+  MessageHeader,
 } from "@/components/ui/message";
+import { cn, initials } from "@/lib/utils";
 import type { ConversationMessage } from "@/lib/api";
 
 type MessageAttachment = ConversationMessage["attachments"][number];
+
+/** Quién firma un bloque. `null` en el autor propio significa el contacto. */
+export type MessageAuthor = {
+  key: string;
+  name: string;
+  /** Un saliente de otro colaborador no se atribuye a una persona. */
+  anonymousTeam: boolean;
+};
 
 const messageStatusLabels: Record<ConversationMessage["status"], string> = {
   received: "Recibido",
@@ -63,6 +77,13 @@ const attachmentIcons: Record<MessageAttachment["type"], ComponentType<{ classNa
   unsupported: Paperclip,
 };
 
+/** Estados que piden atención y no pueden quedar tapados por el pie del bloque. */
+function attentionStatus(status: ConversationMessage["status"]): "destructive" | "secondary" | null {
+  if (status === "failed") return "destructive";
+  if (status === "delivery_unknown") return "secondary";
+  return null;
+}
+
 function formatBytes(byteSize: number | null): string {
   if (byteSize === null) return "tamaño desconocido";
   if (byteSize < 1024) return `${byteSize} B`;
@@ -88,17 +109,23 @@ function formatTime(occurredAt: string): string {
  * `messageType` es lo único que dice qué era, y sin él la fila quedaría reducida
  * a su hora, como si el mensaje no existiera.
  */
-function MissingContent({ messageType }: { messageType: ConversationMessage["messageType"] }) {
+function MissingContent({
+  className,
+  messageType,
+}: {
+  className?: string;
+  messageType: ConversationMessage["messageType"];
+}) {
   if (messageType === "text") {
     return (
-      <Bubble variant="outline">
+      <Bubble className={className} variant="outline">
         <BubbleContent>Mensaje sin contenido</BubbleContent>
       </Bubble>
     );
   }
   const Icon = attachmentIcons[messageType];
   return (
-    <Attachment state="error">
+    <Attachment className={className} state="error">
       <AttachmentMedia>
         <Icon />
       </AttachmentMedia>
@@ -171,66 +198,106 @@ function ConversationAttachment({
   );
 }
 
-export function ConversationMessageRow({
+export function SystemNote({ message }: { message: ConversationMessage }) {
+  return (
+    <Marker>
+      <MarkerIcon>
+        <Info />
+      </MarkerIcon>
+      <MarkerContent>
+        {message.text ?? messageStatusLabels[message.status]} ·{" "}
+        {formatTime(message.occurredAt)}
+      </MarkerContent>
+    </Marker>
+  );
+}
+
+/**
+ * Un bloque de mensajes consecutivos del mismo autor. El avatar y el nombre
+ * aparecen una vez, y el pie con el estado va en el último mensaje; un mensaje
+ * que pide atención conserva su propia etiqueta para que un fallo no quede
+ * tapado por el estado del bloque.
+ */
+export function ConversationMessageGroup({
+  author,
   conversationId,
-  message,
+  messages,
 }: {
+  author: MessageAuthor;
   conversationId: string;
-  message: ConversationMessage;
+  messages: ConversationMessage[];
 }) {
-  const status = messageStatusLabels[message.status];
-
-  // Una nota del sistema no es un turno de la conversación: se anuncia como
-  // marca para no atribuirla al contacto ni al equipo.
-  if (message.senderType === "system") {
-    return (
-      <Marker>
-        <MarkerIcon>
-          <Info />
-        </MarkerIcon>
-        <MarkerContent>
-          {message.text ?? status} · {formatTime(message.occurredAt)}
-        </MarkerContent>
-      </Marker>
-    );
-  }
-
-  const outgoing = message.direction === "outgoing";
+  const outgoing = messages[0].direction === "outgoing";
   const align = outgoing ? "end" : "start";
+  // `MessageContent` declara la alineación de sus hijos genéricos con una
+  // variante que Tailwind no compila, así que los que no son burbujas la
+  // reciben aquí.
+  const alignChild = outgoing ? "self-end" : undefined;
 
   return (
-    <Message align={align}>
-      <MessageContent>
-        {message.text ? (
-          <Bubble align={align} variant={outgoing ? "default" : "muted"}>
-            <BubbleContent className="whitespace-pre-wrap">{message.text}</BubbleContent>
-          </Bubble>
-        ) : null}
-        {message.attachments.length > 0 ? (
-          <AttachmentGroup>
-            {message.attachments.map((attachment) => (
-              <ConversationAttachment
-                attachment={attachment}
-                conversationId={conversationId}
-                key={attachment.id}
-              />
-            ))}
-          </AttachmentGroup>
-        ) : null}
-        {!message.text && message.attachments.length === 0 ? (
-          <MissingContent messageType={message.messageType} />
-        ) : null}
-        <MessageFooter className="gap-2">
-          {message.status === "failed" ? (
-            <Badge variant="destructive">{status}</Badge>
-          ) : message.status === "delivery_unknown" ? (
-            <Badge variant="secondary">{status}</Badge>
-          ) : (
-            <span>{status}</span>
-          )}
-          <span>{formatTime(message.occurredAt)}</span>
-        </MessageFooter>
-      </MessageContent>
-    </Message>
+    <MessageGroup>
+      {messages.map((message, index) => {
+        const attention = attentionStatus(message.status);
+        const last = index === messages.length - 1;
+        return (
+          <Message align={align} key={message.id}>
+            <MessageAvatar>
+              {index === 0 ? (
+                <Avatar>
+                  <AvatarFallback>
+                    {author.anonymousTeam ? (
+                      <Users className="size-4" />
+                    ) : (
+                      initials(author.name)
+                    )}
+                  </AvatarFallback>
+                </Avatar>
+              ) : null}
+            </MessageAvatar>
+            <MessageContent>
+              {index === 0 ? (
+                <MessageHeader className="max-w-full">
+                  <span className="truncate">{author.name}</span>
+                </MessageHeader>
+              ) : null}
+              {message.text ? (
+                <Bubble align={align} variant={outgoing ? "default" : "muted"}>
+                  <BubbleContent className="whitespace-pre-wrap">{message.text}</BubbleContent>
+                </Bubble>
+              ) : null}
+              {message.attachments.length > 0 ? (
+                <AttachmentGroup className={cn(alignChild)}>
+                  {message.attachments.map((attachment) => (
+                    <ConversationAttachment
+                      attachment={attachment}
+                      conversationId={conversationId}
+                      key={attachment.id}
+                    />
+                  ))}
+                </AttachmentGroup>
+              ) : null}
+              {!message.text && message.attachments.length === 0 ? (
+                <MissingContent className={cn(alignChild)} messageType={message.messageType} />
+              ) : null}
+              {attention && !last ? (
+                <Badge className={cn(alignChild)} variant={attention}>
+                  {messageStatusLabels[message.status]} · {formatTime(message.occurredAt)}
+                </Badge>
+              ) : null}
+              {last ? (
+                <MessageFooter className="gap-2">
+                  {attention ? (
+                    <Badge variant={attention}>{messageStatusLabels[message.status]}</Badge>
+                  ) : (
+                    <span>{messageStatusLabels[message.status]}</span>
+                  )}
+                  <span>{formatTime(message.occurredAt)}</span>
+                </MessageFooter>
+              ) : null}
+            </MessageContent>
+          </Message>
+        );
+      })}
+    </MessageGroup>
   );
 }

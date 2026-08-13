@@ -114,6 +114,9 @@ export type ConversationMessage = {
   id: string;
   direction: "incoming" | "outgoing";
   senderType: "customer" | "staff" | "system";
+  // Identifica al colaborador que respondió. Es opaco: distingue a un autor de
+  // otro, pero no resuelve su nombre.
+  senderId: string | null;
   messageType:
     | "text"
     | "image"

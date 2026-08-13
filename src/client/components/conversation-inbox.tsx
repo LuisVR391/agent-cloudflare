@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
+import { useOutletContext } from "react-router";
 
 import { ConversationList } from "@/components/conversation-list";
 import { ConversationThread } from "@/components/conversation-thread";
+import type { PanelContext } from "@/components/panel-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
 import {
@@ -14,6 +16,9 @@ import {
 } from "@/lib/api";
 
 export function ConversationInbox() {
+  // La identidad de la sesión llega por el contexto del shell, igual que en el
+  // resumen: es lo que permite atribuir una respuesta a quien la escribió.
+  const panel = useOutletContext<PanelContext>();
   const [status, setStatus] = useState<"open" | "resolved">("open");
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [selected, setSelected] = useState<ConversationSummary | null>(null);
@@ -161,6 +166,7 @@ export function ConversationInbox() {
         <ConversationThread
           composerDisabled={composerDisabled}
           composerPlaceholder={composerPlaceholder}
+          currentUser={panel.user}
           messages={messages}
           onBack={() => setSelected(null)}
           onChangeState={(input) => void changeState(input)}
