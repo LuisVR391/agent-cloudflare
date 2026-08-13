@@ -65,6 +65,8 @@ beforeEach(() => {
     conversations: [],
     nextCursor: null,
   });
+  vi.mocked(api.listTeamMembers).mockResolvedValue([]);
+  vi.mocked(api.listTeamInvitations).mockResolvedValue([]);
 });
 
 describe("shell del panel", () => {
@@ -122,8 +124,6 @@ describe("shell del panel", () => {
 
   it("abre el equipo, que deja de ser una sección planeada", async () => {
     window.history.replaceState({}, "", "/app/equipo");
-    vi.mocked(api.listTeamMembers).mockResolvedValue([]);
-    vi.mocked(api.listTeamInvitations).mockResolvedValue([]);
 
     render(<App />);
 

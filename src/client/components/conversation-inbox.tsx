@@ -10,17 +10,26 @@ import { cn } from "@/lib/utils";
 import {
   getConversationMessages,
   listConversations,
+  listTeamMembers,
   sendConversationMessage,
   updateConversation,
+  type AssigneeFilter,
   type ConversationMessage,
   type ConversationSummary,
+  type TeamMember,
 } from "@/lib/api";
 
 export function ConversationInbox() {
   // La identidad de la sesión llega por el contexto del shell, igual que en el
   // resumen: es lo que permite atribuir una respuesta a quien la escribió.
   const panel = useOutletContext<PanelContext>();
+  const canReadTeam = panel.activeOrganization.permissions.includes("users.read");
+  const canManage = panel.activeOrganization.permissions.includes(
+    "conversations.manage",
+  );
   const [status, setStatus] = useState<"open" | "resolved">("open");
+  const [assignee, setAssignee] = useState<AssigneeFilter>("all");
+  const [members, setMembers] = useState<TeamMember[]>([]);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [selected, setSelected] = useState<ConversationSummary | null>(null);
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
@@ -42,7 +51,7 @@ export function ConversationInbox() {
   async function refreshList() {
     setError(null);
     try {
-      const result = await listConversations(status);
+      const result = await listConversations(status, undefined, assignee);
       setConversations((previous) => mergeConversations(previous, result.conversations));
       if (listCursor === null) setListCursor(result.nextCursor);
       if (selected) {
@@ -61,7 +70,7 @@ export function ConversationInbox() {
     setListCursor(null);
     setError(null);
     try {
-      const result = await listConversations(status);
+      const result = await listConversations(status, undefined, assignee);
       setConversations(result.conversations);
       setListCursor(result.nextCursor);
     } catch (caught) {
@@ -75,7 +84,7 @@ export function ConversationInbox() {
     if (!listCursor || loadingMore) return;
     setLoadingMore(true);
     try {
-      const result = await listConversations(status, listCursor);
+      const result = await listConversations(status, listCursor, assignee);
       setConversations((previous) => mergeConversations(previous, result.conversations));
       setListCursor(result.nextCursor);
     } catch (caught) {
@@ -128,7 +137,17 @@ export function ConversationInbox() {
     void resetList();
     const interval = window.setInterval(() => void refreshList(), 10_000);
     return () => window.clearInterval(interval);
-  }, [status]);
+  }, [status, assignee]);
+
+  // El equipo cambia con mucha menos frecuencia que las conversaciones: se
+  // carga una vez y sirve al filtro, al selector de responsable y a la
+  // atribución de los mensajes que envió otra persona.
+  useEffect(() => {
+    if (!canReadTeam) return;
+    void listTeamMembers()
+      .then(setMembers)
+      .catch(() => setMembers([]));
+  }, [canReadTeam]);
 
   useEffect(() => {
     if (!selected) return;
@@ -183,7 +202,11 @@ export function ConversationInbox() {
     }
   }
 
-  async function changeState(input: { status?: "open" | "resolved"; attentionMode?: "human" | "paused" }) {
+  async function changeState(input: {
+    status?: "open" | "resolved";
+    attentionMode?: "human" | "paused";
+    assigneeMembershipId?: string | null;
+  }) {
     if (!selected) return;
     try {
       await updateConversation(selected.id, { expectedVersion: selected.version, ...input });
@@ -193,6 +216,10 @@ export function ConversationInbox() {
       await resetList();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "No fue posible actualizar la conversación.");
+      // La versión sube también con cada mensaje entrante o saliente, así que un
+      // conflicto es corriente en una conversación activa. Recargar deja la
+      // vista lista para reintentar en vez de exigir un refresco manual.
+      await refreshThread(selected);
     }
   }
 
@@ -222,11 +249,14 @@ export function ConversationInbox() {
           hilo cuando hay una conversación abierta. */}
       <div className="grid min-h-0 flex-1 md:grid-cols-[320px_1fr] lg:grid-cols-[360px_1fr]">
         <ConversationList
+          assignee={assignee}
           canLoadMore={listCursor !== null}
           className={cn(selected && "hidden md:flex")}
           conversations={conversations}
           loading={loading}
           loadingMore={loadingMore}
+          members={canReadTeam ? members : null}
+          onAssigneeChange={setAssignee}
           onLoadMore={() => void loadMoreConversations()}
           onRefresh={() => void resetList()}
           onSelect={(conversation) => void openConversation(conversation)}
@@ -244,6 +274,8 @@ export function ConversationInbox() {
           }}
           currentUser={panel.user}
           loadingOlder={loadingOlder}
+          members={canReadTeam ? members : null}
+          canAssign={canManage && canReadTeam}
           messages={messages}
           onBack={() => setSelected(null)}
           onChangeState={(input) => void changeState(input)}

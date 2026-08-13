@@ -1,4 +1,11 @@
-import { ArrowLeft, MessageCircleMore, Pause, Send, UserRoundCheck } from "lucide-react";
+import {
+  ArrowLeft,
+  MessageCircleMore,
+  Pause,
+  Send,
+  UserRound,
+  UserRoundCheck,
+} from "lucide-react";
 import { useEffect, type ChangeEvent } from "react";
 
 import {
@@ -10,6 +17,13 @@ import { ContactSheet } from "@/components/contact-sheet";
 import { DevInboundButton } from "@/components/dev-inbound-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Empty,
   EmptyDescription,
@@ -29,7 +43,11 @@ import {
 } from "@/components/ui/message-scroller";
 import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
-import type { ConversationMessage, ConversationSummary } from "@/lib/api";
+import type {
+  ConversationMessage,
+  ConversationSummary,
+  TeamMember,
+} from "@/lib/api";
 
 const statusLabels: Record<ConversationSummary["status"], string> = {
   open: "Abierta",
@@ -56,20 +74,32 @@ export type ThreadRow = {
 
 /**
  * Resuelve quién firma un mensaje. Un saliente propio se atribuye a la persona
- * de la sesión; el de otro colaborador se anuncia como equipo, porque sin el
- * directorio de miembros no hay forma de resolver `senderId` a un nombre y
+ * de la sesión; el de otro colaborador, a su nombre en el directorio del
+ * equipo. Sigue anunciándose como equipo cuando ese directorio no está
+ * disponible —la sesión no puede leerlo o quien envió ya no aparece—, porque
  * atribuirlo a la cuenta actual sería falso.
  */
 function messageAuthor(
   message: ConversationMessage,
   contactName: string,
   currentUser: { id: string; name: string },
+  members: TeamMember[] | null,
 ): MessageAuthor {
   if (message.direction === "incoming") {
     return { key: "contact", name: contactName, anonymousTeam: false };
   }
   if (message.senderId && message.senderId === currentUser.id) {
     return { key: `user:${currentUser.id}`, name: currentUser.name, anonymousTeam: false };
+  }
+  const teammate = message.senderId
+    ? members?.find((member) => member.userId === message.senderId)
+    : undefined;
+  if (teammate) {
+    return {
+      key: `user:${teammate.userId}`,
+      name: teammate.name,
+      anonymousTeam: false,
+    };
   }
   return { key: `team:${message.senderId ?? "desconocido"}`, name: "Equipo", anonymousTeam: true };
 }
@@ -83,6 +113,7 @@ export function threadRows(
   messages: ConversationMessage[],
   contactName: string,
   currentUser: { id: string; name: string },
+  members: TeamMember[] | null = null,
 ): ThreadRow[] {
   let currentDay: string | null = null;
   const rows: ThreadRow[] = messages.map((message) => {
@@ -94,7 +125,7 @@ export function threadRows(
       message,
       author: message.senderType === "system"
         ? null
-        : messageAuthor(message, contactName, currentUser),
+        : messageAuthor(message, contactName, currentUser, members),
       dayLabel: startsDay
         ? occurred.toLocaleDateString([], { day: "numeric", month: "long", year: "numeric" })
         : null,
@@ -143,12 +174,14 @@ function LoadOlderOnReveal({
 }
 
 export function ConversationThread({
+  canAssign,
   canLoadOlder,
   composerDisabled,
   composerPlaceholder,
   contactAccess,
   currentUser,
   loadingOlder,
+  members,
   messages,
   onBack,
   onChangeState,
@@ -160,6 +193,9 @@ export function ConversationThread({
   sending,
   text,
 }: {
+  // Elegir responsable exige gestionar conversaciones y leer el equipo; el
+  // backend vuelve a comprobar ambas cosas.
+  canAssign: boolean;
   canLoadOlder: boolean;
   composerDisabled: boolean;
   composerPlaceholder: string;
@@ -168,11 +204,13 @@ export function ConversationThread({
   contactAccess: { canRead: boolean; canManage: boolean };
   currentUser: { id: string; name: string };
   loadingOlder: boolean;
+  members: TeamMember[] | null;
   messages: ConversationMessage[];
   onBack: () => void;
   onChangeState: (input: {
     status?: "open" | "resolved";
     attentionMode?: "human" | "paused";
+    assigneeMembershipId?: string | null;
   }) => void;
   onComposerChange: (event: ChangeEvent<HTMLTextAreaElement>) => void;
   onLoadOlder: () => void;
@@ -204,7 +242,7 @@ export function ConversationThread({
   const paused = selected.attentionMode === "paused";
   const resolved = selected.status === "resolved";
   const contactName = selected.contactDisplayName ?? selected.contactExternalId;
-  const rows = threadRows(messages, contactName, currentUser);
+  const rows = threadRows(messages, contactName, currentUser, members);
 
   return (
     <div className="flex min-h-0 flex-col">
@@ -239,6 +277,38 @@ export function ConversationThread({
               canManage={contactAccess.canManage}
               contactId={selected.contactId}
             />
+          ) : null}
+          {canAssign && members ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline">
+                  <UserRound />
+                  {selected.assignee?.name ?? "Sin responsable"}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuRadioGroup
+                  onValueChange={(value) =>
+                    onChangeState({
+                      assigneeMembershipId: value === "none" ? null : value,
+                    })
+                  }
+                  value={selected.assignee?.membershipId ?? "none"}
+                >
+                  <DropdownMenuRadioItem value="none">
+                    Sin responsable
+                  </DropdownMenuRadioItem>
+                  {members.map((member) => (
+                    <DropdownMenuRadioItem
+                      key={member.membershipId}
+                      value={member.membershipId}
+                    >
+                      {member.name}
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
           ) : null}
           <Button
             onClick={() => onChangeState({ attentionMode: paused ? "human" : "paused" })}
