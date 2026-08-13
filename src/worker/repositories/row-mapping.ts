@@ -15,6 +15,8 @@ import type {
   InboundWebhookEventType,
   Organization,
   OrganizationStatus,
+  Service,
+  ServiceStatus,
 } from "../domain/types";
 
 /**
@@ -63,6 +65,19 @@ export type ContactIdentityRow = {
   updated_at: string;
 };
 
+export type ServiceRow = {
+  id: string;
+  organization_id: string;
+  name: string;
+  duration_minutes: number;
+  price_amount_cents: number | null;
+  price_currency: string | null;
+  status: string;
+  version: number;
+  created_at: string;
+  updated_at: string;
+};
+
 export type CommunicationChannelRow = {
   id: string;
   organization_id: string;
@@ -104,6 +119,7 @@ const contactTagColors: readonly ContactTagColor[] = [
   "warning",
   "danger",
 ];
+const serviceStatuses: readonly ServiceStatus[] = ["active", "archived"];
 const identityProviders: readonly IdentityProvider[] = ["whatsapp"];
 const channelProviders: readonly ChannelProvider[] = ["whatsapp"];
 const channelAdapters: readonly ChannelAdapter[] = ["zernio"];
@@ -166,6 +182,21 @@ export function toContactTag(row: ContactTagRow): ContactTag {
     organizationId: row.organization_id,
     name: row.name,
     color: asMember(contactTagColors, row.color, "contact_tags.color"),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function toService(row: ServiceRow): Service {
+  return {
+    id: row.id,
+    organizationId: row.organization_id,
+    name: row.name,
+    durationMinutes: row.duration_minutes,
+    priceAmountCents: row.price_amount_cents,
+    priceCurrency: row.price_currency,
+    status: asMember(serviceStatuses, row.status, "services.status"),
+    version: row.version,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

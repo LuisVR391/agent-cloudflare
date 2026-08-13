@@ -7,7 +7,7 @@ import {
 import type { Organization } from "../../src/worker/domain/types";
 import { createRepositories } from "../../src/worker/repositories";
 
-const { organizations, contacts } = createRepositories(env.DB);
+const { organizations, contacts, services } = createRepositories(env.DB);
 
 let salon: Organization;
 let barberia: Organization;
@@ -55,6 +55,18 @@ describe("aislamiento por organización", () => {
     ).resolves.toBeNull();
   });
 
+  it("no lista servicios de otra organización", async () => {
+    const propio = await services.create(salon.id, {
+      name: "Corte",
+      durationMinutes: 30,
+    });
+    await services.create(barberia.id, { name: "Corte", durationMinutes: 30 });
+
+    const listados = await services.list(salon.id, { status: "all" });
+
+    expect(listados.map((servicio) => servicio.id)).toEqual([propio.id]);
+  });
+
   it("falla de forma cerrada cuando no hay organización", async () => {
     await expect(contacts.listByOrganization("")).rejects.toBeInstanceOf(
       MissingOrganizationScopeError,
@@ -64,6 +76,12 @@ describe("aislamiento por organización", () => {
     );
     await expect(
       contacts.findByExternalIdentity("", "whatsapp", "5215550001111"),
+    ).rejects.toBeInstanceOf(MissingOrganizationScopeError);
+    await expect(services.list("")).rejects.toBeInstanceOf(
+      MissingOrganizationScopeError,
+    );
+    await expect(
+      services.create("   ", { name: "Corte", durationMinutes: 30 }),
     ).rejects.toBeInstanceOf(MissingOrganizationScopeError);
   });
 });

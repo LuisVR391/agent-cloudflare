@@ -35,6 +35,7 @@ describe("migraciones de D1", () => {
         "permissions",
         "role_permissions",
         "roles",
+        "services",
         "user_accounts",
         "user_sessions",
         "users",
@@ -59,6 +60,7 @@ describe("migraciones de D1", () => {
       "0009_message_attachment_recovery.sql",
       "0010_contacts_profile_and_tags.sql",
       "0011_team_invitations_and_conversation_assignment.sql",
+      "0012_service_catalog.sql",
     ]);
   });
 
@@ -80,6 +82,8 @@ describe("migraciones de D1", () => {
         "inbound_webhook_events_organization_status_idx",
         "contacts_organization_created_idx",
         "organizations_slug_unique",
+        "services_organization_normalized_name_unique",
+        "services_organization_status_name_idx",
         "message_status_events_reconciliation_idx",
         "messages_organization_platform_idx",
         "outbound_deliveries_organization_external_idx",
