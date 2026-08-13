@@ -42,6 +42,7 @@ describe("inbox de conversaciones", () => {
         id: "message-1",
         direction: "incoming",
         senderType: "customer",
+        messageType: "text",
         text: "Quiero información",
         status: "received",
         occurredAt: conversation.lastMessageAt,
@@ -100,6 +101,7 @@ describe("inbox de conversaciones", () => {
         id: "message-media",
         direction: "incoming",
         senderType: "customer",
+        messageType: "image",
         text: null,
         status: "received",
         occurredAt: conversation.lastMessageAt,
@@ -147,6 +149,7 @@ describe("inbox de conversaciones", () => {
         id: "message-rejected",
         direction: "incoming",
         senderType: "customer",
+        messageType: "image",
         text: null,
         status: "received",
         occurredAt: conversation.lastMessageAt,
@@ -169,6 +172,31 @@ describe("inbox de conversaciones", () => {
     expect(screen.queryByRole("link", { name: /^Abrir/ })).not.toBeInTheDocument();
   });
 
+  it("anuncia un medio que no dejó adjunto en vez de una fila vacía", async () => {
+    // Ocurre con los medios recibidos antes de que el canal los conservara: el
+    // mensaje llega sin texto y sin adjuntos, y `messageType` es lo único que
+    // dice qué era.
+    vi.mocked(getConversationMessages).mockResolvedValue({
+      conversation,
+      messages: [{
+        id: "message-sin-medio",
+        direction: "incoming",
+        senderType: "customer",
+        messageType: "audio",
+        text: null,
+        status: "received",
+        occurredAt: conversation.lastMessageAt,
+        attachments: [],
+      }],
+    });
+    const user = userEvent.setup();
+    render(<ConversationInbox />);
+    await user.click(await screen.findByRole("button", { name: /María/i }));
+
+    expect(await screen.findByText("Audio")).toBeInTheDocument();
+    expect(screen.getByText("No se conservó desde el canal")).toBeInTheDocument();
+  });
+
   it("muestra un fallo saliente con una etiqueta comprensible", async () => {
     vi.mocked(getConversationMessages).mockResolvedValue({
       conversation,
@@ -176,6 +204,7 @@ describe("inbox de conversaciones", () => {
         id: "message-failed",
         direction: "outgoing",
         senderType: "staff",
+        messageType: "text",
         text: "No llegó",
         status: "failed",
         occurredAt: conversation.lastMessageAt,

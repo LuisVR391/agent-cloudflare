@@ -114,6 +114,15 @@ export type ConversationMessage = {
   id: string;
   direction: "incoming" | "outgoing";
   senderType: "customer" | "staff" | "system";
+  messageType:
+    | "text"
+    | "image"
+    | "video"
+    | "audio"
+    | "file"
+    | "sticker"
+    | "share"
+    | "unsupported";
   text: string | null;
   status: "received" | "queued" | "sent" | "delivered" | "read" | "failed" | "delivery_unknown";
   occurredAt: string;

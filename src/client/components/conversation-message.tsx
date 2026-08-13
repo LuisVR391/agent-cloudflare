@@ -82,6 +82,34 @@ function formatTime(occurredAt: string): string {
   });
 }
 
+/**
+ * Un medio recibido antes de que el canal conservara sus adjuntos no deja fila
+ * en `message_attachments`, así que el mensaje llega sin texto y sin adjuntos.
+ * `messageType` es lo único que dice qué era, y sin él la fila quedaría reducida
+ * a su hora, como si el mensaje no existiera.
+ */
+function MissingContent({ messageType }: { messageType: ConversationMessage["messageType"] }) {
+  if (messageType === "text") {
+    return (
+      <Bubble variant="outline">
+        <BubbleContent>Mensaje sin contenido</BubbleContent>
+      </Bubble>
+    );
+  }
+  const Icon = attachmentIcons[messageType];
+  return (
+    <Attachment state="error">
+      <AttachmentMedia>
+        <Icon />
+      </AttachmentMedia>
+      <AttachmentContent>
+        <AttachmentTitle>{attachmentTypeLabels[messageType]}</AttachmentTitle>
+        <AttachmentDescription>No se conservó desde el canal</AttachmentDescription>
+      </AttachmentContent>
+    </Attachment>
+  );
+}
+
 function ConversationAttachment({
   attachment,
   conversationId,
@@ -125,7 +153,9 @@ function ConversationAttachment({
         {/* El reproductor vive dentro de la tarjeta para que cada hijo del
             grupo siga siendo un adjunto y conserve su ancho al desplazarse. */}
         {attachment.type === "audio" ? (
-          <audio className="mt-1.5 w-full max-w-64" controls src={href}>
+          // El ancho es explícito porque la tarjeta se dimensiona a su
+          // contenido: con `w-full` el reproductor colapsa y queda inservible.
+          <audio className="mt-1.5 w-64 max-w-full" controls src={href}>
             {label}
           </audio>
         ) : null}
@@ -186,6 +216,9 @@ export function ConversationMessageRow({
               />
             ))}
           </AttachmentGroup>
+        ) : null}
+        {!message.text && message.attachments.length === 0 ? (
+          <MissingContent messageType={message.messageType} />
         ) : null}
         <MessageFooter className="gap-2">
           {message.status === "failed" ? (
