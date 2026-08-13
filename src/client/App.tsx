@@ -25,6 +25,7 @@ import { InvitationAcceptance } from "@/components/invitation-acceptance";
 import { TeamDirectory } from "@/components/team-directory";
 import { PanelOverview } from "@/components/panel-overview";
 import { PanelShell } from "@/components/panel-shell";
+import { ServiceCatalog } from "@/components/service-catalog";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -484,6 +485,7 @@ export function App() {
           <Route element={<PanelOverview />} index />
           <Route element={<ConversationInbox />} path="conversaciones" />
           <Route element={<ContactDirectory />} path="contactos" />
+          <Route element={<ServiceCatalog />} path="servicios" />
           <Route element={<TeamDirectory />} path="equipo" />
           <Route element={<Navigate replace to="/app" />} path="*" />
         </Route>

@@ -4,6 +4,7 @@ import {
   Contact,
   Inbox,
   MessageCircleMore,
+  Scissors,
   Settings2,
   Users,
 } from "lucide-react";
@@ -35,6 +36,7 @@ export const panelSections = [
   { label: "Resumen", icon: CircleGauge, path: "/app" },
   { label: "Conversaciones", icon: Inbox, path: "/app/conversaciones" },
   { label: "Contactos", icon: Contact, path: "/app/contactos" },
+  { label: "Servicios", icon: Scissors, path: "/app/servicios" },
   { label: "Agentes", icon: Bot, path: null },
   { label: "Equipo", icon: Users, path: "/app/equipo" },
   { label: "Configuración", icon: Settings2, path: null },

@@ -323,6 +323,70 @@ export async function removeContactTag(contactId: string, tagId: string) {
   return body.contact;
 }
 
+/**
+ * Servicio del catálogo. El precio viaja como importe entero en la unidad
+ * menor de su moneda, tal como lo persiste el Worker: convertirlo a decimal
+ * aquí solo sirve para presentarlo.
+ */
+export type Service = {
+  id: string;
+  name: string;
+  durationMinutes: number;
+  priceAmountCents: number | null;
+  priceCurrency: string | null;
+  status: "active" | "archived";
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ServiceInput = {
+  name: string;
+  durationMinutes: number;
+  price?: { amountCents: number; currency: string } | null;
+  status?: Service["status"];
+};
+
+export async function listServices(status: "active" | "archived" | "all" = "active") {
+  const response = await fetch(`/api/services?status=${status}`, {
+    credentials: "same-origin",
+  });
+  if (!response.ok) throw new Error(await parseError(response, "No fue posible cargar los servicios."));
+  const body = (await response.json()) as { services: Service[] };
+  return body.services;
+}
+
+export async function createService(input: ServiceInput) {
+  const response = await fetch("/api/services", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error(await parseError(response, "No fue posible crear el servicio."));
+  const body = (await response.json()) as { service: Service };
+  return body.service;
+}
+
+/**
+ * Un campo ausente se conserva, igual que en el Worker. `price: null` borra
+ * importe y moneda a la vez, porque uno sin el otro no significa nada.
+ */
+export async function updateService(
+  serviceId: string,
+  input: Partial<ServiceInput> & { expectedVersion: number },
+) {
+  const response = await fetch(`/api/services/${encodeURIComponent(serviceId)}`, {
+    method: "PATCH",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error(await parseError(response, "No fue posible actualizar el servicio."));
+  const body = (await response.json()) as { service: Service };
+  return body.service;
+}
+
 export type TeamRole = "owner" | "manager" | "operator";
 
 export type TeamMember = {
