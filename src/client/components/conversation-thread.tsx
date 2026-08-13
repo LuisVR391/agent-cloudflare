@@ -6,6 +6,7 @@ import {
   SystemNote,
   type MessageAuthor,
 } from "@/components/conversation-message";
+import { ContactSheet } from "@/components/contact-sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -144,6 +145,7 @@ export function ConversationThread({
   canLoadOlder,
   composerDisabled,
   composerPlaceholder,
+  contactAccess,
   currentUser,
   loadingOlder,
   messages,
@@ -159,6 +161,9 @@ export function ConversationThread({
   canLoadOlder: boolean;
   composerDisabled: boolean;
   composerPlaceholder: string;
+  // La ficha se anuncia solo a quien puede consultarla, y se edita solo con
+  // permiso de gestión. El backend vuelve a comprobar ambas cosas.
+  contactAccess: { canRead: boolean; canManage: boolean };
   currentUser: { id: string; name: string };
   loadingOlder: boolean;
   messages: ConversationMessage[];
@@ -219,6 +224,12 @@ export function ConversationThread({
         </div>
         <Badge variant={resolved ? "secondary" : "outline"}>{statusLabels[selected.status]}</Badge>
         <div className="flex gap-2">
+          {contactAccess.canRead ? (
+            <ContactSheet
+              canManage={contactAccess.canManage}
+              contactId={selected.contactId}
+            />
+          ) : null}
           <Button
             onClick={() => onChangeState({ attentionMode: paused ? "human" : "paused" })}
             variant="outline"
