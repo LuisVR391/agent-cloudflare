@@ -215,6 +215,7 @@ está en [base de datos local](./.docs/operations/local-database.md).
 | `npm run cf-typegen` | Regenera los tipos de bindings de Wrangler |
 | `npm run db:migrate` | Aplica las migraciones de D1 en la base local |
 | `npm run db:migrations:list` | Muestra las migraciones de D1 pendientes en local |
+| `npm run dev:inbound` | Envía un mensaje entrante firmado al servidor local para poblar el inbox |
 | `npm run check` | Ejecuta guardrails, tipos, pruebas, build y dry-run de staging |
 | `npm run check:staging` | Construye y valida `env.staging` sin publicar |
 | `npm run deploy:staging` | Construye y despliega únicamente a staging; requiere autorización explícita para el artefacto actual |
