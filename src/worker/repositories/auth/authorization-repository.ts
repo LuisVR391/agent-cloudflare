@@ -180,6 +180,62 @@ export class AuthorizationRepository {
     await this.#db.batch(statements);
   }
 
+  /**
+   * Incorpora a una persona ya identificada como miembro de una organización
+   * existente. Es la parte de `seedOwner` que una invitación aceptada necesita,
+   * sin crear organización ni roles: esos ya existen.
+   *
+   * `listAccessForUser` une `membership_roles` con `INNER JOIN`, así que una
+   * membresía sin rol sería invisible y la persona entraría sin acceso. Por eso
+   * el rol se resuelve dentro de la misma sentencia y el resultado se
+   * comprueba en vez de darse por hecho.
+   */
+  async addMember(
+    organizationId: string,
+    userId: string,
+    roleKey: OrganizationAccess["role"],
+  ): Promise<string> {
+    const now = new Date().toISOString();
+    const membershipId = crypto.randomUUID();
+    const [, roleAssignment] = await this.#db.batch([
+      this.#db
+        .prepare(
+          `INSERT INTO memberships
+             (id, organization_id, user_id, status, created_at, updated_at)
+           VALUES (?, ?, ?, 'active', ?, ?)`,
+        )
+        .bind(membershipId, organizationId, userId, now, now),
+      this.#db
+        .prepare(
+          `INSERT INTO membership_roles
+             (organization_id, membership_id, role_id, assigned_at)
+           SELECT ?, ?, id, ?
+             FROM roles
+            WHERE organization_id = ? AND role_key = ?`,
+        )
+        .bind(organizationId, membershipId, now, organizationId, roleKey),
+    ]);
+
+    if (roleAssignment.meta.changes !== 1) {
+      throw new Error("MEMBERSHIP_ROLE_NOT_ASSIGNED");
+    }
+
+    return membershipId;
+  }
+
+  /** Compensación: deja la organización como estaba si el alta no termina. */
+  async deleteMembership(
+    organizationId: string,
+    membershipId: string,
+  ): Promise<void> {
+    await this.#db
+      .prepare(
+        `DELETE FROM memberships WHERE organization_id = ? AND id = ?`,
+      )
+      .bind(organizationId, membershipId)
+      .run();
+  }
+
   async listAccessForUser(userId: string): Promise<OrganizationAccess[]> {
     const rows = await this.#db
       .prepare(

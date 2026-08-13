@@ -13,6 +13,7 @@ import { handleOutboundQueue } from "./integrations/zernio/outbound-queue";
 import { handleZernioWebhook } from "./integrations/zernio/webhook";
 import { routeContactApi } from "./contact-api";
 import { routeConversationApi } from "./conversation-api";
+import { routeTeamApi } from "./team-api";
 import { AuthorizationRepository } from "./repositories/auth/authorization-repository";
 
 export { CustomerSupportAgent } from "./customer-support-agent";
@@ -52,6 +53,9 @@ export default {
 
     const contactResponse = await routeContactApi(request, workerEnv);
     if (contactResponse) return contactResponse;
+
+    const teamResponse = await routeTeamApi(request, workerEnv);
+    if (teamResponse) return teamResponse;
 
     // Utillaje de desarrollo. La importación es dinámica y vive dentro del
     // guard para que el artefacto construido no contenga la ruta:
