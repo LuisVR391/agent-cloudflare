@@ -81,13 +81,21 @@ estructura y proceso de sustitución.
 
 ### Fase 2 — CRM
 
-| Documento planificado | Estado | Contenido |
-| --- | --- | --- |
-| `modules/contacts-and-conversations.md` | Pendiente | Contactos, identidades, conversaciones y asignaciones |
-| `modules/teams-and-permissions.md` | Pendiente | Miembros, roles y permisos |
-| `modules/pipelines.md` | Pendiente | Pipelines, etapas, transiciones y oportunidades |
-| `modules/appointments-and-tasks.md` | Pendiente | Agenda, citas, tareas y seguimientos |
-| `modules/initial-metrics.md` | Pendiente | Métricas operativas y comerciales iniciales |
+La fase está descompuesta en seis cortes verticales en el
+[roadmap](./product/roadmap.md#fase-2--crm), con seguimiento en el
+[issue #33](https://github.com/LuisVR391/agent-cloudflare/issues/33). Cada corte
+escribe su documento de módulo cuando existen sus interfaces, no antes.
+
+| Documento planificado | Estado | Corte | Contenido |
+| --- | --- | --- | --- |
+| [ADR-0010: Modelo comercial del CRM](./decisions/ADR-0010-crm-commercial-model.md) | Propuesto | Transversal | Pipeline configurable, oportunidad, separación de estados, servicios y zona horaria |
+| [ADR-0011: Invitaciones de colaboradores](./decisions/ADR-0011-collaborator-invitations.md) | Propuesto | Transversal | Alta por invitación con token de un solo uso, sin reabrir el registro |
+| [ADR-0012: Métricas iniciales](./decisions/ADR-0012-initial-metrics.md) | Propuesto | Transversal | Cálculo derivado de D1 con rango acotado, sin almacén analítico |
+| `modules/contacts-and-conversations.md` | Pendiente | [#34](https://github.com/LuisVR391/agent-cloudflare/issues/34) | Contactos, identidades, etiquetas y su relación con la conversación |
+| `modules/teams-and-permissions.md` | Pendiente | [#35](https://github.com/LuisVR391/agent-cloudflare/issues/35) | Miembros, roles, invitaciones y asignación |
+| `modules/pipelines.md` | Pendiente | [#36](https://github.com/LuisVR391/agent-cloudflare/issues/36) | Servicios, pipelines, etapas, transiciones y oportunidades |
+| `modules/appointments-and-tasks.md` | Pendiente | [#37](https://github.com/LuisVR391/agent-cloudflare/issues/37) y [#38](https://github.com/LuisVR391/agent-cloudflare/issues/38) | Notas, tareas, agenda y ciclo de estados de la cita |
+| `modules/initial-metrics.md` | Pendiente | [#39](https://github.com/LuisVR391/agent-cloudflare/issues/39) | Métricas operativas y comerciales iniciales |
 
 ### Fase 3 — Agentes
 

@@ -118,9 +118,43 @@ medible.
 
 **Dependencia:** Fase 1 completada.
 
+**Seguimiento:** [Issue #33](https://github.com/LuisVR391/agent-cloudflare/issues/33),
+con cortes de contactos [#34](https://github.com/LuisVR391/agent-cloudflare/issues/34),
+equipo y asignación [#35](https://github.com/LuisVR391/agent-cloudflare/issues/35),
+pipeline y oportunidades [#36](https://github.com/LuisVR391/agent-cloudflare/issues/36),
+notas y tareas [#37](https://github.com/LuisVR391/agent-cloudflare/issues/37),
+citas [#38](https://github.com/LuisVR391/agent-cloudflare/issues/38) y
+métricas iniciales [#39](https://github.com/LuisVR391/agent-cloudflare/issues/39).
+
+| Entregable | Estado | Dependencia | Evidencia |
+| --- | --- | --- | --- |
+| Contactos con ficha, teléfono y etiquetas | Planificado | Fase 1 | [Issue #34](https://github.com/LuisVR391/agent-cloudflare/issues/34) |
+| Equipo, invitaciones y asignación de conversaciones | Planificado | Contactos de #34 | [Issue #35](https://github.com/LuisVR391/agent-cloudflare/issues/35) y [ADR-0011](../decisions/ADR-0011-collaborator-invitations.md) |
+| Servicios, pipeline y oportunidades | Planificado | Contactos de #34 | [Issue #36](https://github.com/LuisVR391/agent-cloudflare/issues/36) y [ADR-0010](../decisions/ADR-0010-crm-commercial-model.md) |
+| Notas y tareas con responsable | Planificado | Equipo de #35 | [Issue #37](https://github.com/LuisVR391/agent-cloudflare/issues/37) |
+| Citas desde la conversación | Planificado | Equipo de #35 y pipeline de #36 | [Issue #38](https://github.com/LuisVR391/agent-cloudflare/issues/38) |
+| Métricas iniciales del proceso | Planificado | Entregables #36, #37 y #38 | [Issue #39](https://github.com/LuisVR391/agent-cloudflare/issues/39) y [ADR-0012](../decisions/ADR-0012-initial-metrics.md) |
+
+La evidencia de un entregable `Planificado` es su issue, no una capacidad
+disponible. Cada corte pasa a `Completado` al fusionarse en `main` el PR que
+satisface su criterio, y agrega ese PR a su fila.
+
 **Entregables resumidos:** contactos e identidades, conversaciones y
 asignaciones, equipos, pipeline y oportunidades, notas y tareas, citas y
 métricas iniciales.
+
+**Decisiones de la fase:** [ADR-0010](../decisions/ADR-0010-crm-commercial-model.md),
+[ADR-0011](../decisions/ADR-0011-collaborator-invitations.md) y
+[ADR-0012](../decisions/ADR-0012-initial-metrics.md) están `Propuesto`. Cada
+corte cambia a `Aceptado` el ADR que adopta.
+
+**Requisito transversal:** el catálogo de permisos se siembra hoy únicamente
+durante la instalación, de modo que una organización ya instalada no recibiría
+los permisos que introduce un corte. Cada corte añade una migración aditiva que
+inserta sus permisos y los concede a los roles existentes por `role_key`, y una
+prueba que verifica que una instalación nueva y una migrada producen el mismo
+catálogo. La misma regla aplica a la siembra por organización del pipeline
+inicial.
 
 **Criterio de salida:** un colaborador autorizado puede gestionar, sin cruzar
 organizaciones, el recorrido de un contacto desde la conversación hasta una
