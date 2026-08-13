@@ -18,10 +18,18 @@ const roleNames = {
   operator: "Operador",
 } as const;
 
+/**
+ * Catálogo canónico para una instalación nueva. Una organización ya instalada
+ * no vuelve a pasar por aquí, así que cada corte que añade permisos los
+ * concede además mediante una migración aditiva; `test/contacts.test.ts`
+ * comprueba que ambos caminos producen el mismo catálogo.
+ */
 const permissionDefinitions = [
   ["panel.read", "Acceder al panel administrativo"],
   ["conversations.read", "Consultar conversaciones"],
   ["conversations.manage", "Gestionar conversaciones"],
+  ["contacts.read", "Consultar contactos"],
+  ["contacts.manage", "Gestionar contactos"],
   ["agents.read", "Consultar agentes"],
   ["agents.manage", "Gestionar agentes"],
   ["users.manage", "Gestionar usuarios y membresías"],
@@ -34,10 +42,20 @@ const permissionsByRole: Record<OrganizationAccess["role"], string[]> = {
     "panel.read",
     "conversations.read",
     "conversations.manage",
+    "contacts.read",
+    "contacts.manage",
     "agents.read",
     "agents.manage",
   ],
-  operator: ["panel.read", "conversations.read", "conversations.manage"],
+  // Quien atiende la conversación es quien descubre el nombre correcto del
+  // contacto mientras habla con él, así que también puede corregir la ficha.
+  operator: [
+    "panel.read",
+    "conversations.read",
+    "conversations.manage",
+    "contacts.read",
+    "contacts.manage",
+  ],
 };
 
 export class AuthorizationRepository {
