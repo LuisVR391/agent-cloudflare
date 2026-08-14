@@ -192,7 +192,7 @@ decisión del usuario y se liberan con la marca de su clase:
 | Despliegue que no sea `--dry-run` | `AGENT_DEPLOY_CONFIRMED=1` |
 | `wrangler d1 migrations apply --remote` | `AGENT_MIGRATION_CONFIRMED=1` |
 | `git push` de la rama y commits actuales | `AGENT_PUSH_CONFIRMED=1` |
-| `gh pr`/`gh issue` `merge`, `close` o `reopen` | `AGENT_MERGE_CONFIRMED=1` |
+| Fusionar, cerrar o reabrir un PR o issue, por CLI o por la API | `AGENT_MERGE_CONFIRMED=1` |
 | Eliminación de un recurso Cloudflare | `AGENT_DESTRUCTIVE_CONFIRMED=1` |
 
 Las **prohibiciones permanentes** no se liberan con ninguna marca, porque no
@@ -201,7 +201,8 @@ existe autorización que las habilite:
 - escritura o borrado de secretos con `wrangler secret` o `gh secret`;
 - ejecución remota arbitraria sobre D1 con `wrangler d1 execute --remote`;
 - publicación de releases, alteración del repositorio remoto y `gh workflow run`,
-  además de `gh api` con método `POST`, `PUT`, `PATCH` o `DELETE`;
+  y sus equivalentes por la API: cualquier `DELETE`, y `POST`, `PUT` o `PATCH`
+  sobre releases, secretos, variables, `dispatches` o transferencia;
 - `npm publish`;
 - `git reset --hard`, `git clean` forzado y force push;
 - publicación de `.env`, `.dev.vars`, llaves privadas y archivos equivalentes;
@@ -213,9 +214,18 @@ sin interrumpir el trabajo. El adaptador lo declara con `inlineApprovalTool`; lo
 que no lo declaran conservan el motivo neutral. Las prohibiciones permanentes
 nunca reciben esa invitación, para no sugerir una autorización inexistente.
 
-La inspección remota sigue permitida: `gh pr view`, `gh api` en lectura,
-`wrangler secret list` y `gh pr create` no se bloquean, porque no producen un
-efecto irreversible y el hook ya audita el diff antes de crear un PR.
+La inspección remota sigue permitida: la lectura por la API, `wrangler secret
+list` y la creación de un PR no se bloquean, porque no producen un efecto
+irreversible y el hook audita el diff antes de crear el PR. Esa auditoría
+reconoce tanto `gh pr create` como `POST /repos/:owner/:repo/pulls`, de modo que
+publicar por la API no la evita.
+
+Crear y editar PRs, issues y comentarios por la API tampoco se bloquea: es el
+camino habitual del repositorio, descrito en [`AGENTS.md`](../../AGENTS.md). Lo
+que sí exige la marca de fusión es cambiar el estado, y el guardrail lo detecta
+por el endpoint `/pulls/:n/merge` o por el `state` escrito en el propio comando.
+Por eso el cuerpo que cambia estado no puede ir en un archivo: en un archivo el
+efecto deja de ser visible para el hook.
 
 Los agentes pueden crear commits locales atómicos sin una aprobación adicional.
 Antes de publicar, deben mostrar la rama, los commits y las validaciones,

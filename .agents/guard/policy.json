@@ -134,9 +134,23 @@
       "message": "Bloqueado: publicar releases, alterar el repositorio, escribir secretos o lanzar workflows requiere una operación humana separada."
     },
     {
-      "id": "github-api-mutation",
-      "pattern": "(^|[;&|]\\s*|\\s)gh\\s+api\\b[^\\n;&|]*(?:-X|--method)[=\\s]+(?:POST|PUT|PATCH|DELETE)\\b",
-      "message": "Bloqueado: `gh api` con un método mutante altera el repositorio remoto sin dejar la auditoría de un flujo revisado."
+      "id": "github-api-state-change",
+      "pattern": "(?=[\\s\\S]*(?:api\\.github\\.com|gh\\s+api\\b))(?=[\\s\\S]*(?:-X|--request|--method)[=\\s]+(?:POST|PUT|PATCH|DELETE)\\b)[\\s\\S]*(?:/pulls/\\d+/merge|\"state\"\\s*:|(?:-f|-F|--field|--raw-field)[=\\s]+state=)",
+      "confirmation": {
+        "environmentVariable": "AGENT_MERGE_CONFIRMED",
+        "value": "1"
+      },
+      "message": "Bloqueado: fusionar, cerrar o reabrir por la API de GitHub requiere autorización explícita del usuario para ese PR o issue. Después de recibirla, ejecuta `AGENT_MERGE_CONFIRMED=1 <comando>` en el mismo comando, con el cuerpo que cambia el estado escrito en el propio comando y no en un archivo, para que quede auditado."
+    },
+    {
+      "id": "github-api-destructive",
+      "pattern": "(?=[\\s\\S]*(?:api\\.github\\.com|gh\\s+api\\b))[\\s\\S]*(?:-X|--request|--method)[=\\s]+DELETE\\b",
+      "message": "Bloqueado: borrar por la API de GitHub es una operación humana separada; ninguna autorización del agente la habilita."
+    },
+    {
+      "id": "github-api-remote-mutation",
+      "pattern": "(?=[\\s\\S]*(?:api\\.github\\.com|gh\\s+api\\b))(?=[\\s\\S]*(?:-X|--request|--method)[=\\s]+(?:POST|PUT|PATCH)\\b)[\\s\\S]*(?:/releases\\b|/actions/(?:secrets|variables)\\b|/dispatches\\b|/transfer\\b|/actions/permissions\\b)",
+      "message": "Bloqueado: publicar releases, escribir secretos o variables, disparar workflows y transferir el repositorio requieren una operación humana separada."
     },
     {
       "id": "package-publish",

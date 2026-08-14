@@ -151,6 +151,19 @@ function isGitPush(command) {
   return /(^|[;&|]\s*|\s)git\s+push\b/i.test(command);
 }
 
+// La auditoría del diff se dispara al crear un PR, y crearlo ya no pasa
+// necesariamente por la CLI: `POST /repos/:owner/:repo/pulls` hace lo mismo
+// desde `curl` o desde `gh api`. Sin esto, publicar por la API evitaría la
+// comprobación de documentación, ADR y roadmap.
+function createsPullRequest(command) {
+  if (/(^|[;&|]\s*|\s)gh\s+pr\s+create\b/i.test(command)) return true;
+  const targetsGitHubApi = /api\.github\.com|(^|[;&|]\s*|\s)gh\s+api\b/i.test(
+    command,
+  );
+  const posts = /(?:-X|--request|--method)[=\s]+POST\b/i.test(command);
+  return targetsGitHubApi && posts && /\/pulls\b/i.test(command);
+}
+
 function hasPushConfirmation(command, policy) {
   const variable = policy.pushConfirmation?.environmentVariable;
   const value = policy.pushConfirmation?.value;
@@ -352,7 +365,10 @@ function handlePreToolUse(input, policy, runtime = {}) {
     );
   }
 
-  if (!/\b(git\s+commit|git\s+push|gh\s+pr\s+create)\b/i.test(command)) {
+  if (
+    !/\b(git\s+commit|git\s+push)\b/i.test(command) &&
+    !createsPullRequest(command)
+  ) {
     return null;
   }
 
