@@ -60,6 +60,37 @@ export class DuplicateServiceNameError extends Error {
 }
 
 /**
+ * Un pipeline sin etapas no puede recibir oportunidades ni volver a sembrarse,
+ * así que la última no se borra: primero se crea su reemplazo.
+ */
+export class LastPipelineStageError extends Error {
+  readonly pipelineId: string;
+
+  constructor(pipelineId: string) {
+    super(`El pipeline "${pipelineId}" no puede quedarse sin etapas.`);
+    this.name = "LastPipelineStageError";
+    this.pipelineId = pipelineId;
+  }
+}
+
+/**
+ * El reordenamiento no enumera exactamente las etapas vigentes del pipeline.
+ * Una lista parcial dejaría posiciones huérfanas y una con etapas ajenas
+ * cruzaría el límite de aislamiento, así que se rechaza entera.
+ */
+export class StageOrderMismatchError extends Error {
+  readonly pipelineId: string;
+
+  constructor(pipelineId: string) {
+    super(
+      `El orden solicitado no corresponde a las etapas del pipeline "${pipelineId}".`,
+    );
+    this.name = "StageOrderMismatchError";
+    this.pipelineId = pipelineId;
+  }
+}
+
+/**
  * Una fila persistida contiene un valor fuera del dominio esperado. Indica
  * corrupción o una migración incompleta, no una entrada del usuario.
  */

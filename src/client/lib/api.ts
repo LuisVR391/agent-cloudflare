@@ -387,6 +387,92 @@ export async function updateService(
   return body.service;
 }
 
+/** Token semántico; la interfaz lo traduce a una variante de componente. */
+export type StageColor = "neutral" | "info" | "success" | "warning" | "danger";
+
+export type PipelineStage = {
+  id: string;
+  pipelineId: string;
+  name: string;
+  position: number;
+  color: StageColor;
+};
+
+/**
+ * `version` cubre la configuración completa del pipeline: cualquier cambio en
+ * sus etapas la incrementa, así que toda mutación debe enviar la vigente.
+ */
+export type Pipeline = {
+  id: string;
+  name: string;
+  templateKey: string | null;
+  version: number;
+  stages: PipelineStage[];
+};
+
+export async function listPipelines() {
+  const response = await fetch("/api/pipelines", { credentials: "same-origin" });
+  if (!response.ok) throw new Error(await parseError(response, "No fue posible cargar el pipeline."));
+  const body = (await response.json()) as { pipelines: Pipeline[] };
+  return body.pipelines;
+}
+
+export async function createPipelineStage(
+  pipelineId: string,
+  input: { expectedVersion: number; name: string; color?: StageColor },
+) {
+  const response = await fetch(
+    `/api/pipelines/${encodeURIComponent(pipelineId)}/stages`,
+    {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    },
+  );
+  if (!response.ok) throw new Error(await parseError(response, "No fue posible crear la etapa."));
+  const body = (await response.json()) as { pipeline: Pipeline };
+  return body.pipeline;
+}
+
+export async function updatePipelineStage(
+  pipelineId: string,
+  stageId: string,
+  input: { expectedVersion: number; name?: string; color?: StageColor },
+) {
+  const response = await fetch(
+    `/api/pipelines/${encodeURIComponent(pipelineId)}/stages/${encodeURIComponent(stageId)}`,
+    {
+      method: "PATCH",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    },
+  );
+  if (!response.ok) throw new Error(await parseError(response, "No fue posible actualizar la etapa."));
+  const body = (await response.json()) as { pipeline: Pipeline };
+  return body.pipeline;
+}
+
+/** El orden enumera todas las etapas del pipeline, no solo las que se mueven. */
+export async function reorderPipelineStages(
+  pipelineId: string,
+  input: { expectedVersion: number; stageIds: string[] },
+) {
+  const response = await fetch(
+    `/api/pipelines/${encodeURIComponent(pipelineId)}/stages/order`,
+    {
+      method: "PATCH",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    },
+  );
+  if (!response.ok) throw new Error(await parseError(response, "No fue posible reordenar las etapas."));
+  const body = (await response.json()) as { pipeline: Pipeline };
+  return body.pipeline;
+}
+
 export type TeamRole = "owner" | "manager" | "operator";
 
 export type TeamMember = {
