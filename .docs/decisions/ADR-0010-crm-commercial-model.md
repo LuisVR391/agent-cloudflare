@@ -1,8 +1,16 @@
 # ADR-0010: Modelo comercial del CRM
 
-**Estado:** Propuesto
+**Estado:** Aceptado
 
 **Fecha:** 2026-08-12
+
+**Aceptado:** 2026-08-14, con el corte que adopta la oportunidad
+([#36](https://github.com/LuisVR391/agent-cloudflare/issues/36)). La zona
+horaria de la organización es la única parte que todavía no tiene
+implementación: la introduce el corte de citas
+([#38](https://github.com/LuisVR391/agent-cloudflare/issues/38)), su primer
+consumidor real. El [módulo de pipelines](../modules/pipelines.md) describe lo
+que existe hoy.
 
 ## Contexto
 
