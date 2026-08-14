@@ -1,13 +1,36 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Outlet, Route, Routes } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PipelineBoard } from "../../src/client/components/pipeline-board";
-import { listPipelines } from "../../src/client/lib/api";
+import {
+  listPipelineOpportunities,
+  listPipelines,
+  updateOpportunity,
+} from "../../src/client/lib/api";
 
 vi.mock("../../src/client/lib/api", () => ({
   listPipelines: vi.fn(),
+  listPipelineOpportunities: vi.fn(),
+  updateOpportunity: vi.fn(),
 }));
+
+const opportunity = {
+  id: "opportunity-1",
+  contactId: "contact-1",
+  contactDisplayName: "Lucía Cliente",
+  conversationId: "conversation-1",
+  pipelineId: "pipeline-1",
+  stageId: "stage-1",
+  stageName: "Nuevo contacto",
+  stagePosition: 1,
+  serviceId: "service-1",
+  serviceName: "Corte y peinado",
+  version: 3,
+  createdAt: "2026-08-13T10:00:00.000Z",
+  updatedAt: "2026-08-13T10:00:00.000Z",
+};
 
 const pipeline = {
   id: "pipeline-1",
@@ -32,7 +55,13 @@ const pipeline = {
   ],
 };
 
-function renderBoard(permissions = ["pipelines.read"]) {
+function renderBoard(
+  permissions = [
+    "pipelines.read",
+    "opportunities.read",
+    "opportunities.manage",
+  ],
+) {
   return render(
     <MemoryRouter initialEntries={["/app/pipeline"]}>
       <Routes>
@@ -69,6 +98,11 @@ describe("tablero del pipeline", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(listPipelines).mockResolvedValue([pipeline]);
+    vi.mocked(listPipelineOpportunities).mockResolvedValue({
+      opportunities: [opportunity],
+      limit: 100,
+      truncated: false,
+    });
   });
 
   it("muestra una columna por etapa, en su orden", async () => {
@@ -84,12 +118,62 @@ describe("tablero del pipeline", () => {
     ]);
   });
 
-  it("anuncia cada etapa vacía en vez de fingir contenido", async () => {
+  it("coloca cada oportunidad en su etapa y deja vacías las demás", async () => {
     renderBoard();
 
+    expect(await screen.findByText("Lucía Cliente")).toBeInTheDocument();
+    expect(screen.getByText("Corte y peinado")).toBeInTheDocument();
+    // Solo la segunda columna queda sin tarjetas.
+    expect(screen.getAllByText("Sin oportunidades todavía.")).toHaveLength(1);
+  });
+
+  it("mueve una oportunidad enviando la versión vigente", async () => {
+    const user = userEvent.setup();
+    vi.mocked(updateOpportunity).mockResolvedValue({
+      ...opportunity,
+      stageId: "stage-2",
+      version: 4,
+      transitions: [],
+    });
+    renderBoard();
+
+    await user.click(
+      await screen.findByRole("button", { name: "Mover Lucía Cliente" }),
+    );
+    await user.click(await screen.findByRole("menuitemradio", { name: "Cita agendada" }));
+
+    await waitFor(() =>
+      expect(updateOpportunity).toHaveBeenCalledWith("opportunity-1", {
+        expectedVersion: 3,
+        stageId: "stage-2",
+      }),
+    );
+  });
+
+  it("muestra el conflicto de versión sin dejar la vista a medias", async () => {
+    const user = userEvent.setup();
+    vi.mocked(updateOpportunity).mockRejectedValue(
+      new Error("La oportunidad cambió; vuelve a cargarla."),
+    );
+    renderBoard();
+
+    await user.click(
+      await screen.findByRole("button", { name: "Mover Lucía Cliente" }),
+    );
+    await user.click(await screen.findByRole("menuitemradio", { name: "Cita agendada" }));
+
     expect(
-      await screen.findAllByText("Sin oportunidades todavía."),
-    ).toHaveLength(2);
+      await screen.findByText("La oportunidad cambió; vuelve a cargarla."),
+    ).toBeInTheDocument();
+  });
+
+  it("oculta el movimiento a quien solo puede consultar", async () => {
+    renderBoard(["pipelines.read", "opportunities.read"]);
+
+    expect(await screen.findByText("Lucía Cliente")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Mover Lucía Cliente" }),
+    ).not.toBeInTheDocument();
   });
 
   it("explica el pipeline ausente sin culpar a la persona", async () => {
