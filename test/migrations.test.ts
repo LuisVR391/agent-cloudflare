@@ -22,6 +22,7 @@ describe("migraciones de D1", () => {
         "auth_rate_limits",
         "auth_verifications",
         "contact_identities",
+        "contact_notes",
         "contact_tag_assignments",
         "contact_tags",
         "contacts",
@@ -67,6 +68,7 @@ describe("migraciones de D1", () => {
       "0012_service_catalog.sql",
       "0013_pipelines_and_stages.sql",
       "0014_opportunities.sql",
+      "0015_contact_notes.sql",
     ]);
   });
 
@@ -75,6 +77,8 @@ describe("migraciones de D1", () => {
       expect.arrayContaining([
         "contact_identities_contact_idx",
         "contact_identities_scope_unique",
+        "contact_notes_organization_contact_idx",
+        "contact_notes_organization_conversation_idx",
         "contact_tag_assignments_organization_tag_idx",
         "contact_tags_organization_name_unique",
         "contacts_organization_display_name_idx",
