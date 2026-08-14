@@ -12,7 +12,8 @@ desde una sola interfaz.
 > Fase 2 está en progreso: el contacto tiene una ficha consultable y editable
 > con teléfono, correo y etiquetas, el equipo se incorpora por invitación y
 > asigna responsables a sus conversaciones, y la organización declara su
-> catálogo de servicios con duración y precio.
+> catálogo de servicios y el pipeline comercial por el que avanzará una
+> oportunidad.
 ## Objetivo del producto
 
 Agent Cloudflare debe permitir que una empresa administre desde un solo panel:
@@ -50,17 +51,18 @@ forks del producto.
 | Workers AI | Binding preparado | Binding `AI` declarado, sin flujo de inferencia |
 | R2 | Implementada para Fase 1 | `MEDIA_BUCKET` conserva imágenes, audio y archivos con estado por adjunto; validado con medios reales en staging |
 | Observabilidad | Configurada | Logs y trazas habilitados en Wrangler |
-| D1 en local y pruebas | Implementada para Fase 1 y los tres primeros cortes de Fase 2 | Migraciones `0001` a `0012`, repositorios, mensajes, entregas, adjuntos, contactos, equipo, servicios y aislamiento probado |
+| D1 en local y pruebas | Implementada para Fase 1 y los tres primeros cortes de Fase 2 | Migraciones `0001` a `0013`, repositorios, mensajes, entregas, adjuntos, contactos, equipo, servicios, pipeline y aislamiento probado |
 | Autenticación y autorización | Implementada | Better Auth, sesión D1, instalación única, alta por invitación ([ADR-0011](.docs/decisions/ADR-0011-collaborator-invitations.md)), roles fijos y contexto organizacional |
 | Entornos y staging | Staging desplegado | Recursos aislados; producción sigue sin provisionar |
 | Panel de conversaciones | Implementado para Fase 1 y ampliado en Fase 2 | Inbox protegido con sidebar fijo y paneles de scroll independiente, historial, recepción en vivo, handoff, estados de entrega, adjuntos con nombre, miniatura y descarga, y filtro por responsable |
 | Panel de contactos | Implementado para Fase 2 | Directorio buscable, ficha editable con teléfono, correo y etiquetas, y la misma ficha abierta desde la conversación |
 | Panel de equipo | Implementado para Fase 2 | Miembros con su rol, invitaciones con enlace de un solo uso y revocación |
 | Panel de servicios | Implementado para Fase 2 | Catálogo con duración, precio opcional en su moneda y archivado en lugar de borrado |
+| Panel de pipeline | Implementado para Fase 2 | Tablero con las etapas configuradas y su orden; las oportunidades que las recorren siguen planificadas |
 | Panel de agentes | Planificado | Navegación reservada y deshabilitada |
 | WhatsApp mediante Zernio | Implementado para Fase 1 | Recorrido bidireccional validado con tráfico real, incluidos estados de entrega y medios entrantes |
 | Queues, Workflows y Vectorize | Parcial | Queues de entrada/salida y DLQ provisionadas en staging; Workflows y Vectorize permanecen planificados |
-| CRM, agenda y pipelines | Parcial | Contactos con ficha y etiquetas, equipo con asignación de conversaciones y catálogo de servicios están implementados; pipeline, oportunidades, tareas, citas y métricas siguen planificados en Fase 2 |
+| CRM, agenda y pipelines | Parcial | Contactos con ficha y etiquetas, equipo con asignación de conversaciones, catálogo de servicios y pipeline configurable están implementados; oportunidades, tareas, citas y métricas siguen planificados en Fase 2 |
 | Versionado, evaluación y mejora de agentes | Planificados | Fuera del prototipo actual |
 
 `CustomerSupportAgent` coordina el estado vivo de cada conversación sin
