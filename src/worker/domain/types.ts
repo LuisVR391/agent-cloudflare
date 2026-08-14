@@ -364,6 +364,72 @@ export type Pipeline = {
 
 export type PipelineWithStages = Pipeline & { stages: PipelineStage[] };
 
+/**
+ * Oportunidad comercial: lo que recorre el pipeline (ADR-0010). Pertenece a un
+ * contacto y referencia opcionalmente la conversación que la originó; una
+ * conversación puede producir ninguna, una o varias a lo largo del tiempo.
+ *
+ * Los campos derivados —nombre del contacto, de la etapa y del servicio— viajan
+ * resueltos porque el tablero los necesita y resolverlos por separado exigiría
+ * una consulta por tarjeta.
+ */
+export type Opportunity = {
+  id: string;
+  organizationId: string;
+  contactId: string;
+  contactDisplayName: string | null;
+  conversationId: string | null;
+  pipelineId: string;
+  stageId: string;
+  stageName: string;
+  stagePosition: number;
+  serviceId: string | null;
+  serviceName: string | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/** Un movimiento de etapa, tal como lo conserva el historial. */
+export type OpportunityStageTransition = {
+  id: string;
+  previousStageId: string | null;
+  previousStageName: string | null;
+  nextStageId: string;
+  nextStageName: string;
+  actorType: "staff" | "system";
+  actorId: string | null;
+  correlationId: string;
+  occurredAt: string;
+};
+
+export type OpportunityDetail = Opportunity & {
+  transitions: OpportunityStageTransition[];
+};
+
+export type CreateOpportunityInput = {
+  contactId: string;
+  conversationId?: string | null;
+  pipelineId?: string;
+  stageId?: string;
+  serviceId?: string | null;
+  actorId: string;
+  correlationId: string;
+};
+
+/**
+ * Campos ausentes se conservan; `serviceId: null` lo desvincula. Mover la
+ * etapa registra una transición, cambiar el servicio no: son hechos distintos y
+ * el historial solo explica el recorrido comercial.
+ */
+export type UpdateOpportunityInput = {
+  expectedVersion: number;
+  stageId?: string;
+  serviceId?: string | null;
+  actorId: string;
+  correlationId: string;
+};
+
 export type CreateServiceInput = {
   name: string;
   durationMinutes: number;

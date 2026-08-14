@@ -60,6 +60,35 @@ export class DuplicateServiceNameError extends Error {
 }
 
 /**
+ * La etapa destino no pertenece al pipeline de la oportunidad, o no existe en
+ * esta organización. Las dos se confunden a propósito: distinguirlas revelaría
+ * la existencia de una etapa ajena.
+ */
+export class StageNotInPipelineError extends Error {
+  readonly stageId: string;
+
+  constructor(stageId: string) {
+    super(`La etapa "${stageId}" no pertenece al pipeline de la oportunidad.`);
+    this.name = "StageNotInPipelineError";
+    this.stageId = stageId;
+  }
+}
+
+/**
+ * El servicio referenciado no existe dentro de la organización activa. Como el
+ * contacto, se comprueba dentro de la misma sentencia que escribe.
+ */
+export class ServiceNotInOrganizationError extends Error {
+  readonly serviceId: string;
+
+  constructor(serviceId: string) {
+    super(`El servicio "${serviceId}" no pertenece a la organización indicada.`);
+    this.name = "ServiceNotInOrganizationError";
+    this.serviceId = serviceId;
+  }
+}
+
+/**
  * Un pipeline sin etapas no puede recibir oportunidades ni volver a sembrarse,
  * así que la última no se borra: primero se crea su reemplazo.
  */
