@@ -324,6 +324,52 @@ export async function removeContactTag(contactId: string, tagId: string) {
 }
 
 /**
+ * Nota del contacto. `authorName` viaja resuelto porque la ficha lo muestra en
+ * cada nota; es `null` si quien la escribió ya no está en el equipo.
+ */
+export type ContactNote = {
+  id: string;
+  contactId: string;
+  conversationId: string | null;
+  authorMembershipId: string;
+  authorName: string | null;
+  body: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/** Las notas del contacto incluyen las escritas desde cualquier conversación. */
+export async function listContactNotes(contactId: string) {
+  const response = await fetch(
+    `/api/notes?contactId=${encodeURIComponent(contactId)}`,
+    { credentials: "same-origin" },
+  );
+  if (!response.ok) throw new Error(await parseError(response, "No fue posible cargar las notas."));
+  const body = (await response.json()) as { notes: ContactNote[] };
+  return body.notes;
+}
+
+/**
+ * El autor no viaja: lo resuelve el Worker con la membresía de la sesión.
+ * `conversationId` ancla la nota al hilo desde el que se escribió.
+ */
+export async function createContactNote(input: {
+  contactId: string;
+  conversationId?: string | null;
+  body: string;
+}) {
+  const response = await fetch("/api/notes", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error(await parseError(response, "No fue posible guardar la nota."));
+  const body = (await response.json()) as { note: ContactNote };
+  return body.note;
+}
+
+/**
  * Servicio del catálogo. El precio viaja como importe entero en la unidad
  * menor de su moneda, tal como lo persiste el Worker: convertirlo a decimal
  * aquí solo sirve para presentarlo.

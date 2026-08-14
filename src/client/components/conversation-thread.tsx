@@ -13,6 +13,7 @@ import {
   SystemNote,
   type MessageAuthor,
 } from "@/components/conversation-message";
+import { NoteSheet } from "@/components/contact-notes";
 import { ContactSheet } from "@/components/contact-sheet";
 import { DevInboundButton } from "@/components/dev-inbound-button";
 import { OpportunitySheet } from "@/components/opportunity-sheet";
@@ -281,6 +282,15 @@ export function ConversationThread({
             <ContactSheet
               canManage={contactAccess.canManage}
               contactId={selected.contactId}
+            />
+          ) : null}
+          {/* La nota pertenece al contacto y usa sus mismos permisos; lo que se
+              escriba aquí conserva esta conversación como origen. */}
+          {contactAccess.canRead ? (
+            <NoteSheet
+              canManage={contactAccess.canManage}
+              contactId={selected.contactId}
+              conversationId={selected.id}
             />
           ) : null}
           {opportunityAccess.canRead ? (

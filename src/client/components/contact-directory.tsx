@@ -2,6 +2,7 @@ import { Contact as ContactIcon, Search } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useOutletContext } from "react-router";
 
+import { ContactNotes } from "@/components/contact-notes";
 import { ContactProfileCard } from "@/components/contact-profile";
 import { DevInboundButton } from "@/components/dev-inbound-button";
 import type { PanelContext } from "@/components/panel-shell";
@@ -15,6 +16,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
@@ -245,6 +247,14 @@ export function ContactDirectory() {
                 onAddTag={(name) => run(() => addContactTag(selected.id, name))}
                 onRemoveTag={(tagId) => run(() => removeContactTag(selected.id, tagId))}
                 onSave={(input) => run(() => updateContact(selected.id, input))}
+              />
+              <Separator className="my-6" />
+              {/* Las notas de la ficha no tienen conversación de origen: se
+                  escriben mirando al contacto, no a un hilo. */}
+              <ContactNotes
+                canManage={canManage}
+                contactId={selected.id}
+                key={selected.id}
               />
             </>
           ) : (

@@ -7,6 +7,7 @@ import { ContactDirectory } from "../../src/client/components/contact-directory"
 import {
   addContactTag,
   getContact,
+  listContactNotes,
   listContacts,
   removeContactTag,
   updateContact,
@@ -19,6 +20,9 @@ vi.mock("../../src/client/lib/api", () => ({
   updateContact: vi.fn(),
   addContactTag: vi.fn(),
   removeContactTag: vi.fn(),
+  // La ficha del directorio monta las notas del contacto debajo del perfil.
+  listContactNotes: vi.fn(),
+  createContactNote: vi.fn(),
 }));
 
 function contact(overrides: Partial<ContactProfile> = {}): ContactProfile {
@@ -74,6 +78,7 @@ describe("directorio de contactos", () => {
       nextCursor: null,
     });
     vi.mocked(getContact).mockResolvedValue(contact());
+    vi.mocked(listContactNotes).mockResolvedValue([]);
   });
 
   it("abre la ficha y guarda solo los campos que cambiaron", async () => {
