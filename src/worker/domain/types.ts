@@ -450,3 +450,35 @@ export type UpdateServiceInput = {
   price?: { amountCents: number; currency: string } | null;
   status?: ServiceStatus;
 };
+
+/**
+ * Nota del contacto: lo que el equipo entendió, en contraste con el mensaje,
+ * que es lo que el contacto dijo. Pertenece al contacto y conserva la
+ * conversación de origen cuando se escribió desde una.
+ *
+ * El nombre del autor viaja resuelto porque la ficha lo muestra en cada nota y
+ * resolverlo aparte exigiría una consulta por fila.
+ */
+export type ContactNote = {
+  id: string;
+  organizationId: string;
+  contactId: string;
+  conversationId: string | null;
+  authorMembershipId: string;
+  authorName: string | null;
+  body: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/**
+ * El autor no viaja en la entrada: lo pone el handler con la membresía de la
+ * sesión. Un identificador de autor enviado por el frontend no demostraría
+ * quién escribe.
+ */
+export type CreateContactNoteInput = {
+  contactId: string;
+  conversationId?: string | null;
+  body: string;
+  authorMembershipId: string;
+};
