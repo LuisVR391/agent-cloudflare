@@ -130,7 +130,7 @@ métricas iniciales [#39](https://github.com/LuisVR391/agent-cloudflare/issues/3
 | --- | --- | --- | --- |
 | Contactos con ficha, teléfono y etiquetas | Completado | Fase 1 | [Issue #34](https://github.com/LuisVR391/agent-cloudflare/issues/34) y [PR #41](https://github.com/LuisVR391/agent-cloudflare/pull/41) |
 | Equipo, invitaciones y asignación de conversaciones | Completado | Contactos de #34 | [Issue #35](https://github.com/LuisVR391/agent-cloudflare/issues/35), [PR #44](https://github.com/LuisVR391/agent-cloudflare/pull/44) y [ADR-0011](../decisions/ADR-0011-collaborator-invitations.md) |
-| Servicios, pipeline y oportunidades | En progreso | Contactos de #34 | [Issue #36](https://github.com/LuisVR391/agent-cloudflare/issues/36) y [ADR-0010](../decisions/ADR-0010-crm-commercial-model.md); catálogo de servicios en [PR #45](https://github.com/LuisVR391/agent-cloudflare/pull/45), y pipeline con sus etapas en el [módulo de pipelines](../modules/pipelines.md) |
+| Servicios, pipeline y oportunidades | Completado | Contactos de #34 | [Issue #36](https://github.com/LuisVR391/agent-cloudflare/issues/36), [ADR-0010](../decisions/ADR-0010-crm-commercial-model.md) y los cortes [PR #45](https://github.com/LuisVR391/agent-cloudflare/pull/45), [PR #47](https://github.com/LuisVR391/agent-cloudflare/pull/47) y el de oportunidades |
 | Notas y tareas con responsable | Planificado | Equipo de #35 | [Issue #37](https://github.com/LuisVR391/agent-cloudflare/issues/37) |
 | Citas desde la conversación | Planificado | Equipo de #35 y pipeline de #36 | [Issue #38](https://github.com/LuisVR391/agent-cloudflare/issues/38) |
 | Métricas iniciales del proceso | Planificado | Entregables #36, #37 y #38 | [Issue #39](https://github.com/LuisVR391/agent-cloudflare/issues/39) y [ADR-0012](../decisions/ADR-0012-initial-metrics.md) |
@@ -146,11 +146,11 @@ métricas iniciales.
 **Decisiones de la fase:**
 [ADR-0011](../decisions/ADR-0011-collaborator-invitations.md) está `Aceptado`
 desde el corte de equipo. [ADR-0010](../decisions/ADR-0010-crm-commercial-model.md)
-y [ADR-0012](../decisions/ADR-0012-initial-metrics.md) siguen `Propuesto`; cada
-corte cambia a `Aceptado` el ADR que adopta. El catálogo de servicios ya sigue
-lo que ADR-0010 decide sobre él, pero la decisión central —la oportunidad como
-entidad que recorre un pipeline configurable— todavía no tiene implementación,
-así que el ADR pasa a `Aceptado` con el corte que la adopte.
+está `Aceptado` desde el corte de oportunidades, que adopta su decisión central:
+la oportunidad es lo que recorre un pipeline configurable. La zona horaria de la
+organización que ese mismo ADR decide llega con las citas de #38, su primer
+consumidor real. [ADR-0012](../decisions/ADR-0012-initial-metrics.md) sigue
+`Propuesto` y lo adoptará el corte de métricas.
 
 **Requisito transversal:** el catálogo de permisos se siembra hoy únicamente
 durante la instalación, de modo que una organización ya instalada no recibiría

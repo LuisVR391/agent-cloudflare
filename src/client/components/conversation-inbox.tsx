@@ -272,6 +272,12 @@ export function ConversationInbox() {
             canRead: panel.activeOrganization.permissions.includes("contacts.read"),
             canManage: panel.activeOrganization.permissions.includes("contacts.manage"),
           }}
+          opportunityAccess={{
+            canRead: panel.activeOrganization.permissions.includes("opportunities.read"),
+            canManage: panel.activeOrganization.permissions.includes(
+              "opportunities.manage",
+            ),
+          }}
           currentUser={panel.user}
           loadingOlder={loadingOlder}
           members={canReadTeam ? members : null}

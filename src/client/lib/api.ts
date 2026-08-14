@@ -473,6 +473,107 @@ export async function reorderPipelineStages(
   return body.pipeline;
 }
 
+/**
+ * Oportunidad comercial. Los nombres de contacto, etapa y servicio viajan
+ * resueltos porque el tablero los necesita en cada tarjeta.
+ */
+export type Opportunity = {
+  id: string;
+  contactId: string;
+  contactDisplayName: string | null;
+  conversationId: string | null;
+  pipelineId: string;
+  stageId: string;
+  stageName: string;
+  stagePosition: number;
+  serviceId: string | null;
+  serviceName: string | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type OpportunityStageTransition = {
+  id: string;
+  previousStageId: string | null;
+  previousStageName: string | null;
+  nextStageId: string;
+  nextStageName: string;
+  actorType: "staff" | "system";
+  actorId: string | null;
+  correlationId: string;
+  occurredAt: string;
+};
+
+export type OpportunityDetail = Opportunity & {
+  transitions: OpportunityStageTransition[];
+};
+
+/** `truncated` avisa de que el tablero llegó al límite pedido. */
+export async function listPipelineOpportunities(pipelineId: string, limit = 100) {
+  const response = await fetch(
+    `/api/opportunities?pipelineId=${encodeURIComponent(pipelineId)}&limit=${limit}`,
+    { credentials: "same-origin" },
+  );
+  if (!response.ok) throw new Error(await parseError(response, "No fue posible cargar las oportunidades."));
+  return response.json() as Promise<{
+    opportunities: Opportunity[];
+    limit: number;
+    truncated: boolean;
+  }>;
+}
+
+export async function listContactOpportunities(contactId: string) {
+  const response = await fetch(
+    `/api/opportunities?contactId=${encodeURIComponent(contactId)}`,
+    { credentials: "same-origin" },
+  );
+  if (!response.ok) throw new Error(await parseError(response, "No fue posible cargar las oportunidades."));
+  const body = (await response.json()) as { opportunities: Opportunity[] };
+  return body.opportunities;
+}
+
+export async function createOpportunity(input: {
+  contactId: string;
+  conversationId?: string | null;
+  pipelineId?: string;
+  stageId?: string;
+  serviceId?: string | null;
+}) {
+  const response = await fetch("/api/opportunities", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error(await parseError(response, "No fue posible crear la oportunidad."));
+  const body = (await response.json()) as { opportunity: OpportunityDetail };
+  return body.opportunity;
+}
+
+/** Mover de etapa registra una transición; cambiar el servicio no. */
+export async function updateOpportunity(
+  opportunityId: string,
+  input: {
+    expectedVersion: number;
+    stageId?: string;
+    serviceId?: string | null;
+  },
+) {
+  const response = await fetch(
+    `/api/opportunities/${encodeURIComponent(opportunityId)}`,
+    {
+      method: "PATCH",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    },
+  );
+  if (!response.ok) throw new Error(await parseError(response, "No fue posible mover la oportunidad."));
+  const body = (await response.json()) as { opportunity: OpportunityDetail };
+  return body.opportunity;
+}
+
 export type TeamRole = "owner" | "manager" | "operator";
 
 export type TeamMember = {

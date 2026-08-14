@@ -13,7 +13,22 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
-import { listPipelines, type Pipeline, type StageColor } from "@/lib/api";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  listPipelineOpportunities,
+  listPipelines,
+  updateOpportunity,
+  type Opportunity,
+  type Pipeline,
+  type StageColor,
+} from "@/lib/api";
 
 /**
  * El color de la etapa es un token semántico, no una clase: aquí se traduce a
@@ -32,19 +47,26 @@ const stageVariants: Record<
 };
 
 /**
- * Tablero del pipeline comercial. Este corte muestra las etapas configuradas y
- * su orden; las oportunidades que las recorren llegan en el corte siguiente del
- * mismo entregable, así que cada columna se anuncia vacía en vez de fingir
- * contenido.
+ * Tablero del pipeline comercial: una columna por etapa y una tarjeta por
+ * oportunidad. Mover una tarjeta usa un menú en vez de arrastre, para que la
+ * acción sea alcanzable con teclado y verificable en pruebas.
+ *
+ * El movimiento viaja con la versión de la oportunidad: si otra persona la
+ * movió mientras tanto, el backend responde conflicto y la vista se recarga.
  *
  * Renombrar, recolorear, reordenar y borrar etapas existe en `/api/pipelines`
  * y todavía no tiene interfaz.
  */
 export function PipelineBoard() {
   const panel = useOutletContext<PanelContext>();
-  const canRead = panel.activeOrganization.permissions.includes("pipelines.read");
+  const permissions = panel.activeOrganization.permissions;
+  const canRead = permissions.includes("pipelines.read");
+  const canReadOpportunities = permissions.includes("opportunities.read");
+  const canMove = permissions.includes("opportunities.manage");
 
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
+  const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
+  const [truncated, setTruncated] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -55,7 +77,14 @@ export function PipelineBoard() {
     }
     void (async () => {
       try {
-        setPipelines(await listPipelines());
+        const loaded = await listPipelines();
+        setPipelines(loaded);
+        const first = loaded.at(0);
+        if (first && canReadOpportunities) {
+          const page = await listPipelineOpportunities(first.id);
+          setOpportunities(page.opportunities);
+          setTruncated(page.truncated);
+        }
       } catch (caught) {
         setError(
           caught instanceof Error ? caught.message : "No fue posible cargar el pipeline.",
@@ -64,7 +93,27 @@ export function PipelineBoard() {
         setLoading(false);
       }
     })();
-  }, [canRead]);
+  }, [canRead, canReadOpportunities]);
+
+  async function move(opportunity: Opportunity, stageId: string) {
+    if (stageId === opportunity.stageId) return;
+    setError(null);
+    try {
+      await updateOpportunity(opportunity.id, {
+        expectedVersion: opportunity.version,
+        stageId,
+      });
+      const page = await listPipelineOpportunities(opportunity.pipelineId);
+      setOpportunities(page.opportunities);
+      setTruncated(page.truncated);
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "No fue posible mover la oportunidad.",
+      );
+    }
+  }
 
   if (!canRead) {
     return (
@@ -126,25 +175,82 @@ export function PipelineBoard() {
         </Empty>
       ) : (
         <div className="flex gap-4 overflow-x-auto pb-2">
-          {pipeline.stages.map((stage) => (
-            <section
-              aria-label={stage.name}
-              className="flex w-64 shrink-0 flex-col gap-3 rounded-xl border bg-card p-4"
-              key={stage.id}
-            >
-              <div className="flex items-center justify-between gap-2">
-                <h2 className="truncate text-sm font-medium">{stage.name}</h2>
-                <Badge variant={stageVariants[stage.color]}>
-                  {stage.position}
-                </Badge>
-              </div>
-              <p className="text-sm text-muted-foreground">
-                Sin oportunidades todavía.
-              </p>
-            </section>
-          ))}
+          {pipeline.stages.map((stage) => {
+            const cards = opportunities.filter(
+              (opportunity) => opportunity.stageId === stage.id,
+            );
+            return (
+              <section
+                aria-label={stage.name}
+                className="flex w-64 shrink-0 flex-col gap-3 rounded-xl border bg-card p-4"
+                key={stage.id}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <h2 className="truncate text-sm font-medium">{stage.name}</h2>
+                  <Badge variant={stageVariants[stage.color]}>
+                    {cards.length}
+                  </Badge>
+                </div>
+                {cards.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    Sin oportunidades todavía.
+                  </p>
+                ) : null}
+                {cards.map((opportunity) => (
+                  <article
+                    className="flex flex-col gap-2 rounded-lg border p-3"
+                    key={opportunity.id}
+                  >
+                    <p className="truncate text-sm font-medium">
+                      {opportunity.contactDisplayName ?? "Contacto sin nombre"}
+                    </p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {opportunity.serviceName ?? "Sin servicio identificado"}
+                    </p>
+                    {canMove ? (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            aria-label={`Mover ${
+                              opportunity.contactDisplayName ?? "la oportunidad"
+                            }`}
+                            size="sm"
+                            variant="outline"
+                          >
+                            Mover
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" className="w-56">
+                          <DropdownMenuRadioGroup
+                            onValueChange={(value) => void move(opportunity, value)}
+                            value={opportunity.stageId}
+                          >
+                            {pipeline.stages.map((target) => (
+                              <DropdownMenuRadioItem
+                                key={target.id}
+                                value={target.id}
+                              >
+                                {target.name}
+                              </DropdownMenuRadioItem>
+                            ))}
+                          </DropdownMenuRadioGroup>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    ) : null}
+                  </article>
+                ))}
+              </section>
+            );
+          })}
         </div>
       )}
+
+      {truncated ? (
+        <p className="text-sm text-muted-foreground">
+          El tablero muestra las oportunidades más recientes; hay más de las que
+          caben en esta vista.
+        </p>
+      ) : null}
     </div>
   );
 }

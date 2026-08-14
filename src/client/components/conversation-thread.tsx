@@ -15,6 +15,7 @@ import {
 } from "@/components/conversation-message";
 import { ContactSheet } from "@/components/contact-sheet";
 import { DevInboundButton } from "@/components/dev-inbound-button";
+import { OpportunitySheet } from "@/components/opportunity-sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -179,6 +180,7 @@ export function ConversationThread({
   composerDisabled,
   composerPlaceholder,
   contactAccess,
+  opportunityAccess,
   currentUser,
   loadingOlder,
   members,
@@ -202,6 +204,9 @@ export function ConversationThread({
   // La ficha se anuncia solo a quien puede consultarla, y se edita solo con
   // permiso de gestión. El backend vuelve a comprobar ambas cosas.
   contactAccess: { canRead: boolean; canManage: boolean };
+  // Las oportunidades del contacto se anuncian a quien puede consultarlas y se
+  // crean con permiso de gestión. El backend vuelve a comprobar ambas cosas.
+  opportunityAccess: { canRead: boolean; canManage: boolean };
   currentUser: { id: string; name: string };
   loadingOlder: boolean;
   members: TeamMember[] | null;
@@ -276,6 +281,13 @@ export function ConversationThread({
             <ContactSheet
               canManage={contactAccess.canManage}
               contactId={selected.contactId}
+            />
+          ) : null}
+          {opportunityAccess.canRead ? (
+            <OpportunitySheet
+              canManage={opportunityAccess.canManage}
+              contactId={selected.contactId}
+              conversationId={selected.id}
             />
           ) : null}
           {canAssign && members ? (
