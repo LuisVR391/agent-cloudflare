@@ -34,6 +34,8 @@ const permissionDefinitions = [
   ["services.manage", "Gestionar el catálogo de servicios"],
   ["pipelines.read", "Consultar pipelines y sus etapas"],
   ["pipelines.manage", "Configurar pipelines y sus etapas"],
+  ["opportunities.read", "Consultar oportunidades"],
+  ["opportunities.manage", "Crear y mover oportunidades"],
   ["agents.read", "Consultar agentes"],
   ["agents.manage", "Gestionar agentes"],
   ["users.read", "Consultar el equipo y sus roles"],
@@ -53,6 +55,8 @@ const permissionsByRole: Record<OrganizationAccess["role"], string[]> = {
     "services.manage",
     "pipelines.read",
     "pipelines.manage",
+    "opportunities.read",
+    "opportunities.manage",
     "agents.read",
     "agents.manage",
     "users.read",
@@ -71,6 +75,10 @@ const permissionsByRole: Record<OrganizationAccess["role"], string[]> = {
     "contacts.manage",
     "services.read",
     "pipelines.read",
+    // Quien atiende la conversación descubre que hay una venta posible y la
+    // mueve; configurar el pipeline sigue siendo otra cosa.
+    "opportunities.read",
+    "opportunities.manage",
     "users.read",
   ],
 };
