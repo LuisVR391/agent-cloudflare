@@ -93,7 +93,7 @@ escribe su documento de módulo cuando existen sus interfaces, no antes.
 | [ADR-0012: Métricas iniciales](./decisions/ADR-0012-initial-metrics.md) | Propuesto | Transversal | Cálculo derivado de D1 con rango acotado, sin almacén analítico |
 | [Contactos y conversación](./modules/contacts-and-conversations.md) | Vigente | [#34](https://github.com/LuisVR391/agent-cloudflare/issues/34) | Contactos, identidades, etiquetas y su relación con la conversación |
 | [Equipo, invitaciones y asignación](./modules/teams-and-permissions.md) | Vigente | [#35](https://github.com/LuisVR391/agent-cloudflare/issues/35) | Miembros, roles, invitaciones y responsable de conversación |
-| `modules/pipelines.md` | Pendiente | [#36](https://github.com/LuisVR391/agent-cloudflare/issues/36) | Servicios, pipelines, etapas, transiciones y oportunidades |
+| [Servicios, pipeline y oportunidades](./modules/pipelines.md) | En elaboración | [#36](https://github.com/LuisVR391/agent-cloudflare/issues/36) | Catálogo de servicios vigente; pipelines, etapas y oportunidades pendientes |
 | `modules/appointments-and-tasks.md` | Pendiente | [#37](https://github.com/LuisVR391/agent-cloudflare/issues/37) y [#38](https://github.com/LuisVR391/agent-cloudflare/issues/38) | Notas, tareas, agenda y ciclo de estados de la cita |
 | `modules/initial-metrics.md` | Pendiente | [#39](https://github.com/LuisVR391/agent-cloudflare/issues/39) | Métricas operativas y comerciales iniciales |
 

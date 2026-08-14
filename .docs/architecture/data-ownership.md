@@ -17,6 +17,7 @@ pero no competir por la autoridad del mismo dato.
 | Intentos y estados de entrega saliente | D1 | Idempotencia y reconciliación empresarial |
 | Metadatos de adjuntos y clave opaca | D1 | Autorización y referencia al binario |
 | Agentes, versiones, asignaciones y permisos | D1 | Configuración publicada y trazabilidad |
+| Catálogo de servicios | D1 | Dato relacional que se agenda, se cobra y se cuenta |
 | Pipeline, citas, tareas y automatizaciones | D1 | Estado empresarial durable |
 | Buffer, debounce, orden y exclusión mutua | Durable Object | Coordinación viva de una conversación |
 | Cursor de procesamiento y alarmas cercanas | Durable Object | Continuidad del runtime conversacional |
@@ -59,6 +60,7 @@ existen en `migrations/` estas tablas:
 | `contact_tags`, `contact_tag_assignments` | Etiquetas de la organización y su asignación al contacto | `0010_contacts_profile_and_tags.sql` |
 | `organization_invitations` | Alta por invitación: correo, rol, vencimiento y el HMAC del token | `0011_team_invitations_and_conversation_assignment.sql` |
 | `conversation_assignments` | Historial de responsables de cada conversación | `0011_team_invitations_and_conversation_assignment.sql` |
+| `services` | Catálogo empresarial: nombre, duración, precio opcional con su moneda y estado | `0012_service_catalog.sql` |
 | `communication_channels`, `inbound_webhook_events` | Canal confiable y recepción deduplicada de Zernio | `0003_zernio_whatsapp_channel.sql` y `0005_message_sent_reconciliation.sql` |
 | `conversations`, `messages`, `message_attachments` | Historial canónico y metadatos de medios | `0004_conversations_and_messages.sql` y `0009_message_attachment_recovery.sql` |
 | `outbound_message_deliveries`, `message_status_events` | Idempotencia, intentos e historial de reconciliación por identificadores opacos | `0004` a `0006` |

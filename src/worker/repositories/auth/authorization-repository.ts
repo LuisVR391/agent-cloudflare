@@ -30,6 +30,8 @@ const permissionDefinitions = [
   ["conversations.manage", "Gestionar conversaciones"],
   ["contacts.read", "Consultar contactos"],
   ["contacts.manage", "Gestionar contactos"],
+  ["services.read", "Consultar el catálogo de servicios"],
+  ["services.manage", "Gestionar el catálogo de servicios"],
   ["agents.read", "Consultar agentes"],
   ["agents.manage", "Gestionar agentes"],
   ["users.read", "Consultar el equipo y sus roles"],
@@ -45,6 +47,8 @@ const permissionsByRole: Record<OrganizationAccess["role"], string[]> = {
     "conversations.manage",
     "contacts.read",
     "contacts.manage",
+    "services.read",
+    "services.manage",
     "agents.read",
     "agents.manage",
     "users.read",
@@ -53,12 +57,15 @@ const permissionsByRole: Record<OrganizationAccess["role"], string[]> = {
   // contacto mientras habla con él, así que también puede corregir la ficha.
   // Y quien puede asignar una conversación necesita ver a quién asignarla, así
   // que los tres roles leen el equipo; solo `owner` lo administra.
+  // El catálogo de servicios lo leen los tres, porque quien atiende necesita
+  // saber qué ofrece la empresa; editarlo es decisión de negocio.
   operator: [
     "panel.read",
     "conversations.read",
     "conversations.manage",
     "contacts.read",
     "contacts.manage",
+    "services.read",
     "users.read",
   ],
 };

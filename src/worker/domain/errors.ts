@@ -45,6 +45,21 @@ export class MembershipNotActiveInOrganizationError extends Error {
 }
 
 /**
+ * Ya existe un servicio con ese nombre dentro de la organización. El nombre se
+ * compara plegado a minúsculas y sin espacios en los extremos, así que «Corte»
+ * y «corte » son el mismo servicio.
+ */
+export class DuplicateServiceNameError extends Error {
+  readonly serviceName: string;
+
+  constructor(serviceName: string) {
+    super(`Ya existe un servicio llamado "${serviceName}" en la organización.`);
+    this.name = "DuplicateServiceNameError";
+    this.serviceName = serviceName;
+  }
+}
+
+/**
  * Una fila persistida contiene un valor fuera del dominio esperado. Indica
  * corrupción o una migración incompleta, no una entrada del usuario.
  */

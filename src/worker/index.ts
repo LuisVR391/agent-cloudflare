@@ -13,6 +13,7 @@ import { handleOutboundQueue } from "./integrations/zernio/outbound-queue";
 import { handleZernioWebhook } from "./integrations/zernio/webhook";
 import { routeContactApi } from "./contact-api";
 import { routeConversationApi } from "./conversation-api";
+import { routeServiceApi } from "./service-api";
 import { routeTeamApi } from "./team-api";
 import { AuthorizationRepository } from "./repositories/auth/authorization-repository";
 
@@ -53,6 +54,9 @@ export default {
 
     const contactResponse = await routeContactApi(request, workerEnv);
     if (contactResponse) return contactResponse;
+
+    const serviceResponse = await routeServiceApi(request, workerEnv);
+    if (serviceResponse) return serviceResponse;
 
     const teamResponse = await routeTeamApi(request, workerEnv);
     if (teamResponse) return teamResponse;

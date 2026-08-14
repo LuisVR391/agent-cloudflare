@@ -303,3 +303,47 @@ export type ConversationAssignee = {
   userId: string;
   name: string;
 };
+
+export type ServiceStatus = "active" | "archived";
+
+/**
+ * Servicio del catálogo empresarial. El precio es opcional y, cuando existe,
+ * viaja con su moneda: un importe sin moneda no significa nada y
+ * `organizations` todavía no declara configuración regional (ADR-0010).
+ *
+ * `priceAmountCents` es la unidad menor de la moneda en entero, para que un
+ * dato que se cobra no dependa de la representación de un flotante.
+ */
+export type Service = {
+  id: string;
+  organizationId: string;
+  name: string;
+  durationMinutes: number;
+  priceAmountCents: number | null;
+  priceCurrency: string | null;
+  status: ServiceStatus;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateServiceInput = {
+  name: string;
+  durationMinutes: number;
+  priceAmountCents?: number | null;
+  priceCurrency?: string | null;
+  status?: ServiceStatus;
+};
+
+/**
+ * Campos ausentes se conservan. El precio es la excepción: importe y moneda se
+ * escriben juntos, así que `price: null` borra ambos y omitirlo no toca
+ * ninguno. Separarlos permitiría dejar una moneda sin importe.
+ */
+export type UpdateServiceInput = {
+  expectedVersion: number;
+  name?: string;
+  durationMinutes?: number;
+  price?: { amountCents: number; currency: string } | null;
+  status?: ServiceStatus;
+};
