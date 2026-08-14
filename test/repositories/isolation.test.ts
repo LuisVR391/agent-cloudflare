@@ -7,7 +7,9 @@ import {
 import type { Organization } from "../../src/worker/domain/types";
 import { createRepositories } from "../../src/worker/repositories";
 
-const { organizations, contacts, services } = createRepositories(env.DB);
+const { organizations, contacts, services, pipelines } = createRepositories(
+  env.DB,
+);
 
 let salon: Organization;
 let barberia: Organization;
@@ -67,6 +69,17 @@ describe("aislamiento por organización", () => {
     expect(listados.map((servicio) => servicio.id)).toEqual([propio.id]);
   });
 
+  it("no expone el pipeline de otra organización", async () => {
+    const propio = await pipelines.seedInitial(salon.id);
+    await pipelines.seedInitial(barberia.id);
+
+    const listados = await pipelines.list(salon.id);
+
+    expect(listados.map((pipeline) => pipeline.id)).toEqual([propio.id]);
+    // Cada organización recibe su propia copia editable de la plantilla.
+    expect(listados[0].stages).toHaveLength(propio.stages.length);
+  });
+
   it("falla de forma cerrada cuando no hay organización", async () => {
     await expect(contacts.listByOrganization("")).rejects.toBeInstanceOf(
       MissingOrganizationScopeError,
@@ -83,6 +96,12 @@ describe("aislamiento por organización", () => {
     await expect(
       services.create("   ", { name: "Corte", durationMinutes: 30 }),
     ).rejects.toBeInstanceOf(MissingOrganizationScopeError);
+    await expect(pipelines.list("")).rejects.toBeInstanceOf(
+      MissingOrganizationScopeError,
+    );
+    await expect(pipelines.seedInitial("  ")).rejects.toBeInstanceOf(
+      MissingOrganizationScopeError,
+    );
   });
 });
 

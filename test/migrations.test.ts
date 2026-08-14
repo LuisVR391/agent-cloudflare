@@ -33,6 +33,8 @@ describe("migraciones de D1", () => {
         "organization_invitations",
         "organizations",
         "permissions",
+        "pipeline_stages",
+        "pipelines",
         "role_permissions",
         "roles",
         "services",
@@ -61,6 +63,7 @@ describe("migraciones de D1", () => {
       "0010_contacts_profile_and_tags.sql",
       "0011_team_invitations_and_conversation_assignment.sql",
       "0012_service_catalog.sql",
+      "0013_pipelines_and_stages.sql",
     ]);
   });
 
@@ -82,6 +85,8 @@ describe("migraciones de D1", () => {
         "inbound_webhook_events_organization_status_idx",
         "contacts_organization_created_idx",
         "organizations_slug_unique",
+        "pipelines_organization_template_unique",
+        "pipeline_stages_organization_pipeline_position_idx",
         "services_organization_normalized_name_unique",
         "services_organization_status_name_idx",
         "message_status_events_reconciliation_idx",

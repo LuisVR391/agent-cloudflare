@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { OrganizationRepository } from "../repositories/organization-repository";
+import { PipelineRepository } from "../repositories/pipeline-repository";
 import { AuthorizationRepository } from "../repositories/auth/authorization-repository";
 import { createRateLimitStorage } from "../repositories/auth/rate-limit-storage";
 import { SetupRepository } from "../repositories/auth/setup-repository";
@@ -291,6 +292,11 @@ async function handleSetup(
       userId,
       correlationId,
     );
+    // El pipeline inicial forma parte de la instalación, no de un paso
+    // posterior: una organización sin etapas no podría recibir oportunidades.
+    // Va dentro del mismo `try`, así que un fallo aquí compensa la
+    // organización entera en vez de dejarla a medio configurar.
+    await new PipelineRepository(env.DB).seedInitial(organization.id);
     await repository.complete(attemptId);
 
     return json(

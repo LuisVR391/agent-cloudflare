@@ -67,13 +67,15 @@ export type Contact = {
   updatedAt: string;
 };
 
-/** Token semántico; el cliente lo traduce a una variante de `Badge`. */
-export type ContactTagColor =
+/** Token semántico; el cliente lo traduce a una variante de componente. */
+export type SemanticColor =
   | "neutral"
   | "info"
   | "success"
   | "warning"
   | "danger";
+
+export type ContactTagColor = SemanticColor;
 
 export type ContactTag = {
   id: string;
@@ -326,6 +328,41 @@ export type Service = {
   createdAt: string;
   updatedAt: string;
 };
+
+/**
+ * Etapa comercial de un pipeline. El orden es explícito y editable: ADR-0010
+ * decide que el pipeline es configuración de la organización, no un enumerado
+ * del código.
+ */
+export type PipelineStage = {
+  id: string;
+  organizationId: string;
+  pipelineId: string;
+  name: string;
+  position: number;
+  color: SemanticColor;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/**
+ * `templateKey` identifica la plantilla que originó el pipeline y hace
+ * idempotente su siembra; es `null` en uno creado a mano.
+ *
+ * `version` cubre la configuración completa: crear, renombrar, recolorear,
+ * reordenar o borrar una etapa exige la versión vigente y la incrementa.
+ */
+export type Pipeline = {
+  id: string;
+  organizationId: string;
+  name: string;
+  templateKey: string | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PipelineWithStages = Pipeline & { stages: PipelineStage[] };
 
 export type CreateServiceInput = {
   name: string;

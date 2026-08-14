@@ -15,6 +15,9 @@ import type {
   InboundWebhookEventType,
   Organization,
   OrganizationStatus,
+  Pipeline,
+  PipelineStage,
+  SemanticColor,
   Service,
   ServiceStatus,
 } from "../domain/types";
@@ -78,6 +81,27 @@ export type ServiceRow = {
   updated_at: string;
 };
 
+export type PipelineRow = {
+  id: string;
+  organization_id: string;
+  name: string;
+  template_key: string | null;
+  version: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type PipelineStageRow = {
+  id: string;
+  organization_id: string;
+  pipeline_id: string;
+  name: string;
+  position: number;
+  color: string;
+  created_at: string;
+  updated_at: string;
+};
+
 export type CommunicationChannelRow = {
   id: string;
   organization_id: string;
@@ -112,13 +136,14 @@ const organizationStatuses: readonly OrganizationStatus[] = [
   "suspended",
 ];
 const contactStatuses: readonly ContactStatus[] = ["active", "archived"];
-const contactTagColors: readonly ContactTagColor[] = [
+const semanticColors: readonly SemanticColor[] = [
   "neutral",
   "info",
   "success",
   "warning",
   "danger",
 ];
+const contactTagColors: readonly ContactTagColor[] = semanticColors;
 const serviceStatuses: readonly ServiceStatus[] = ["active", "archived"];
 const identityProviders: readonly IdentityProvider[] = ["whatsapp"];
 const channelProviders: readonly ChannelProvider[] = ["whatsapp"];
@@ -197,6 +222,31 @@ export function toService(row: ServiceRow): Service {
     priceCurrency: row.price_currency,
     status: asMember(serviceStatuses, row.status, "services.status"),
     version: row.version,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function toPipeline(row: PipelineRow): Pipeline {
+  return {
+    id: row.id,
+    organizationId: row.organization_id,
+    name: row.name,
+    templateKey: row.template_key,
+    version: row.version,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function toPipelineStage(row: PipelineStageRow): PipelineStage {
+  return {
+    id: row.id,
+    organizationId: row.organization_id,
+    pipelineId: row.pipeline_id,
+    name: row.name,
+    position: row.position,
+    color: asMember(semanticColors, row.color, "pipeline_stages.color"),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
