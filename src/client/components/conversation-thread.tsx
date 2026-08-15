@@ -13,6 +13,7 @@ import {
   SystemNote,
   type MessageAuthor,
 } from "@/components/conversation-message";
+import { AppointmentSheet } from "@/components/appointment-agenda";
 import { NoteSheet } from "@/components/contact-notes";
 import { ContactSheet } from "@/components/contact-sheet";
 import { DevInboundButton } from "@/components/dev-inbound-button";
@@ -184,6 +185,7 @@ export function ConversationThread({
   contactAccess,
   opportunityAccess,
   taskAccess,
+  appointmentAccess,
   currentUser,
   loadingOlder,
   members,
@@ -213,6 +215,17 @@ export function ConversationThread({
   // Las tareas del hilo se anuncian a quien puede consultarlas y se crean con
   // permiso de gestión. El backend vuelve a comprobar ambas cosas.
   taskAccess: { canRead: boolean; canManage: boolean; canReadTeam: boolean };
+  /**
+   * La agenda se lee en la zona horaria de la organización, así que el panel
+   * lateral la necesita: mostrar la hora del navegador daría una cita distinta
+   * de la que el salón tiene apuntada.
+   */
+  appointmentAccess: {
+    canRead: boolean;
+    canManage: boolean;
+    canReadTeam: boolean;
+    timeZone: string;
+  };
   currentUser: { id: string; name: string };
   loadingOlder: boolean;
   members: TeamMember[] | null;
@@ -310,6 +323,15 @@ export function ConversationThread({
               canManage={taskAccess.canManage}
               canReadTeam={taskAccess.canReadTeam}
               subject={{ type: "conversation", id: selected.id }}
+            />
+          ) : null}
+          {appointmentAccess.canRead ? (
+            <AppointmentSheet
+              canManage={appointmentAccess.canManage}
+              canReadTeam={appointmentAccess.canReadTeam}
+              contactId={selected.contactId}
+              conversationId={selected.id}
+              timeZone={appointmentAccess.timeZone}
             />
           ) : null}
           {canAssign && members ? (

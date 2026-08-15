@@ -18,6 +18,7 @@ import {
   useNavigate,
 } from "react-router";
 
+import { AppointmentAgenda } from "@/components/appointment-agenda";
 import { LoginForm } from "@/components/login-form";
 import { ContactDirectory } from "@/components/contact-directory";
 import { ConversationInbox } from "@/components/conversation-inbox";
@@ -490,6 +491,7 @@ export function App() {
           <Route element={<ServiceCatalog />} path="servicios" />
           <Route element={<PipelineBoard />} path="pipeline" />
           <Route element={<TaskList />} path="tareas" />
+          <Route element={<AppointmentAgenda />} path="agenda" />
           <Route element={<TeamDirectory />} path="equipo" />
           <Route element={<Navigate replace to="/app" />} path="*" />
         </Route>

@@ -1,12 +1,10 @@
 # Notas, tareas y citas
 
 > **Estado:** vigente para las notas del contacto y las tareas con responsable
-> ([#37](https://github.com/LuisVR391/agent-cloudflare/issues/37)) y para la
-> superficie de citas del quinto entregable de Fase 2
-> ([#38](https://github.com/LuisVR391/agent-cloudflare/issues/38)). La agenda
-> del panel llega en el segundo corte de ese mismo issue; hasta entonces las
-> citas se operan por API. Este documento describe lo que existe hoy, no lo
-> planificado.
+> ([#37](https://github.com/LuisVR391/agent-cloudflare/issues/37)) y para las
+> citas con agenda del quinto entregable de Fase 2
+> ([#38](https://github.com/LuisVR391/agent-cloudflare/issues/38)). Este
+> documento describe lo que existe hoy, no lo planificado.
 
 Una conversación registra lo que el contacto dijo. La nota registra lo que el
 equipo entendió: la preferencia que mencionó de paso, el motivo por el que
@@ -348,6 +346,34 @@ explica cómo llegó la reserva a su desenlace —de qué estado a cuál y de qu
 horario a cuál—, mientras que `audit_logs` registra quién ejecutó una operación
 autorizada.
 
+## Panel de la agenda
+
+**Agenda** es una sección propia del panel, en `/app/agenda`. Abre en el día que
+la empresa está viviendo —no el del servidor ni el del navegador— y alterna
+entre día y semana; las flechas mueven un día o siete, y «Hoy» vuelve al
+presente del salón.
+
+Toda hora se dibuja con la zona horaria de la organización. Quien revise la
+agenda de viaje, desde otro huso, ve la hora que el salón tiene apuntada. Por
+eso la fecha viaja al backend como día civil y es él quien decide qué instantes
+caen dentro: el cliente no calcula el rango.
+
+Cada cita ofrece solo las acciones que su estado admite, y reprogramar abre un
+campo con la hora del salón ya escrita, para no obligar a nadie a convertir
+mentalmente. Lo que se envía sigue siendo un instante UTC.
+
+Quien administra la organización ve además el selector de zona horaria, en la
+cabecera de la agenda y no en una sección de configuración: es aquí donde se
+nota que está mal, porque el día entero aparece corrido.
+
+En **Conversaciones**, el botón «Citas» abre un panel lateral que lista lo que
+cuelga de ese hilo y agenda sobre el contacto de la conversación, con el
+servicio del catálogo activo, la hora del salón y un responsable opcional. Como
+el resto de paneles, no consulta hasta abrirse.
+
+El alta vive ahí y no en la agenda a propósito: una cita se acuerda hablando, y
+la conversación es la que aporta el contacto y explica de dónde salió.
+
 ## Límites conocidos
 
 - Una nota no se edita ni se borra. El corte entrega lo que el criterio de
@@ -364,8 +390,10 @@ autorizada.
 - La lista tiene tope de 100 tareas y lo anuncia con `truncated` en vez de
   recortar en silencio; no hay paginación por cursor. La agenda usa el mismo
   tope y lo anuncia igual.
-- La agenda del panel todavía no existe: las citas se operan por API hasta el
-  segundo corte de #38.
+- La agenda muestra y opera; no da de alta. Una cita se acuerda hablando, así
+  que se agenda desde la conversación, que es donde está el contacto y el hilo
+  que la explica. Crear una cita suelta desde la agenda exigiría un buscador de
+  contactos que #38 no pide.
 - Nada impide dos citas a la misma hora con el mismo responsable. La
   disponibilidad, la propuesta de horarios y la prevención de traslapes quedan
   fuera de #38: son reglas de negocio con horarios de atención detrás, y esa
