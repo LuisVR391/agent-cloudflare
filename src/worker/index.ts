@@ -17,6 +17,7 @@ import { routeNoteApi } from "./note-api";
 import { routeOpportunityApi } from "./opportunity-api";
 import { routePipelineApi } from "./pipeline-api";
 import { routeServiceApi } from "./service-api";
+import { routeTaskApi } from "./task-api";
 import { routeTeamApi } from "./team-api";
 import { AuthorizationRepository } from "./repositories/auth/authorization-repository";
 
@@ -69,6 +70,9 @@ export default {
 
     const noteResponse = await routeNoteApi(request, workerEnv);
     if (noteResponse) return noteResponse;
+
+    const taskResponse = await routeTaskApi(request, workerEnv);
+    if (taskResponse) return taskResponse;
 
     const teamResponse = await routeTeamApi(request, workerEnv);
     if (teamResponse) return teamResponse;

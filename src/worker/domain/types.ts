@@ -482,3 +482,63 @@ export type CreateContactNoteInput = {
   body: string;
   authorMembershipId: string;
 };
+
+export type TaskStatus = "open" | "done" | "cancelled";
+
+/** El sujeto de una tarea: a lo sumo uno, y ninguno también es válido. */
+export type TaskSubject =
+  | { type: "contact"; id: string }
+  | { type: "conversation"; id: string }
+  | { type: "opportunity"; id: string }
+  | null;
+
+/**
+ * Tarea con responsable y vencimiento. Una nota conserva lo que se entendió;
+ * la tarea conserva lo que quedó pendiente, y por eso tiene a quién le toca.
+ *
+ * El nombre del responsable y la etiqueta del sujeto viajan resueltos porque la
+ * lista los muestra en cada fila.
+ */
+export type Task = {
+  id: string;
+  organizationId: string;
+  title: string;
+  details: string | null;
+  assigneeMembershipId: string;
+  assigneeName: string | null;
+  createdByMembershipId: string;
+  dueAt: string | null;
+  status: TaskStatus;
+  subject: TaskSubject;
+  subjectLabel: string | null;
+  version: number;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/**
+ * Quien crea la tarea es la membresía de la sesión, igual que el autor de una
+ * nota. El responsable sí se elige, y debe tener membresía activa.
+ */
+export type CreateTaskInput = {
+  title: string;
+  details?: string | null;
+  assigneeMembershipId?: string;
+  dueAt?: string | null;
+  subject?: TaskSubject;
+  createdByMembershipId: string;
+};
+
+/**
+ * Campos ausentes se conservan; `dueAt: null` retira el vencimiento. Cerrar es
+ * un cambio de estado: `done` sella `completedAt` y reabrir lo borra.
+ */
+export type UpdateTaskInput = {
+  expectedVersion: number;
+  title?: string;
+  details?: string | null;
+  assigneeMembershipId?: string;
+  dueAt?: string | null;
+  status?: TaskStatus;
+};
