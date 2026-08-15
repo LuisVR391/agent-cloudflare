@@ -41,6 +41,7 @@ describe("migraciones de D1", () => {
         "role_permissions",
         "roles",
         "services",
+        "tasks",
         "user_accounts",
         "user_sessions",
         "users",
@@ -69,6 +70,7 @@ describe("migraciones de D1", () => {
       "0013_pipelines_and_stages.sql",
       "0014_opportunities.sql",
       "0015_contact_notes.sql",
+      "0016_tasks.sql",
     ]);
   });
 
@@ -98,6 +100,8 @@ describe("migraciones de D1", () => {
         "pipeline_stages_organization_pipeline_position_idx",
         "services_organization_normalized_name_unique",
         "services_organization_status_name_idx",
+        "tasks_organization_assignee_due_idx",
+        "tasks_organization_status_due_idx",
         "message_status_events_reconciliation_idx",
         "messages_organization_platform_idx",
         "outbound_deliveries_organization_external_idx",
