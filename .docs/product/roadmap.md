@@ -132,12 +132,13 @@ métricas iniciales [#39](https://github.com/LuisVR391/agent-cloudflare/issues/3
 | Equipo, invitaciones y asignación de conversaciones | Completado | Contactos de #34 | [Issue #35](https://github.com/LuisVR391/agent-cloudflare/issues/35), [PR #44](https://github.com/LuisVR391/agent-cloudflare/pull/44) y [ADR-0011](../decisions/ADR-0011-collaborator-invitations.md) |
 | Servicios, pipeline y oportunidades | Completado | Contactos de #34 | [Issue #36](https://github.com/LuisVR391/agent-cloudflare/issues/36), [ADR-0010](../decisions/ADR-0010-crm-commercial-model.md) y los cortes [PR #45](https://github.com/LuisVR391/agent-cloudflare/pull/45), [PR #47](https://github.com/LuisVR391/agent-cloudflare/pull/47) y el de oportunidades |
 | Notas y tareas con responsable | Completado | Equipo de #35 | [Issue #37](https://github.com/LuisVR391/agent-cloudflare/issues/37), [PR #49](https://github.com/LuisVR391/agent-cloudflare/pull/49) y el [módulo de notas y tareas](../modules/appointments-and-tasks.md) |
-| Citas desde la conversación | Planificado | Equipo de #35 y pipeline de #36 | [Issue #38](https://github.com/LuisVR391/agent-cloudflare/issues/38) |
+| Citas desde la conversación | En progreso | Equipo de #35 y pipeline de #36 | [Issue #38](https://github.com/LuisVR391/agent-cloudflare/issues/38), con la superficie de citas y la zona horaria entregadas en su primer corte y descritas en el [módulo de notas, tareas y citas](../modules/appointments-and-tasks.md); la agenda del panel llega en el segundo |
 | Métricas iniciales del proceso | Planificado | Entregables #36, #37 y #38 | [Issue #39](https://github.com/LuisVR391/agent-cloudflare/issues/39) y [ADR-0012](../decisions/ADR-0012-initial-metrics.md) |
 
 La evidencia de un entregable `Planificado` es su issue, no una capacidad
-disponible. Cada corte pasa a `Completado` al fusionarse en `main` el PR que
-satisface su criterio, y agrega ese PR a su fila.
+disponible. `En progreso` significa que parte de su alcance ya está en `main` y
+la fila dice exactamente cuál. Cada corte pasa a `Completado` al fusionarse en
+`main` el PR que satisface su criterio, y agrega ese PR a su fila.
 
 **Entregables resumidos:** contactos e identidades, conversaciones y
 asignaciones, equipos, pipeline y oportunidades, notas y tareas, citas y
@@ -148,8 +149,9 @@ métricas iniciales.
 desde el corte de equipo. [ADR-0010](../decisions/ADR-0010-crm-commercial-model.md)
 está `Aceptado` desde el corte de oportunidades, que adopta su decisión central:
 la oportunidad es lo que recorre un pipeline configurable. La zona horaria de la
-organización que ese mismo ADR decide llega con las citas de #38, su primer
-consumidor real. [ADR-0012](../decisions/ADR-0012-initial-metrics.md) sigue
+organización que ese mismo ADR decide entró con el primer corte de las citas de
+#38, su primer consumidor real.
+[ADR-0012](../decisions/ADR-0012-initial-metrics.md) sigue
 `Propuesto` y lo adoptará el corte de métricas.
 
 **Requisito transversal:** el catálogo de permisos se siembra hoy únicamente

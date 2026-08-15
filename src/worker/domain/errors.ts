@@ -135,6 +135,41 @@ export class TaskSubjectNotInOrganizationError extends Error {
 }
 
 /**
+ * El contacto, el servicio, la conversación o la oportunidad que la cita
+ * referencia no existe en la organización activa, o el servicio está archivado.
+ * Todos se confunden a propósito: distinguirlos revelaría qué identificador
+ * ajeno existe.
+ */
+export class AppointmentReferenceNotInOrganizationError extends Error {
+  readonly referenceId: string;
+
+  constructor(referenceId: string) {
+    super(
+      `La referencia "${referenceId}" no está disponible en la organización indicada.`,
+    );
+    this.name = "AppointmentReferenceNotInOrganizationError";
+    this.referenceId = referenceId;
+  }
+}
+
+/**
+ * El cambio de estado pedido no existe en el ciclo de vida de la cita. Se
+ * rechaza en backend: la lista de acciones que muestre el panel es una ayuda,
+ * no un control.
+ */
+export class AppointmentTransitionNotAllowedError extends Error {
+  readonly from: string;
+  readonly to: string;
+
+  constructor(from: string, to: string) {
+    super(`Una cita "${from}" no puede pasar a "${to}".`);
+    this.name = "AppointmentTransitionNotAllowedError";
+    this.from = from;
+    this.to = to;
+  }
+}
+
+/**
  * Una fila persistida contiene un valor fuera del dominio esperado. Indica
  * corrupción o una migración incompleta, no una entrada del usuario.
  */

@@ -7,6 +7,7 @@ type AccessRow = {
   organization_id: string;
   organization_name: string;
   organization_slug: string;
+  organization_time_zone: string;
   membership_id: string;
   role_key: OrganizationAccess["role"];
   permission_key: string | null;
@@ -38,6 +39,8 @@ const permissionDefinitions = [
   ["opportunities.manage", "Crear y mover oportunidades"],
   ["tasks.read", "Consultar tareas"],
   ["tasks.manage", "Crear, asignar y cerrar tareas"],
+  ["appointments.read", "Consultar la agenda de citas"],
+  ["appointments.manage", "Agendar, reprogramar y cerrar citas"],
   ["agents.read", "Consultar agentes"],
   ["agents.manage", "Gestionar agentes"],
   ["users.read", "Consultar el equipo y sus roles"],
@@ -61,6 +64,8 @@ const permissionsByRole: Record<OrganizationAccess["role"], string[]> = {
     "opportunities.manage",
     "tasks.read",
     "tasks.manage",
+    "appointments.read",
+    "appointments.manage",
     "agents.read",
     "agents.manage",
     "users.read",
@@ -87,6 +92,10 @@ const permissionsByRole: Record<OrganizationAccess["role"], string[]> = {
     // jefe llega tarde.
     "tasks.read",
     "tasks.manage",
+    // Y es quien acuerda el horario mientras conversa: una cita que solo puede
+    // agendar su jefe se pierde mientras tanto.
+    "appointments.read",
+    "appointments.manage",
     "users.read",
   ],
 };
@@ -271,6 +280,7 @@ export class AuthorizationRepository {
            o.id AS organization_id,
            o.display_name AS organization_name,
            o.slug AS organization_slug,
+           o.time_zone AS organization_time_zone,
            m.id AS membership_id,
            r.role_key,
            p.permission_key
@@ -299,6 +309,7 @@ export class AuthorizationRepository {
         organizationId: row.organization_id,
         organizationName: row.organization_name,
         organizationSlug: row.organization_slug,
+        organizationTimeZone: row.organization_time_zone,
         membershipId: row.membership_id,
         role: row.role_key,
         permissions: [],

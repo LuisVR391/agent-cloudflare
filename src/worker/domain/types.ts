@@ -46,6 +46,11 @@ export type Organization = {
   slug: string;
   displayName: string;
   status: OrganizationStatus;
+  /**
+   * Zona horaria IANA con la que se interpreta un día de agenda (ADR-0010). No
+   * cambia cómo se almacena un instante: todo sigue en ISO 8601 UTC.
+   */
+  timeZone: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -541,4 +546,105 @@ export type UpdateTaskInput = {
   assigneeMembershipId?: string;
   dueAt?: string | null;
   status?: TaskStatus;
+};
+
+/**
+ * Ciclo de vida de una reserva. `rescheduled` es un estado y no solo un hecho
+ * del historial: una cita movida y todavía sin reconfirmar no está en la misma
+ * situación que una confirmada, y la agenda necesita distinguirlas de un
+ * vistazo. Las transiciones permitidas viven en `appointment-status.ts`.
+ */
+export type AppointmentStatus =
+  | "requested"
+  | "pending"
+  | "confirmed"
+  | "rescheduled"
+  | "cancelled"
+  | "completed"
+  | "no_show";
+
+/**
+ * Cita: el compromiso al que llega una conversación. Pertenece a un contacto y
+ * reserva un servicio durante un intervalo, siempre en ISO 8601 UTC; la zona
+ * horaria de la organización solo decide cómo se agrupa y se muestra.
+ *
+ * Los campos derivados viajan resueltos porque la agenda los muestra en cada
+ * fila y resolverlos aparte exigiría una consulta por cita.
+ */
+export type Appointment = {
+  id: string;
+  organizationId: string;
+  contactId: string;
+  contactDisplayName: string | null;
+  serviceId: string;
+  serviceName: string | null;
+  assigneeMembershipId: string | null;
+  assigneeName: string | null;
+  conversationId: string | null;
+  opportunityId: string | null;
+  startsAt: string;
+  endsAt: string;
+  status: AppointmentStatus;
+  createdByMembershipId: string;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/**
+ * Un cambio de la cita, tal como lo conserva el historial. Guarda los horarios
+ * además del estado porque una reprogramación es precisamente un cambio de
+ * horario: sin ellos, dos filas `rescheduled` seguidas no dirían qué se movió.
+ */
+export type AppointmentTransition = {
+  id: string;
+  previousStatus: AppointmentStatus | null;
+  nextStatus: AppointmentStatus;
+  previousStartsAt: string | null;
+  previousEndsAt: string | null;
+  nextStartsAt: string;
+  nextEndsAt: string;
+  actorType: "staff" | "system";
+  actorId: string | null;
+  correlationId: string;
+  occurredAt: string;
+};
+
+export type AppointmentDetail = Appointment & {
+  transitions: AppointmentTransition[];
+};
+
+/**
+ * Quien agenda es la membresía de la sesión. `endsAt` es opcional: sin él, el
+ * fin se deriva de la duración del servicio dentro de la misma sentencia que
+ * inserta, para que no quede ventana entre leer el catálogo y escribir.
+ */
+export type CreateAppointmentInput = {
+  contactId: string;
+  serviceId: string;
+  startsAt: string;
+  endsAt?: string | null;
+  assigneeMembershipId?: string | null;
+  conversationId?: string | null;
+  opportunityId?: string | null;
+  status?: AppointmentStatus;
+  createdByMembershipId: string;
+  actorId: string;
+  correlationId: string;
+};
+
+/**
+ * Campos ausentes se conservan; `assigneeMembershipId: null` retira al
+ * responsable. Cambiar el horario es reprogramar y el estado lo refleja, salvo
+ * cuando la cita solo estaba solicitada: ahí todavía no había nada acordado que
+ * mover.
+ */
+export type UpdateAppointmentInput = {
+  expectedVersion: number;
+  startsAt?: string;
+  endsAt?: string;
+  assigneeMembershipId?: string | null;
+  status?: AppointmentStatus;
+  actorId: string;
+  correlationId: string;
 };

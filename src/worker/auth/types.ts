@@ -16,6 +16,12 @@ export type OrganizationAccess = {
   organizationId: string;
   organizationName: string;
   organizationSlug: string;
+  /**
+   * Zona horaria IANA de la organización (ADR-0010). Viaja con el contexto
+   * porque toda pantalla que muestre un día —la agenda, hoy— la necesita, y
+   * pedirla aparte añadiría una consulta a cada carga del panel.
+   */
+  organizationTimeZone: string;
   membershipId: string;
   role: "owner" | "manager" | "operator";
   permissions: string[];

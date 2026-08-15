@@ -33,6 +33,7 @@ export type OrganizationRow = {
   slug: string;
   display_name: string;
   status: string;
+  time_zone: string;
   created_at: string;
   updated_at: string;
 };
@@ -182,6 +183,7 @@ export function toOrganization(row: OrganizationRow): Organization {
     slug: row.slug,
     displayName: row.display_name,
     status: asMember(organizationStatuses, row.status, "organizations.status"),
+    timeZone: row.time_zone,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

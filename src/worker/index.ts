@@ -11,10 +11,12 @@ import type { InboundQueueMessage, OutboundQueueMessage } from "./integrations/z
 import { handleInboundQueue } from "./integrations/zernio/inbound-queue";
 import { handleOutboundQueue } from "./integrations/zernio/outbound-queue";
 import { handleZernioWebhook } from "./integrations/zernio/webhook";
+import { routeAppointmentApi } from "./appointment-api";
 import { routeContactApi } from "./contact-api";
 import { routeConversationApi } from "./conversation-api";
 import { routeNoteApi } from "./note-api";
 import { routeOpportunityApi } from "./opportunity-api";
+import { routeOrganizationApi } from "./organization-api";
 import { routePipelineApi } from "./pipeline-api";
 import { routeServiceApi } from "./service-api";
 import { routeTaskApi } from "./task-api";
@@ -73,6 +75,12 @@ export default {
 
     const taskResponse = await routeTaskApi(request, workerEnv);
     if (taskResponse) return taskResponse;
+
+    const appointmentResponse = await routeAppointmentApi(request, workerEnv);
+    if (appointmentResponse) return appointmentResponse;
+
+    const organizationResponse = await routeOrganizationApi(request, workerEnv);
+    if (organizationResponse) return organizationResponse;
 
     const teamResponse = await routeTeamApi(request, workerEnv);
     if (teamResponse) return teamResponse;
