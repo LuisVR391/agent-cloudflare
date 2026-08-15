@@ -744,6 +744,192 @@ export async function updateTask(
   return body.task;
 }
 
+/**
+ * Ciclo de vida de una cita. `rescheduled` es un estado y no solo un hecho del
+ * historial: una cita movida y sin reconfirmar no está en la misma situación
+ * que una confirmada.
+ */
+export type AppointmentStatus =
+  | "requested"
+  | "pending"
+  | "confirmed"
+  | "rescheduled"
+  | "cancelled"
+  | "completed"
+  | "no_show";
+
+/** Cada cambio de estado o de horario, tal como lo conserva el historial. */
+export type AppointmentTransition = {
+  id: string;
+  previousStatus: AppointmentStatus | null;
+  nextStatus: AppointmentStatus;
+  previousStartsAt: string | null;
+  previousEndsAt: string | null;
+  nextStartsAt: string;
+  nextEndsAt: string;
+  actorType: "staff" | "system";
+  actorId: string | null;
+  correlationId: string;
+  occurredAt: string;
+};
+
+/**
+ * Cita con su intervalo en ISO 8601 UTC. El contacto, el servicio y el
+ * responsable viajan resueltos porque la agenda los muestra en cada fila.
+ */
+export type Appointment = {
+  id: string;
+  contactId: string;
+  contactDisplayName: string | null;
+  serviceId: string;
+  serviceName: string | null;
+  assigneeMembershipId: string | null;
+  assigneeName: string | null;
+  conversationId: string | null;
+  opportunityId: string | null;
+  startsAt: string;
+  endsAt: string;
+  status: AppointmentStatus;
+  createdByMembershipId: string;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AppointmentDetail = Appointment & {
+  transitions: AppointmentTransition[];
+};
+
+export type AgendaRange = "day" | "week";
+
+/**
+ * Agenda de un día o una semana. La fecha viaja como día civil —`YYYY-MM-DD`— y
+ * el backend la interpreta con la zona horaria de la organización: si el
+ * navegador resolviera el rango, dos personas verían agendas distintas de la
+ * misma empresa. `window` devuelve el rango UTC que se consultó.
+ */
+export async function listAppointments(
+  filters: {
+    date?: string;
+    range?: AgendaRange;
+    assignee?: TaskAssigneeFilter;
+    status?: AppointmentStatus;
+  } = {},
+) {
+  const params = new URLSearchParams();
+  if (filters.date) params.set("date", filters.date);
+  if (filters.range) params.set("range", filters.range);
+  if (filters.assignee && filters.assignee !== "all") {
+    params.set("assignee", filters.assignee);
+  }
+  if (filters.status) params.set("status", filters.status);
+  const suffix = params.size > 0 ? `?${params}` : "";
+  const response = await fetch(`/api/appointments${suffix}`, {
+    credentials: "same-origin",
+  });
+  if (!response.ok) throw new Error(await parseError(response, "No fue posible cargar la agenda."));
+  return response.json() as Promise<{
+    appointments: Appointment[];
+    timeZone: string;
+    date: string;
+    range: AgendaRange;
+    window: { from: string; to: string };
+    limit: number;
+    truncated: boolean;
+  }>;
+}
+
+/** Citas de un contacto, una conversación o una oportunidad. */
+export async function listSubjectAppointments(subject: {
+  type: "contact" | "conversation" | "opportunity";
+  id: string;
+}) {
+  const response = await fetch(
+    `/api/appointments?subjectType=${subject.type}&subjectId=${encodeURIComponent(subject.id)}`,
+    { credentials: "same-origin" },
+  );
+  if (!response.ok) throw new Error(await parseError(response, "No fue posible cargar las citas."));
+  const body = (await response.json()) as { appointments: Appointment[] };
+  return body.appointments;
+}
+
+/**
+ * Sin `endsAt`, el fin se deriva de la duración del servicio en el backend. El
+ * origen no es excluyente: una cita puede nacer en una conversación y
+ * pertenecer a la oportunidad que esa conversación abrió.
+ */
+export async function createAppointment(input: {
+  contactId: string;
+  serviceId: string;
+  startsAt: string;
+  endsAt?: string;
+  assigneeMembershipId?: string | null;
+  conversationId?: string | null;
+  opportunityId?: string | null;
+  status?: Extract<AppointmentStatus, "requested" | "pending" | "confirmed">;
+}) {
+  const response = await fetch("/api/appointments", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error(await parseError(response, "No fue posible agendar la cita."));
+  const body = (await response.json()) as { appointment: AppointmentDetail };
+  return body.appointment;
+}
+
+/**
+ * Campos ausentes se conservan. Cambiar el horario deja la cita en
+ * `rescheduled` sin pedirlo, salvo cuando solo estaba solicitada; una
+ * transición que el ciclo no declara la rechaza el backend.
+ */
+export async function updateAppointment(
+  appointmentId: string,
+  input: {
+    expectedVersion: number;
+    startsAt?: string;
+    endsAt?: string;
+    assigneeMembershipId?: string | null;
+    status?: AppointmentStatus;
+  },
+) {
+  const response = await fetch(
+    `/api/appointments/${encodeURIComponent(appointmentId)}`,
+    {
+      method: "PATCH",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    },
+  );
+  if (!response.ok) throw new Error(await parseError(response, "No fue posible actualizar la cita."));
+  const body = (await response.json()) as { appointment: AppointmentDetail };
+  return body.appointment;
+}
+
+/**
+ * Zona horaria con la que se interpreta la agenda. La decide la empresa, no el
+ * navegador de quien mira, y solo la cambia quien administra la organización.
+ */
+export async function updateOrganizationTimeZone(timeZone: string) {
+  const response = await fetch("/api/organization", {
+    method: "PATCH",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ timeZone }),
+  });
+  if (!response.ok) {
+    throw new Error(
+      await parseError(response, "No fue posible cambiar la zona horaria."),
+    );
+  }
+  const body = (await response.json()) as {
+    organization: { id: string; displayName: string; timeZone: string };
+  };
+  return body.organization;
+}
+
 export type TeamRole = "owner" | "manager" | "operator";
 
 export type TeamMember = {

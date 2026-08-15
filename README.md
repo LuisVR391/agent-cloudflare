@@ -60,11 +60,11 @@ forks del producto.
 | Panel de servicios | Implementado para Fase 2 | Catálogo con duración, precio opcional en su moneda y archivado en lugar de borrado |
 | Panel de pipeline | Implementado para Fase 2 | Tablero con las etapas configuradas, una tarjeta por oportunidad, movimiento con historial y creación desde la conversación |
 | Panel de tareas | Implementado para Fase 2 | Sección propia con filtro por responsable y estado, vencimientos con aviso de vencida, y tareas creadas desde la conversación |
-| Agenda de citas | Superficie implementada para Fase 2 | Citas con servicio, responsable e historial de estado, agrupadas por el día de la zona horaria de la organización; la agenda del panel llega en el segundo corte de #38 |
+| Panel de agenda | Implementado para Fase 2 | Vistas de día y semana en la zona horaria de la organización, citas con servicio, responsable e historial de estado, alta desde la conversación y selector de zona para quien administra |
 | Panel de agentes | Planificado | Navegación reservada y deshabilitada |
 | WhatsApp mediante Zernio | Implementado para Fase 1 | Recorrido bidireccional validado con tráfico real, incluidos estados de entrega y medios entrantes |
 | Queues, Workflows y Vectorize | Parcial | Queues de entrada/salida y DLQ provisionadas en staging; Workflows y Vectorize permanecen planificados |
-| CRM, agenda y pipelines | Parcial | Contactos, equipo con asignación, catálogo de servicios, pipeline configurable, oportunidades con historial, notas, tareas y la superficie de citas están implementados; la agenda del panel y las métricas siguen planificadas en Fase 2 |
+| CRM, agenda y pipelines | Parcial | Contactos, equipo con asignación, catálogo de servicios, pipeline configurable, oportunidades con historial, notas, tareas y citas con agenda están implementados; las métricas iniciales siguen planificadas en Fase 2 |
 | Versionado, evaluación y mejora de agentes | Planificados | Fuera del prototipo actual |
 
 `CustomerSupportAgent` coordina el estado vivo de cada conversación sin

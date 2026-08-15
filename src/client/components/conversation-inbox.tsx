@@ -285,6 +285,16 @@ export function ConversationInbox() {
             // se crea a nombre de quien la escribe.
             canReadTeam,
           }}
+          appointmentAccess={{
+            canRead: panel.activeOrganization.permissions.includes(
+              "appointments.read",
+            ),
+            canManage: panel.activeOrganization.permissions.includes(
+              "appointments.manage",
+            ),
+            canReadTeam,
+            timeZone: panel.activeOrganization.organizationTimeZone,
+          }}
           currentUser={panel.user}
           loadingOlder={loadingOlder}
           members={canReadTeam ? members : null}
