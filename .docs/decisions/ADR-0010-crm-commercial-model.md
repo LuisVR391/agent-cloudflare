@@ -6,11 +6,13 @@
 
 **Aceptado:** 2026-08-14, con el corte que adopta la oportunidad
 ([#36](https://github.com/LuisVR391/agent-cloudflare/issues/36)). La zona
-horaria de la organización es la única parte que todavía no tiene
-implementación: la introduce el corte de citas
+horaria de la organización entró con el corte de citas
 ([#38](https://github.com/LuisVR391/agent-cloudflare/issues/38)), su primer
-consumidor real. El [módulo de pipelines](../modules/pipelines.md) describe lo
-que existe hoy.
+consumidor real: `organizations.time_zone` existe desde
+`0017_appointments_and_time_zone.sql` y la agenda la usa para resolver el día.
+El [módulo de pipelines](../modules/pipelines.md) y el de
+[citas y tareas](../modules/appointments-and-tasks.md) describen lo que existe
+hoy.
 
 ## Contexto
 

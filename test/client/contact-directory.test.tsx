@@ -48,6 +48,7 @@ function panelContext(permissions: string[]) {
       organizationId: "11111111-1111-4111-8111-111111111111",
       organizationName: "Salón Uno",
       organizationSlug: "salon-uno",
+      organizationTimeZone: "America/Mexico_City",
       membershipId: "membership-1",
       role: "owner" as const,
       permissions,

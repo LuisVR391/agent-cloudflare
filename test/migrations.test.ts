@@ -17,6 +17,8 @@ describe("migraciones de D1", () => {
   it("crea el esquema inicial desde una base vacía", async () => {
     expect(await objectNames("table")).toEqual(
       expect.arrayContaining([
+        "appointment_transitions",
+        "appointments",
         "audit_logs",
         "communication_channels",
         "auth_rate_limits",
@@ -71,12 +73,16 @@ describe("migraciones de D1", () => {
       "0014_opportunities.sql",
       "0015_contact_notes.sql",
       "0016_tasks.sql",
+      "0017_appointments_and_time_zone.sql",
     ]);
   });
 
   it("indexa cada tabla empresarial por organización", async () => {
     expect(await objectNames("index")).toEqual(
       expect.arrayContaining([
+        "appointments_organization_starts_idx",
+        "appointments_organization_assignee_starts_idx",
+        "appointment_transitions_organization_appointment_idx",
         "contact_identities_contact_idx",
         "contact_identities_scope_unique",
         "contact_notes_organization_contact_idx",

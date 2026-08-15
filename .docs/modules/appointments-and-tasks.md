@@ -1,10 +1,11 @@
 # Notas, tareas y citas
 
-> **Estado:** vigente para las notas del contacto y las tareas con responsable,
-> el cuarto entregable de Fase 2
-> ([#37](https://github.com/LuisVR391/agent-cloudflare/issues/37)). Las citas
-> llegan en [#38](https://github.com/LuisVR391/agent-cloudflare/issues/38) y
-> todavía no existen. Este documento describe lo que existe hoy, no lo
+> **Estado:** vigente para las notas del contacto y las tareas con responsable
+> ([#37](https://github.com/LuisVR391/agent-cloudflare/issues/37)) y para la
+> superficie de citas del quinto entregable de Fase 2
+> ([#38](https://github.com/LuisVR391/agent-cloudflare/issues/38)). La agenda
+> del panel llega en el segundo corte de ese mismo issue; hasta entonces las
+> citas se operan por API. Este documento describe lo que existe hoy, no lo
 > planificado.
 
 Una conversación registra lo que el contacto dijo. La nota registra lo que el
@@ -19,6 +20,10 @@ durable y vive en D1, como el resto del registro canónico
 | --- | --- | --- |
 | `contact_notes` | Cuerpo de la nota, su autor, el contacto al que pertenece y la conversación desde la que se escribió, cuando la hubo | `0015_contact_notes.sql` |
 | `tasks` | Título, detalle, responsable, vencimiento, estado y el sujeto del que cuelga | `0016_tasks.sql` |
+| `appointments` | Contacto, servicio, responsable, intervalo en UTC, estado y el origen del que nació | `0017_appointments_and_time_zone.sql` |
+| `appointment_transitions` | Cada cambio de estado o de horario, con actor y `correlationId` | `0017_appointments_and_time_zone.sql` |
+
+La misma migración añade `organizations.time_zone`.
 
 ## La nota pertenece al contacto, no a la conversación
 
@@ -120,10 +125,10 @@ alguien sin membresía activa responde `409` y no cambia nada.
 
 El vencimiento es opcional y viaja en ISO 8601 UTC. Es un dato que la lista
 ordena y muestra: una tarea con plazo pasado se marca como vencida, pero nada
-se dispara solo. Recordatorios y notificaciones pertenecen a Fase 4. La zona
-horaria de la organización que decide
-[ADR-0010](../decisions/ADR-0010-crm-commercial-model.md) llega con las citas de
-#38; hasta entonces el panel convierte la hora local a ese instante.
+se dispara solo. Recordatorios y notificaciones pertenecen a Fase 4. El panel de
+tareas sigue convirtiendo la hora local del navegador a ese instante; la zona
+horaria de la organización la usa la agenda, que es donde un día mal
+interpretado cambia lo que se ve.
 
 ## Un solo sujeto, o ninguno
 
@@ -212,6 +217,137 @@ En **Conversaciones**, el botón «Tareas» abre un panel lateral con lo que cue
 de ese hilo y crea tareas ancladas a él. Como el resto de paneles, no consulta
 hasta abrirse.
 
+## La empresa declara en qué zona vive
+
+`organizations.time_zone` guarda un identificador IANA y las organizaciones que
+existían antes de `0017` reciben `America/Mexico_City`, el valor por defecto
+explícito que pide
+[ADR-0010](../decisions/ADR-0010-crm-commercial-model.md).
+
+Los instantes se siguen guardando en ISO 8601 UTC, sin excepción. La zona solo
+decide dónde empieza y dónde termina el día que alguien mira: sin ella, la
+agenda de un salón en Ciudad de México cortaría a las 18:00 locales, que es
+cuando cambia el día en UTC.
+
+El cálculo vive en el Worker y no en el cliente, porque el rango termina en una
+cláusula `WHERE`: si lo resolviera el navegador, dos personas verían agendas
+distintas de la misma empresa. `PATCH /api/organization` la cambia con
+`organization.manage` y valida el identificador contra `Intl` antes de
+persistirlo; una zona inventada responde `400 INVALID_TIME_ZONE`. La zona viaja
+después en `/api/context`, para que ninguna pantalla tenga que pedirla aparte.
+
+Cambiarla no reescribe nada: las citas conservan su instante y solo cambia el
+día al que se agrupan.
+
+## La cita reserva tiempo para alguien
+
+Contacto y servicio son obligatorios: sin contacto no hay a quién atender y sin
+servicio no se sabe cuánto dura ni qué se reservó. El responsable es opcional,
+porque una cita puede acordarse antes de decidir quién la atiende, y anotar un
+nombre falso sería peor que dejarlo pendiente.
+
+Cuando el fin no se envía, se deriva de `duration_minutes` del servicio dentro
+de la misma sentencia que inserta, y se persiste: editar el catálogo después no
+debe mover una cita ya acordada. El servicio debe estar activo.
+
+El origen —la conversación y la oportunidad que la generaron— es opcional y **no
+es excluyente**, a diferencia del sujeto de una tarea: la misma cita puede nacer
+en una conversación y pertenecer a la oportunidad que esa conversación abrió.
+
+## Ciclo de estados
+
+| Estado | Puede pasar a |
+| --- | --- |
+| `requested` | `pending`, `confirmed`, `cancelled` |
+| `pending` | `confirmed`, `rescheduled`, `cancelled`, `no_show` |
+| `confirmed` | `rescheduled`, `cancelled`, `completed`, `no_show` |
+| `rescheduled` | `confirmed`, `rescheduled`, `cancelled`, `completed`, `no_show` |
+| `cancelled`, `completed`, `no_show` | nada: son terminales |
+
+La matriz vive en `src/worker/domain/appointment-status.ts` y se valida en
+backend. Lo que el panel ofrezca como acción es una ayuda, no un control: una
+transición no declarada responde `409 APPOINTMENT_TRANSITION_NOT_ALLOWED`
+aunque llegue por API.
+
+Corregir un desenlace equivocado es agendar de nuevo, no reescribir el pasado:
+por eso los tres estados finales no vuelven atrás.
+
+`rescheduled` es un estado y no solo un hecho del historial. Una cita movida y
+todavía sin reconfirmar no está en la misma situación que una confirmada, y la
+agenda necesita distinguirlas de un vistazo.
+
+## Reprogramar
+
+Cambiar el horario deja la cita en `rescheduled` sin que haga falta pedirlo. La
+excepción es `requested`: ahí todavía no había nada acordado que mover, así que
+conserva su estado.
+
+Mover el inicio sin decir hasta cuándo conserva la duración vigente. Recortarla
+por accidente sería peor que respetarla.
+
+Toda modificación exige la versión vigente, como una tarea o una oportunidad. Si
+otra persona reprogramó antes, la respuesta es `409
+APPOINTMENT_VERSION_CONFLICT` y quien pide el cambio debe releer.
+
+## Superficie HTTP de citas
+
+| Ruta | Método | Permiso | Respuesta |
+| --- | --- | --- | --- |
+| `/api/appointments?date=&range=day\|week&assignee=me\|all\|<membershipId>&status=&limit=` | `GET` | `appointments.read` | `{ appointments, timeZone, date, range, window, limit, truncated }` |
+| `/api/appointments?subjectType=&subjectId=` | `GET` | `appointments.read` | `{ appointments, timeZone }` del contacto, la conversación o la oportunidad |
+| `/api/appointments` | `POST` | `appointments.manage` | `201` con `{ appointment }` y su historial |
+| `/api/appointments/:id` | `GET` | `appointments.read` | `{ appointment, timeZone }`, con `transitions` |
+| `/api/appointments/:id` | `PATCH` | `appointments.manage` | `{ appointment }` |
+| `/api/organization` | `GET` | sesión con organización activa | `{ organization }` |
+| `/api/organization` | `PATCH` | `organization.manage` | `{ organization }` |
+
+Sin `date`, la agenda abre en el día que la empresa está viviendo, no en el del
+servidor. `window` devuelve el rango UTC que se consultó, para que quien lo lea
+pueda comprobar cómo se interpretó la fecha. El rango es semiabierto: una cita a
+medianoche pertenece a un solo día.
+
+`assignee=me` lo resuelve el backend con la membresía de la sesión, igual que en
+tareas: el cliente no envía su identificador ni podría demostrarlo.
+
+Códigos de error: `400 INVALID_APPOINTMENT` e `INVALID_APPOINTMENT_UPDATE` con
+entrada inválida —incluido un fin anterior al inicio—, `400 INVALID_QUERY` con
+fecha, rango o estado mal formados, `400 INVALID_TIME_ZONE`, `403 FORBIDDEN` sin
+permiso, `404 NOT_FOUND` para la cita o cualquier referencia que no viva en la
+organización activa —todas responden igual, para no revelar qué identificador
+existe en otra—, `409 APPOINTMENT_VERSION_CONFLICT`,
+`409 APPOINTMENT_TRANSITION_NOT_ALLOWED` y `409 MEMBERSHIP_NOT_ACTIVE`.
+
+## Permisos de citas
+
+| Permiso | Roles |
+| --- | --- |
+| `appointments.read` | `owner`, `manager`, `operator` |
+| `appointments.manage` | `owner`, `manager`, `operator` |
+
+Los tres roles gestionan citas: quien atiende la conversación es quien acuerda
+el horario, y una cita que solo puede agendar su jefe se pierde mientras tanto.
+Configurar la organización sigue siendo distinto y `organization.manage`
+permanece en `owner`.
+
+Como en los cortes anteriores, los permisos entran por dos caminos que deben
+coincidir: `0017_appointments_and_time_zone.sql` los concede por `role_key` a
+toda organización ya instalada y `permissionDefinitions`/`permissionsByRole`
+cubren las instalaciones nuevas, con una prueba que verifica que ambos catálogos
+terminan iguales.
+
+## Auditoría de citas
+
+Crear y modificar quedan en `audit_logs` con `resource_type = 'appointment'`,
+las acciones `appointment.create` y `appointment.update`, el resultado y el
+`correlationId`. Los rechazos por falta de `appointments.manage` se registran
+antes de responder `403`. Cambiar la zona horaria queda con
+`resource_type = 'organization'` y la acción `organization.update`.
+
+El historial de la cita es distinto de la auditoría: `appointment_transitions`
+explica cómo llegó la reserva a su desenlace —de qué estado a cuál y de qué
+horario a cuál—, mientras que `audit_logs` registra quién ejecutó una operación
+autorizada.
+
 ## Límites conocidos
 
 - Una nota no se edita ni se borra. El corte entrega lo que el criterio de
@@ -226,5 +362,19 @@ hasta abrirse.
   fingir que se hizo, pero el panel todavía solo alterna entre pendiente y
   hecha.
 - La lista tiene tope de 100 tareas y lo anuncia con `truncated` en vez de
-  recortar en silencio; no hay paginación por cursor.
-- Las citas todavía no existen: llegan con #38, en este mismo documento.
+  recortar en silencio; no hay paginación por cursor. La agenda usa el mismo
+  tope y lo anuncia igual.
+- La agenda del panel todavía no existe: las citas se operan por API hasta el
+  segundo corte de #38.
+- Nada impide dos citas a la misma hora con el mismo responsable. La
+  disponibilidad, la propuesta de horarios y la prevención de traslapes quedan
+  fuera de #38: son reglas de negocio con horarios de atención detrás, y esa
+  configuración no existe todavía.
+- Sin recordatorios ni confirmaciones automáticas: una cita `pending` no avisa a
+  nadie. Pertenecen a Fase 4.
+- Sin calendarios externos ni sincronización.
+- Una cita no se borra ni tiene notas propias: se cancela, y lo que haya que
+  contar sobre ella se anota en el contacto o queda como tarea.
+- Confirmar una cita no mueve la etapa comercial ni resuelve la conversación:
+  los tres estados permanecen separados por
+  [ADR-0010](../decisions/ADR-0010-crm-commercial-model.md).

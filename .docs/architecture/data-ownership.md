@@ -21,7 +21,10 @@ pero no competir por la autoridad del mismo dato.
 | Pipeline y sus etapas | D1 | Configuración comercial por organización, con orden explícito |
 | Oportunidades e historial de etapa | D1 | Estado comercial y evidencia de cómo avanzó |
 | Notas del contacto | D1 | Lo que el equipo entendió, con su autor y su origen |
-| Citas, tareas y automatizaciones | D1 | Estado empresarial durable |
+| Tareas con responsable | D1 | Lo que quedó pendiente y a quién le toca |
+| Citas e historial de estado | D1 | El compromiso reservado y cómo llegó a su desenlace |
+| Zona horaria de la organización | D1 | Cómo se interpreta un día de agenda; los instantes siguen en UTC |
+| Automatizaciones | D1 | Estado empresarial durable |
 | Buffer, debounce, orden y exclusión mutua | Durable Object | Coordinación viva de una conversación |
 | Cursor de procesamiento y alarmas cercanas | Durable Object | Continuidad del runtime conversacional |
 | Imágenes, audios, documentos y exportaciones | R2 | Contenido binario y fuentes originales |

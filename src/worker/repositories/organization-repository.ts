@@ -61,6 +61,73 @@ export class OrganizationRepository {
     return row === null ? null : toOrganization(row);
   }
 
+  /**
+   * Cambia la zona horaria con la que se interpreta la agenda. El identificador
+   * IANA se valida antes de llegar aquí: es entrada no confiable y decide qué
+   * citas se ven, no solo cómo se dibujan.
+   *
+   * Las marcas de tiempo ya guardadas no se tocan. Siguen siendo el mismo
+   * instante; lo que cambia es el día al que se asignan al mostrarlas.
+   */
+  async updateTimeZone(
+    organizationId: string,
+    timeZone: string,
+  ): Promise<Organization | null> {
+    const scope = requireOrganizationScope(
+      organizationId,
+      "OrganizationRepository.updateTimeZone",
+    );
+
+    const row = await this.#db
+      .prepare(
+        `UPDATE organizations SET time_zone = ?, updated_at = ?
+          WHERE id = ?
+          RETURNING *`,
+      )
+      .bind(timeZone, new Date().toISOString(), scope)
+      .first<OrganizationRow>();
+
+    return row === null ? null : toOrganization(row);
+  }
+
+  /**
+   * Deja constancia de quién cambió la configuración de la organización, con el
+   * mismo formato que el resto de superficies del panel.
+   */
+  async recordAudit(input: {
+    organizationId: string;
+    actorId: string;
+    action: "organization.update";
+    // `audit_logs` solo admite estos tres valores. Cualquier otro rompe el
+    // `CHECK` y convierte un rechazo previsto en un fallo del servidor.
+    result: "allowed" | "rejected" | "failed";
+    correlationId: string;
+  }): Promise<void> {
+    const scope = requireOrganizationScope(
+      input.organizationId,
+      "OrganizationRepository.recordAudit",
+    );
+
+    await this.#db
+      .prepare(
+        `INSERT INTO audit_logs
+           (id, organization_id, actor_type, actor_id, action, resource_type,
+            resource_id, result, correlation_id, occurred_at)
+         VALUES (?, ?, 'staff', ?, ?, 'organization', ?, ?, ?, ?)`,
+      )
+      .bind(
+        crypto.randomUUID(),
+        scope,
+        input.actorId,
+        input.action,
+        scope,
+        input.result,
+        input.correlationId,
+        new Date().toISOString(),
+      )
+      .run();
+  }
+
   async deleteById(organizationId: string): Promise<void> {
     const scope = requireOrganizationScope(
       organizationId,
