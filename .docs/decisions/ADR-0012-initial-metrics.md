@@ -1,8 +1,14 @@
 # ADR-0012: Métricas iniciales derivadas de D1
 
-**Estado:** Propuesto
+**Estado:** Aceptado
 
 **Fecha:** 2026-08-12
+
+**Adoptada por:** el corte de métricas iniciales
+([#39](https://github.com/LuisVR391/agent-cloudflare/issues/39)), que publica
+`GET /api/metrics` con rango obligatorio y acotado, sin crear ninguna tabla de
+agregación. El detalle de cada definición está en el
+[módulo de métricas iniciales](../modules/initial-metrics.md).
 
 ## Contexto
 

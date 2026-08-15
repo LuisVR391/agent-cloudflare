@@ -24,6 +24,7 @@ pero no competir por la autoridad del mismo dato.
 | Tareas con responsable | D1 | Lo que quedó pendiente y a quién le toca |
 | Citas e historial de estado | D1 | El compromiso reservado y cómo llegó a su desenlace |
 | Zona horaria de la organización | D1 | Cómo se interpreta un día de agenda; los instantes siguen en UTC |
+| Métricas del proceso | D1, derivadas por consulta | Lectura agregada del historial que ya tiene dueño; sin tabla de agregados ni contador ([ADR-0012](../decisions/ADR-0012-initial-metrics.md)) |
 | Automatizaciones | D1 | Estado empresarial durable |
 | Buffer, debounce, orden y exclusión mutua | Durable Object | Coordinación viva de una conversación |
 | Cursor de procesamiento y alarmas cercanas | Durable Object | Continuidad del runtime conversacional |
@@ -71,6 +72,7 @@ existen en `migrations/` estas tablas:
 | `opportunities`, `opportunity_stage_transitions` | Oportunidad que recorre el pipeline y el historial de cada movimiento | `0014_opportunities.sql` |
 | `contact_notes` | Nota del contacto con su autor y la conversación desde la que se escribió | `0015_contact_notes.sql` |
 | `tasks` | Tarea con responsable, vencimiento, estado y un solo sujeto opcional | `0016_tasks.sql` |
+| `appointments`, `appointment_transitions` | Cita con su intervalo en UTC, su origen y el historial de estado y horario | `0017_appointments_and_time_zone.sql` |
 | `communication_channels`, `inbound_webhook_events` | Canal confiable y recepción deduplicada de Zernio | `0003_zernio_whatsapp_channel.sql` y `0005_message_sent_reconciliation.sql` |
 | `conversations`, `messages`, `message_attachments` | Historial canónico y metadatos de medios | `0004_conversations_and_messages.sql` y `0009_message_attachment_recovery.sql` |
 | `outbound_message_deliveries`, `message_status_events` | Idempotencia, intentos e historial de reconciliación por identificadores opacos | `0004` a `0006` |

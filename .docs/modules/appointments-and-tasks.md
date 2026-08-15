@@ -252,6 +252,11 @@ El origen —la conversación y la oportunidad que la generaron— es opcional y
 es excluyente**, a diferencia del sujeto de una tarea: la misma cita puede nacer
 en una conversación y pertenecer a la oportunidad que esa conversación abrió.
 
+Ese enlace con la oportunidad dejó de ser decorativo con el corte de métricas:
+es lo que permite medir cuántas oportunidades terminan en cita sin atribuirle a
+una venta la cita que salió de otra. El detalle está en el
+[módulo de métricas iniciales](./initial-metrics.md).
+
 ## Ciclo de estados
 
 | Estado | Puede pasar a |
@@ -370,6 +375,11 @@ En **Conversaciones**, el botón «Citas» abre un panel lateral que lista lo qu
 cuelga de ese hilo y agenda sobre el contacto de la conversación, con el
 servicio del catálogo activo, la hora del salón y un responsable opcional. Como
 el resto de paneles, no consulta hasta abrirse.
+
+Cuando quien agenda puede leer oportunidades, el formulario ofrece además la
+oportunidad a la que pertenece la cita, con la del propio hilo preseleccionada y
+«Sin oportunidad» siempre disponible. Sin ese permiso el campo no aparece y la
+cita se agenda igual, solo que sin decir de qué venta salió.
 
 El alta vive ahí y no en la agenda a propósito: una cita se acuerda hablando, y
 la conversación es la que aporta el contacto y explica de dónde salió.
