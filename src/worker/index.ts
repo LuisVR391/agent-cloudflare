@@ -14,6 +14,7 @@ import { handleZernioWebhook } from "./integrations/zernio/webhook";
 import { routeAppointmentApi } from "./appointment-api";
 import { routeContactApi } from "./contact-api";
 import { routeConversationApi } from "./conversation-api";
+import { routeMetricsApi } from "./metrics-api";
 import { routeNoteApi } from "./note-api";
 import { routeOpportunityApi } from "./opportunity-api";
 import { routeOrganizationApi } from "./organization-api";
@@ -78,6 +79,9 @@ export default {
 
     const appointmentResponse = await routeAppointmentApi(request, workerEnv);
     if (appointmentResponse) return appointmentResponse;
+
+    const metricsResponse = await routeMetricsApi(request, workerEnv);
+    if (metricsResponse) return metricsResponse;
 
     const organizationResponse = await routeOrganizationApi(request, workerEnv);
     if (organizationResponse) return organizationResponse;

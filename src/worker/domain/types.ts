@@ -648,3 +648,80 @@ export type UpdateAppointmentInput = {
   actorId: string;
   correlationId: string;
 };
+
+/** Periodo de métricas ya resuelto a instantes UTC, semiabierto `[from, to)`. */
+export type MetricsWindow = {
+  from: string;
+  to: string;
+};
+
+/**
+ * Tiempo de primera respuesta del periodo.
+ *
+ * Un «turno» es un mensaje entrante que abre una espera: el anterior de esa
+ * conversación fue saliente, o no había ninguno. Dos mensajes seguidos del
+ * contacto son un solo turno, porque quien atiende solo debe una respuesta.
+ *
+ * `pending` cuenta los turnos que al consultar seguían sin respuesta; no entran
+ * en la mediana ni en el promedio, porque su espera todavía no terminó y
+ * contarla como si hubiera terminado mejoraría la cifra cuanto peor fuera el
+ * servicio.
+ */
+export type FirstResponseMetrics = {
+  answered: number;
+  pending: number;
+  medianMinutes: number | null;
+  averageMinutes: number | null;
+};
+
+/**
+ * Métricas operativas: qué llegó, qué se atendió y en cuánto tiempo.
+ *
+ * `humanInterventions` cuenta las respuestas que envió una persona del equipo.
+ * Hoy toda respuesta lo es; cuando Fase 3 conteste sola, la misma definición
+ * pasa a medir exactamente lo que una persona tuvo que atender.
+ */
+export type OperationsMetrics = {
+  messagesReceived: number;
+  activeConversations: number;
+  firstResponse: FirstResponseMetrics;
+  humanInterventions: { replies: number; conversations: number };
+};
+
+/** Distribución de las oportunidades abiertas en el periodo por su etapa actual. */
+export type OpportunityStageCount = {
+  stageId: string;
+  stageName: string;
+  position: number;
+  pipelineId: string;
+  pipelineName: string;
+  count: number;
+};
+
+export type AppointmentStatusCount = {
+  status: AppointmentStatus;
+  count: number;
+};
+
+/**
+ * Métricas comerciales: a cuánta gente nueva se atendió, qué se abrió y qué
+ * terminó en una cita.
+ *
+ * La conversión son dos conteos, `created` y `withAppointment`, y no una tasa:
+ * el porcentaje lo calcula quien lo muestra, y devolverlo además duplicaría la
+ * definición en dos sitios que podrían divergir.
+ */
+export type CommercialMetrics = {
+  newContacts: number;
+  opportunities: {
+    created: number;
+    withAppointment: number;
+    byStage: OpportunityStageCount[];
+  };
+  appointmentsByStatus: AppointmentStatusCount[];
+};
+
+export type MetricsSummary = {
+  operations: OperationsMetrics;
+  commercial: CommercialMetrics;
+};
