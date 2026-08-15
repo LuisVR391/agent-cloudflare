@@ -67,6 +67,7 @@ existen en `migrations/` estas tablas:
 | `pipelines`, `pipeline_stages` | Pipeline comercial de la organización, con orden y color de cada etapa | `0013_pipelines_and_stages.sql` |
 | `opportunities`, `opportunity_stage_transitions` | Oportunidad que recorre el pipeline y el historial de cada movimiento | `0014_opportunities.sql` |
 | `contact_notes` | Nota del contacto con su autor y la conversación desde la que se escribió | `0015_contact_notes.sql` |
+| `tasks` | Tarea con responsable, vencimiento, estado y un solo sujeto opcional | `0016_tasks.sql` |
 | `communication_channels`, `inbound_webhook_events` | Canal confiable y recepción deduplicada de Zernio | `0003_zernio_whatsapp_channel.sql` y `0005_message_sent_reconciliation.sql` |
 | `conversations`, `messages`, `message_attachments` | Historial canónico y metadatos de medios | `0004_conversations_and_messages.sql` y `0009_message_attachment_recovery.sql` |
 | `outbound_message_deliveries`, `message_status_events` | Idempotencia, intentos e historial de reconciliación por identificadores opacos | `0004` a `0006` |

@@ -95,7 +95,7 @@ escribe su documento de módulo cuando existen sus interfaces, no antes.
 | [Contactos y conversación](./modules/contacts-and-conversations.md) | Vigente | [#34](https://github.com/LuisVR391/agent-cloudflare/issues/34) | Contactos, identidades, etiquetas y su relación con la conversación |
 | [Equipo, invitaciones y asignación](./modules/teams-and-permissions.md) | Vigente | [#35](https://github.com/LuisVR391/agent-cloudflare/issues/35) | Miembros, roles, invitaciones y responsable de conversación |
 | [Servicios, pipeline y oportunidades](./modules/pipelines.md) | Vigente | [#36](https://github.com/LuisVR391/agent-cloudflare/issues/36) | Servicios, pipelines, etapas, oportunidades e historial de movimiento |
-| [Notas, tareas y citas](./modules/appointments-and-tasks.md) | Vigente para notas | [#37](https://github.com/LuisVR391/agent-cloudflare/issues/37) y [#38](https://github.com/LuisVR391/agent-cloudflare/issues/38) | Notas del contacto; tareas, agenda y ciclo de estados de la cita siguen pendientes |
+| [Notas, tareas y citas](./modules/appointments-and-tasks.md) | Vigente para notas y tareas | [#37](https://github.com/LuisVR391/agent-cloudflare/issues/37) y [#38](https://github.com/LuisVR391/agent-cloudflare/issues/38) | Notas del contacto y tareas con responsable; la agenda y el ciclo de estados de la cita siguen pendientes |
 | `modules/initial-metrics.md` | Pendiente | [#39](https://github.com/LuisVR391/agent-cloudflare/issues/39) | Métricas operativas y comerciales iniciales |
 
 ### Fase 3 — Agentes

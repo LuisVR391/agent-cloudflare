@@ -131,7 +131,7 @@ métricas iniciales [#39](https://github.com/LuisVR391/agent-cloudflare/issues/3
 | Contactos con ficha, teléfono y etiquetas | Completado | Fase 1 | [Issue #34](https://github.com/LuisVR391/agent-cloudflare/issues/34) y [PR #41](https://github.com/LuisVR391/agent-cloudflare/pull/41) |
 | Equipo, invitaciones y asignación de conversaciones | Completado | Contactos de #34 | [Issue #35](https://github.com/LuisVR391/agent-cloudflare/issues/35), [PR #44](https://github.com/LuisVR391/agent-cloudflare/pull/44) y [ADR-0011](../decisions/ADR-0011-collaborator-invitations.md) |
 | Servicios, pipeline y oportunidades | Completado | Contactos de #34 | [Issue #36](https://github.com/LuisVR391/agent-cloudflare/issues/36), [ADR-0010](../decisions/ADR-0010-crm-commercial-model.md) y los cortes [PR #45](https://github.com/LuisVR391/agent-cloudflare/pull/45), [PR #47](https://github.com/LuisVR391/agent-cloudflare/pull/47) y el de oportunidades |
-| Notas y tareas con responsable | En progreso | Equipo de #35 | [Issue #37](https://github.com/LuisVR391/agent-cloudflare/issues/37) y el corte de notas del contacto; las tareas siguen pendientes |
+| Notas y tareas con responsable | Completado | Equipo de #35 | [Issue #37](https://github.com/LuisVR391/agent-cloudflare/issues/37) y el [módulo de notas y tareas](../modules/appointments-and-tasks.md) |
 | Citas desde la conversación | Planificado | Equipo de #35 y pipeline de #36 | [Issue #38](https://github.com/LuisVR391/agent-cloudflare/issues/38) |
 | Métricas iniciales del proceso | Planificado | Entregables #36, #37 y #38 | [Issue #39](https://github.com/LuisVR391/agent-cloudflare/issues/39) y [ADR-0012](../decisions/ADR-0012-initial-metrics.md) |
 
