@@ -24,7 +24,7 @@ cuando satisface sus criterios y el PR correspondiente está fusionado en
 | --- | --- | --- | --- |
 | 0. Fundamentos | Completado | Ninguna | Fundamentos documentales, datos, seguridad y entornos validados; staging preparado sin crear producción sin autorización. |
 | 1. WhatsApp funcional | Completado | Fase 0 | Mensajes de WhatsApp procesados de extremo a extremo con seguridad, durabilidad, inbox y handoff humano. |
-| 2. CRM | En progreso | Fase 1 | El flujo comercial desde contacto hasta cita puede operarse y medirse desde el CRM. |
+| 2. CRM | Completado | Fase 1 | El flujo comercial desde contacto hasta cita puede operarse y medirse desde el CRM. |
 | 3. Agentes | Planificado | Fase 2 | Agentes versionados usan conocimiento y herramientas autorizadas con aislamiento y supervisión. |
 | 4. Automatización | Planificado | Fase 3 | Procesos de seguimiento se ejecutan como Workflows durables, recuperables y observables. |
 | 5. Mejora continua | Planificado | Fase 4 | Los cambios se evalúan, aprueban, publican y revierten de forma segura; el MVP queda cerrado. |
@@ -133,7 +133,7 @@ métricas iniciales [#39](https://github.com/LuisVR391/agent-cloudflare/issues/3
 | Servicios, pipeline y oportunidades | Completado | Contactos de #34 | [Issue #36](https://github.com/LuisVR391/agent-cloudflare/issues/36), [ADR-0010](../decisions/ADR-0010-crm-commercial-model.md) y los cortes [PR #45](https://github.com/LuisVR391/agent-cloudflare/pull/45), [PR #47](https://github.com/LuisVR391/agent-cloudflare/pull/47) y el de oportunidades |
 | Notas y tareas con responsable | Completado | Equipo de #35 | [Issue #37](https://github.com/LuisVR391/agent-cloudflare/issues/37), [PR #49](https://github.com/LuisVR391/agent-cloudflare/pull/49) y el [módulo de notas y tareas](../modules/appointments-and-tasks.md) |
 | Citas desde la conversación | Completado | Equipo de #35 y pipeline de #36 | [Issue #38](https://github.com/LuisVR391/agent-cloudflare/issues/38), los cortes [PR #50](https://github.com/LuisVR391/agent-cloudflare/pull/50) y el de la agenda, y el [módulo de notas, tareas y citas](../modules/appointments-and-tasks.md) |
-| Métricas iniciales del proceso | Planificado | Entregables #36, #37 y #38 | [Issue #39](https://github.com/LuisVR391/agent-cloudflare/issues/39) y [ADR-0012](../decisions/ADR-0012-initial-metrics.md) |
+| Métricas iniciales del proceso | Completado | Entregables #36, #37 y #38 | [Issue #39](https://github.com/LuisVR391/agent-cloudflare/issues/39), [PR #52](https://github.com/LuisVR391/agent-cloudflare/pull/52), [ADR-0012](../decisions/ADR-0012-initial-metrics.md) y el [módulo de métricas iniciales](../modules/initial-metrics.md) |
 
 La evidencia de un entregable `Planificado` es su issue, no una capacidad
 disponible. `En progreso` significa que parte de su alcance ya está en `main` y
@@ -151,8 +151,9 @@ está `Aceptado` desde el corte de oportunidades, que adopta su decisión centra
 la oportunidad es lo que recorre un pipeline configurable. La zona horaria de la
 organización que ese mismo ADR decide entró con el primer corte de las citas de
 #38, su primer consumidor real.
-[ADR-0012](../decisions/ADR-0012-initial-metrics.md) sigue
-`Propuesto` y lo adoptará el corte de métricas.
+[ADR-0012](../decisions/ADR-0012-initial-metrics.md) está `Aceptado` desde el
+corte de métricas, que publica su superficie con rango obligatorio y acotado sin
+crear ninguna tabla de agregación.
 
 **Requisito transversal:** el catálogo de permisos se siembra hoy únicamente
 durante la instalación, de modo que una organización ya instalada no recibiría

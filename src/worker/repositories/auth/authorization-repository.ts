@@ -41,6 +41,7 @@ const permissionDefinitions = [
   ["tasks.manage", "Crear, asignar y cerrar tareas"],
   ["appointments.read", "Consultar la agenda de citas"],
   ["appointments.manage", "Agendar, reprogramar y cerrar citas"],
+  ["metrics.read", "Consultar las métricas del proceso"],
   ["agents.read", "Consultar agentes"],
   ["agents.manage", "Gestionar agentes"],
   ["users.read", "Consultar el equipo y sus roles"],
@@ -66,6 +67,7 @@ const permissionsByRole: Record<OrganizationAccess["role"], string[]> = {
     "tasks.manage",
     "appointments.read",
     "appointments.manage",
+    "metrics.read",
     "agents.read",
     "agents.manage",
     "users.read",
@@ -96,6 +98,10 @@ const permissionsByRole: Record<OrganizationAccess["role"], string[]> = {
     // agendar su jefe se pierde mientras tanto.
     "appointments.read",
     "appointments.manage",
+    // Las métricas son agregados del proceso, no datos personales del contacto
+    // ni contenido de mensajes, y quien atiende produce la mayoría de esas
+    // cifras: ocultarle el efecto de su trabajo no protege nada.
+    "metrics.read",
     "users.read",
   ],
 };

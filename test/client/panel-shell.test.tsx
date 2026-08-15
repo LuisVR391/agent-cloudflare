@@ -19,6 +19,10 @@ vi.mock("../../src/client/lib/api", () => ({
   listTeamInvitations: vi.fn(),
   previewInvitation: vi.fn(),
   acceptInvitation: vi.fn(),
+  // El resumen la importa; sin ella el módulo simulado no tendría el export y
+  // conceder `metrics.read` a este contexto rompería la prueba por el mock, no
+  // por el shell.
+  getMetricsSummary: vi.fn(),
 }));
 
 const api = await import("../../src/client/lib/api");

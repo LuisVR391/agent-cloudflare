@@ -150,3 +150,43 @@ export function agendaRange(
     to: zonedStartOfDay(shiftCivilDate(start, range === "week" ? 7 : 1), timeZone),
   };
 }
+
+/**
+ * Máximo de días civiles que puede abarcar una consulta de métricas. El rango
+ * acotado es el único control de costo que tiene un cálculo derivado
+ * ([ADR-0012](../../../.docs/decisions/ADR-0012-initial-metrics.md)), así que
+ * el máximo se declara aquí y no se deja al cliente. Un trimestre cubre el
+ * periodo más largo que un salón revisa de una vez.
+ */
+export const MAX_METRICS_RANGE_DAYS = 92;
+
+/**
+ * Días civiles que abarca `[from, to]`, contando ambos extremos: un rango de un
+ * solo día mide 1. Un rango invertido devuelve un número menor que 1, que es lo
+ * que permite rechazarlo sin comparar cadenas.
+ */
+export function civilDaysBetween(from: string, to: string): number {
+  const [fromYear, fromMonth, fromDay] = from.split("-").map(Number);
+  const [toYear, toMonth, toDay] = to.split("-").map(Number);
+  const start = Date.UTC(fromYear, fromMonth - 1, fromDay);
+  const end = Date.UTC(toYear, toMonth - 1, toDay);
+  return (end - start) / 86_400_000 + 1;
+}
+
+/**
+ * Rango semiabierto `[from, to)` en UTC de un periodo de métricas. Los dos días
+ * civiles llegan **inclusivos** —quien pide del 1 al 31 espera el 31 entero—,
+ * así que el fin se resuelve al inicio del día siguiente. Un mensaje recibido a
+ * las 23:00 hora del salón pertenece a su día local, no al día UTC en el que
+ * cae.
+ */
+export function metricsRange(
+  from: string,
+  to: string,
+  timeZone: string,
+): { from: string; to: string } {
+  return {
+    from: zonedStartOfDay(from, timeZone),
+    to: zonedStartOfDay(shiftCivilDate(to, 1), timeZone),
+  };
+}

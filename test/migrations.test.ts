@@ -74,6 +74,7 @@ describe("migraciones de D1", () => {
       "0015_contact_notes.sql",
       "0016_tasks.sql",
       "0017_appointments_and_time_zone.sql",
+      "0018_metrics_read_access.sql",
     ]);
   });
 
@@ -111,6 +112,10 @@ describe("migraciones de D1", () => {
         "message_status_events_reconciliation_idx",
         "messages_organization_platform_idx",
         "outbound_deliveries_organization_external_idx",
+        // Sin estos dos, acotar el periodo de una métrica no evitaría el
+        // escaneo de la tabla (ADR-0012).
+        "messages_organization_occurred_idx",
+        "opportunities_organization_created_idx",
       ]),
     );
   });

@@ -91,12 +91,12 @@ escribe su documento de módulo cuando existen sus interfaces, no antes.
 | --- | --- | --- | --- |
 | [ADR-0010: Modelo comercial del CRM](./decisions/ADR-0010-crm-commercial-model.md) | Aceptado | Transversal | Pipeline configurable, oportunidad, separación de estados, servicios y zona horaria |
 | [ADR-0011: Invitaciones de colaboradores](./decisions/ADR-0011-collaborator-invitations.md) | Aceptado | Transversal | Alta por invitación con token de un solo uso, sin reabrir el registro |
-| [ADR-0012: Métricas iniciales](./decisions/ADR-0012-initial-metrics.md) | Propuesto | Transversal | Cálculo derivado de D1 con rango acotado, sin almacén analítico |
+| [ADR-0012: Métricas iniciales](./decisions/ADR-0012-initial-metrics.md) | Aceptado | Transversal | Cálculo derivado de D1 con rango acotado, sin almacén analítico |
 | [Contactos y conversación](./modules/contacts-and-conversations.md) | Vigente | [#34](https://github.com/LuisVR391/agent-cloudflare/issues/34) | Contactos, identidades, etiquetas y su relación con la conversación |
 | [Equipo, invitaciones y asignación](./modules/teams-and-permissions.md) | Vigente | [#35](https://github.com/LuisVR391/agent-cloudflare/issues/35) | Miembros, roles, invitaciones y responsable de conversación |
 | [Servicios, pipeline y oportunidades](./modules/pipelines.md) | Vigente | [#36](https://github.com/LuisVR391/agent-cloudflare/issues/36) | Servicios, pipelines, etapas, oportunidades e historial de movimiento |
-| [Notas, tareas y citas](./modules/appointments-and-tasks.md) | Vigente para notas y tareas | [#37](https://github.com/LuisVR391/agent-cloudflare/issues/37) y [#38](https://github.com/LuisVR391/agent-cloudflare/issues/38) | Notas del contacto y tareas con responsable; la agenda y el ciclo de estados de la cita siguen pendientes |
-| `modules/initial-metrics.md` | Pendiente | [#39](https://github.com/LuisVR391/agent-cloudflare/issues/39) | Métricas operativas y comerciales iniciales |
+| [Notas, tareas y citas](./modules/appointments-and-tasks.md) | Vigente | [#37](https://github.com/LuisVR391/agent-cloudflare/issues/37) y [#38](https://github.com/LuisVR391/agent-cloudflare/issues/38) | Notas del contacto, tareas con responsable, y citas con agenda y ciclo de estados en la zona horaria de la organización |
+| [Métricas iniciales](./modules/initial-metrics.md) | Vigente | [#39](https://github.com/LuisVR391/agent-cloudflare/issues/39) | Métricas operativas y comerciales derivadas de D1 con rango acotado |
 
 ### Fase 3 — Agentes
 

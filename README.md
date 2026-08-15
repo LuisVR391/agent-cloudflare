@@ -9,11 +9,14 @@ desde una sola interfaz.
 > de WhatsApp se reciben una sola vez y en orden, una persona autorizada
 > responde desde el inbox y la respuesta recorre `Enviado → Entregado → Leído`,
 > y los medios entrantes se conservan en R2 y se abren desde la conversación.
-> Fase 2 está en progreso: el contacto tiene una ficha consultable y editable
+> Fase 2 está completada: el contacto tiene una ficha consultable y editable
 > con teléfono, correo y etiquetas, el equipo se incorpora por invitación y
-> asigna responsables a sus conversaciones, y desde la conversación se crea una
+> asigna responsables a sus conversaciones, desde la conversación se crea una
 > oportunidad con su servicio que avanza por el pipeline comercial conservando
-> quién la movió y cuándo.
+> quién la movió y cuándo, se anotan notas y tareas, se agenda en la zona
+> horaria del salón, y el resumen del panel mide el proceso —mensajes, primera
+> respuesta, contactos nuevos, oportunidades y conversión a cita— para el
+> periodo que se elija.
 ## Objetivo del producto
 
 Agent Cloudflare debe permitir que una empresa administre desde un solo panel:
@@ -51,7 +54,7 @@ forks del producto.
 | Workers AI | Binding preparado | Binding `AI` declarado, sin flujo de inferencia |
 | R2 | Implementada para Fase 1 | `MEDIA_BUCKET` conserva imágenes, audio y archivos con estado por adjunto; validado con medios reales en staging |
 | Observabilidad | Configurada | Logs y trazas habilitados en Wrangler |
-| D1 en local y pruebas | Implementada para Fase 1 y los cinco primeros entregables de Fase 2 | Migraciones `0001` a `0017`, repositorios, mensajes, entregas, adjuntos, contactos, equipo, servicios, pipeline, oportunidades, notas, tareas, citas y aislamiento probado |
+| D1 en local y pruebas | Implementada para Fase 1 y Fase 2 | Migraciones `0001` a `0018`, repositorios, mensajes, entregas, adjuntos, contactos, equipo, servicios, pipeline, oportunidades, notas, tareas, citas, métricas derivadas y aislamiento probado |
 | Autenticación y autorización | Implementada | Better Auth, sesión D1, instalación única, alta por invitación ([ADR-0011](.docs/decisions/ADR-0011-collaborator-invitations.md)), roles fijos y contexto organizacional |
 | Entornos y staging | Staging desplegado | Recursos aislados; producción sigue sin provisionar |
 | Panel de conversaciones | Implementado para Fase 1 y ampliado en Fase 2 | Inbox protegido con sidebar fijo y paneles de scroll independiente, historial, recepción en vivo, handoff, estados de entrega, adjuntos con nombre, miniatura y descarga, y filtro por responsable |
@@ -61,10 +64,11 @@ forks del producto.
 | Panel de pipeline | Implementado para Fase 2 | Tablero con las etapas configuradas, una tarjeta por oportunidad, movimiento con historial y creación desde la conversación |
 | Panel de tareas | Implementado para Fase 2 | Sección propia con filtro por responsable y estado, vencimientos con aviso de vencida, y tareas creadas desde la conversación |
 | Panel de agenda | Implementado para Fase 2 | Vistas de día y semana en la zona horaria de la organización, citas con servicio, responsable e historial de estado, alta desde la conversación y selector de zona para quien administra |
+| Resumen del panel | Implementado para Fase 2 | Métricas operativas y comerciales del periodo elegido, derivadas de D1 con rango acotado ([ADR-0012](.docs/decisions/ADR-0012-initial-metrics.md)), con estado vacío honesto cuando no hubo actividad |
 | Panel de agentes | Planificado | Navegación reservada y deshabilitada |
 | WhatsApp mediante Zernio | Implementado para Fase 1 | Recorrido bidireccional validado con tráfico real, incluidos estados de entrega y medios entrantes |
 | Queues, Workflows y Vectorize | Parcial | Queues de entrada/salida y DLQ provisionadas en staging; Workflows y Vectorize permanecen planificados |
-| CRM, agenda y pipelines | Parcial | Contactos, equipo con asignación, catálogo de servicios, pipeline configurable, oportunidades con historial, notas, tareas y citas con agenda están implementados; las métricas iniciales siguen planificadas en Fase 2 |
+| CRM, agenda y pipelines | Implementados para Fase 2 | Contactos, equipo con asignación, catálogo de servicios, pipeline configurable, oportunidades con historial, notas, tareas, citas con agenda y métricas iniciales del proceso |
 | Versionado, evaluación y mejora de agentes | Planificados | Fuera del prototipo actual |
 
 `CustomerSupportAgent` coordina el estado vivo de cada conversación sin

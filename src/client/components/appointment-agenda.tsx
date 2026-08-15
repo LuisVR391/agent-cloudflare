@@ -51,6 +51,7 @@ import {
 import {
   createAppointment,
   listAppointments,
+  listContactOpportunities,
   listServices,
   listSubjectAppointments,
   listTeamMembers,
@@ -59,6 +60,7 @@ import {
   type AgendaRange,
   type Appointment,
   type AppointmentStatus,
+  type Opportunity,
   type Service,
   type TaskAssigneeFilter,
   type TeamMember,
@@ -66,7 +68,12 @@ import {
 
 const ANY_ASSIGNEE = "all";
 
-const statusLabels: Record<AppointmentStatus, string> = {
+/**
+ * Nombre de cada estado en el panel. Se exporta porque el resumen también los
+ * nombra al distribuir las citas del periodo, y dos tablas distintas acabarían
+ * llamando a lo mismo de dos maneras.
+ */
+export const statusLabels: Record<AppointmentStatus, string> = {
   requested: "Solicitada",
   pending: "Pendiente",
   confirmed: "Confirmada",
@@ -559,29 +566,46 @@ export function AppointmentAgenda() {
 function AppointmentComposer({
   services,
   members,
+  opportunities,
+  defaultOpportunityId,
   timeZone,
   creating,
   onCreate,
 }: {
   services: Service[];
   members: TeamMember[];
+  opportunities: Opportunity[];
+  defaultOpportunityId: string | null;
   timeZone: string;
   creating: boolean;
   onCreate: (input: {
     serviceId: string;
     startsAt: string;
     assigneeMembershipId?: string | null;
+    opportunityId?: string | null;
     status: "pending" | "confirmed";
   }) => Promise<void>;
 }) {
   const [serviceId, setServiceId] = useState("");
   const [startsAt, setStartsAt] = useState("");
   const [assignee, setAssignee] = useState("none");
+  const [opportunityId, setOpportunityId] = useState(
+    defaultOpportunityId ?? "none",
+  );
   const [status, setStatus] = useState<"pending" | "confirmed">("pending");
+
+  // Las oportunidades llegan después de montar el formulario, así que la
+  // preselección se sincroniza cuando el hilo resuelve la suya.
+  useEffect(() => {
+    setOpportunityId(defaultOpportunityId ?? "none");
+  }, [defaultOpportunityId]);
 
   const selectedService = services.find((service) => service.id === serviceId);
   const selectedMember = members.find(
     (member) => member.membershipId === assignee,
+  );
+  const selectedOpportunity = opportunities.find(
+    (opportunity) => opportunity.id === opportunityId,
   );
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -592,6 +616,7 @@ function AppointmentComposer({
       serviceId,
       startsAt: instant,
       assigneeMembershipId: assignee === "none" ? null : assignee,
+      opportunityId: opportunityId === "none" ? null : opportunityId,
       status,
     });
     setStartsAt("");
@@ -678,6 +703,47 @@ function AppointmentComposer({
             </DropdownMenuContent>
           </DropdownMenu>
         </Field>
+        {opportunities.length > 0 ? (
+          <Field className="min-w-40 flex-1">
+            <FieldLabel htmlFor="appointment-opportunity">Oportunidad</FieldLabel>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  className="w-full justify-between"
+                  id="appointment-opportunity"
+                  type="button"
+                  variant="outline"
+                >
+                  {opportunityId === "none"
+                    ? "Sin oportunidad"
+                    : (selectedOpportunity?.stageName ?? "Sin oportunidad")}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-64">
+                <DropdownMenuRadioGroup
+                  onValueChange={setOpportunityId}
+                  value={opportunityId}
+                >
+                  <DropdownMenuRadioItem value="none">
+                    Sin oportunidad
+                  </DropdownMenuRadioItem>
+                  {opportunities.map((opportunity) => (
+                    <DropdownMenuRadioItem
+                      key={opportunity.id}
+                      value={opportunity.id}
+                    >
+                      {opportunity.stageName}
+                      {opportunity.serviceName ? ` · ${opportunity.serviceName}` : ""}
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <FieldDescription>
+              Enlazarla es lo que deja medir cuántas terminan en cita.
+            </FieldDescription>
+          </Field>
+        ) : null}
         <Field className="min-w-40 flex-1">
           <FieldLabel htmlFor="appointment-status">Estado inicial</FieldLabel>
           <Tabs
@@ -707,6 +773,10 @@ function AppointmentComposer({
  * Citas de la conversación. Es donde se acuerdan, así que es donde se agendan:
  * lo que se cree aquí conserva este hilo como origen. Como el resto de paneles,
  * no consulta hasta abrirse.
+ *
+ * También conserva la oportunidad, cuando el hilo abrió una. Ese enlace no es
+ * decorativo: es lo que permite medir cuántas oportunidades terminan en cita
+ * sin atribuirle a una venta la cita que salió de otra.
  */
 export function AppointmentSheet({
   contactId,
@@ -714,21 +784,30 @@ export function AppointmentSheet({
   timeZone,
   canManage,
   canReadTeam,
+  canReadOpportunities,
 }: {
   contactId: string;
   conversationId: string;
   timeZone: string;
   canManage: boolean;
   canReadTeam: boolean;
+  canReadOpportunities: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [appointments, setAppointments] = useState<Appointment[] | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [members, setMembers] = useState<TeamMember[]>([]);
+  const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const subject = { type: "conversation" as const, id: conversationId };
+  // La oportunidad que nació en este hilo es la que se propone; el resto del
+  // contacto sigue disponible por si la cita pertenece a otra.
+  const suggestedOpportunity =
+    opportunities.find(
+      (opportunity) => opportunity.conversationId === conversationId,
+    )?.id ?? null;
 
   useEffect(() => {
     if (!open) return;
@@ -740,6 +819,9 @@ export function AppointmentSheet({
         if (canManage) {
           setServices(await listServices("active"));
           if (canReadTeam) setMembers(await listTeamMembers());
+          if (canReadOpportunities) {
+            setOpportunities(await listContactOpportunities(contactId));
+          }
         }
       } catch (caught) {
         setError(
@@ -749,7 +831,14 @@ export function AppointmentSheet({
         );
       }
     })();
-  }, [canManage, canReadTeam, conversationId, open]);
+  }, [
+    canManage,
+    canReadOpportunities,
+    canReadTeam,
+    contactId,
+    conversationId,
+    open,
+  ]);
 
   async function run(action: () => Promise<unknown>, fallback: string) {
     setError(null);
@@ -828,7 +917,9 @@ export function AppointmentSheet({
           {canManage ? (
             <AppointmentComposer
               creating={creating}
+              defaultOpportunityId={suggestedOpportunity}
               members={members}
+              opportunities={opportunities}
               onCreate={async (input) => {
                 setCreating(true);
                 await run(

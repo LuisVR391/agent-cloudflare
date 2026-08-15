@@ -7,9 +7,8 @@ import {
 import type { Organization } from "../../src/worker/domain/types";
 import { createRepositories } from "../../src/worker/repositories";
 
-const { organizations, contacts, services, pipelines } = createRepositories(
-  env.DB,
-);
+const { organizations, contacts, services, pipelines, metrics } =
+  createRepositories(env.DB);
 
 let salon: Organization;
 let barberia: Organization;
@@ -102,6 +101,29 @@ describe("aislamiento por organización", () => {
     await expect(pipelines.seedInitial("  ")).rejects.toBeInstanceOf(
       MissingOrganizationScopeError,
     );
+    await expect(
+      metrics.summary("", {
+        from: "2026-08-01T06:00:00.000Z",
+        to: "2026-09-01T06:00:00.000Z",
+      }),
+    ).rejects.toBeInstanceOf(MissingOrganizationScopeError);
+  });
+
+  it("no cuenta en una organización los contactos de la otra", async () => {
+    await contacts.create(salon.id, { displayName: "Ana" });
+    await contacts.create(barberia.id, { displayName: "Luis" });
+    await contacts.create(barberia.id, { displayName: "Marta" });
+
+    // Ventana amplia alrededor del instante de creación: lo que se verifica es
+    // el filtro por organización, no la frontera del día.
+    const window = { from: "2000-01-01T00:00:00.000Z", to: "2100-01-01T00:00:00.000Z" };
+
+    await expect(metrics.summary(salon.id, window)).resolves.toMatchObject({
+      commercial: { newContacts: 1 },
+    });
+    await expect(metrics.summary(barberia.id, window)).resolves.toMatchObject({
+      commercial: { newContacts: 2 },
+    });
   });
 });
 
