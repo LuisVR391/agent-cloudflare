@@ -1032,3 +1032,58 @@ export async function acceptInvitation(input: {
   const body = (await response.json()) as { organization: { name: string } };
   return body.organization;
 }
+
+/**
+ * Métricas del proceso para un periodo. Las cifras llegan agregadas desde el
+ * backend: el panel no recibe historial para contarlo por su cuenta.
+ */
+export type MetricsSummary = {
+  timeZone: string;
+  range: { from: string; to: string; days: number };
+  window: { from: string; to: string };
+  operations: {
+    messagesReceived: number;
+    activeConversations: number;
+    firstResponse: {
+      answered: number;
+      pending: number;
+      medianMinutes: number | null;
+      averageMinutes: number | null;
+    };
+    humanInterventions: { replies: number; conversations: number };
+  };
+  commercial: {
+    newContacts: number;
+    opportunities: {
+      created: number;
+      withAppointment: number;
+      byStage: {
+        stageId: string;
+        stageName: string;
+        position: number;
+        pipelineId: string;
+        pipelineName: string;
+        count: number;
+      }[];
+    };
+    appointmentsByStatus: { status: AppointmentStatus; count: number }[];
+  };
+};
+
+/**
+ * El rango es obligatorio y viaja como dos días civiles inclusivos que el
+ * backend interpreta con la zona horaria de la organización. No hay periodo por
+ * defecto del otro lado: quien pregunta declara qué está midiendo.
+ */
+export async function getMetricsSummary(range: { from: string; to: string }) {
+  const response = await fetch(
+    `/api/metrics?from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}`,
+    { credentials: "same-origin" },
+  );
+  if (!response.ok) {
+    throw new Error(
+      await parseError(response, "No fue posible cargar las métricas."),
+    );
+  }
+  return response.json() as Promise<MetricsSummary>;
+}

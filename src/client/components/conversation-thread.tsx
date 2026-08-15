@@ -328,6 +328,9 @@ export function ConversationThread({
           {appointmentAccess.canRead ? (
             <AppointmentSheet
               canManage={appointmentAccess.canManage}
+              // Sin permiso de oportunidades no se ofrece el enlace; la cita se
+              // agenda igual, solo que sin decir de qué venta salió.
+              canReadOpportunities={opportunityAccess.canRead}
               canReadTeam={appointmentAccess.canReadTeam}
               contactId={selected.contactId}
               conversationId={selected.id}

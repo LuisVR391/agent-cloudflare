@@ -11,12 +11,14 @@ import { formatDayLabel } from "../../src/client/lib/agenda-time";
 import {
   createAppointment,
   listAppointments,
+  listContactOpportunities,
   listServices,
   listSubjectAppointments,
   listTeamMembers,
   updateAppointment,
   updateOrganizationTimeZone,
   type Appointment,
+  type Opportunity,
 } from "../../src/client/lib/api";
 
 vi.mock("../../src/client/lib/api", () => ({
@@ -27,6 +29,7 @@ vi.mock("../../src/client/lib/api", () => ({
   updateOrganizationTimeZone: vi.fn(),
   listServices: vi.fn(),
   listTeamMembers: vi.fn(),
+  listContactOpportunities: vi.fn(),
 }));
 
 const TIME_ZONE = "America/Mexico_City";
@@ -50,6 +53,25 @@ function appointment(overrides: Partial<Appointment> = {}): Appointment {
     endsAt: "2026-09-20T02:45:00.000Z",
     status: "pending",
     createdByMembershipId: "membership-1",
+    version: 1,
+    createdAt: "2026-09-01T10:00:00.000Z",
+    updatedAt: "2026-09-01T10:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function opportunity(overrides: Partial<Opportunity> = {}): Opportunity {
+  return {
+    id: "opportunity-1",
+    contactId: "contact-1",
+    contactDisplayName: "Lucía Cliente",
+    conversationId: "conversation-1",
+    pipelineId: "pipeline-1",
+    stageId: "stage-1",
+    stageName: "Interesada",
+    stagePosition: 1,
+    serviceId: null,
+    serviceName: null,
     version: 1,
     createdAt: "2026-09-01T10:00:00.000Z",
     updatedAt: "2026-09-01T10:00:00.000Z",
@@ -154,6 +176,15 @@ beforeEach(() => {
       status: "active",
       joinedAt: "2026-08-01T10:00:00.000Z",
     },
+  ]);
+  vi.mocked(listContactOpportunities).mockResolvedValue([
+    opportunity(),
+    // Del mismo contacto, pero abierta desde otro hilo: no es la que se propone.
+    opportunity({
+      id: "opportunity-2",
+      conversationId: "conversation-9",
+      stageName: "Cierre",
+    }),
   ]);
 });
 
@@ -337,6 +368,7 @@ describe("citas desde la conversación", () => {
     render(
       <AppointmentSheet
         canManage
+        canReadOpportunities
         canReadTeam
         contactId="contact-1"
         conversationId="conversation-1"
@@ -372,9 +404,67 @@ describe("citas desde la conversación", () => {
         // Las diez de la mañana del salón, no las del navegador.
         startsAt: "2026-09-21T16:00:00.000Z",
         assigneeMembershipId: null,
+        // La oportunidad que nació en este hilo viene propuesta: sin ese enlace
+        // la conversión a cita no podría medirse.
+        opportunityId: "opportunity-1",
         status: "pending",
       }),
     );
+  });
+
+  it("permite agendar sin oportunidad aunque el contacto tenga varias", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(
+      <AppointmentSheet
+        canManage
+        canReadOpportunities
+        canReadTeam
+        contactId="contact-1"
+        conversationId="conversation-1"
+        timeZone={TIME_ZONE}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Citas" }));
+    await screen.findByText("Citas de la conversación");
+    await waitFor(() => expect(listContactOpportunities).toHaveBeenCalledWith("contact-1"));
+
+    await user.click(await screen.findByLabelText("Oportunidad"));
+    await user.click(
+      await screen.findByRole("menuitemradio", { name: "Sin oportunidad" }),
+    );
+    await user.click(screen.getByLabelText("Servicio"));
+    await user.click(
+      await screen.findByRole("menuitemradio", { name: /Corte y peinado/ }),
+    );
+    await user.type(screen.getByLabelText("Inicio"), "2026-09-21T10:00");
+    await user.click(screen.getByRole("button", { name: "Agendar cita" }));
+
+    await waitFor(() =>
+      expect(createAppointment).toHaveBeenCalledWith(
+        expect.objectContaining({ opportunityId: null }),
+      ),
+    );
+  });
+
+  it("no consulta oportunidades sin permiso para leerlas", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(
+      <AppointmentSheet
+        canManage
+        canReadOpportunities={false}
+        canReadTeam
+        contactId="contact-1"
+        conversationId="conversation-1"
+        timeZone={TIME_ZONE}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Citas" }));
+    await screen.findByText("Citas de la conversación");
+
+    expect(listContactOpportunities).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText("Oportunidad")).toBeNull();
   });
 
   it("sin permiso de gestión lista las citas pero no ofrece agendar", async () => {
@@ -382,6 +472,7 @@ describe("citas desde la conversación", () => {
     render(
       <AppointmentSheet
         canManage={false}
+        canReadOpportunities={false}
         canReadTeam={false}
         contactId="contact-1"
         conversationId="conversation-1"
