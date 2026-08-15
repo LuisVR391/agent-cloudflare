@@ -120,6 +120,21 @@ export class StageOrderMismatchError extends Error {
 }
 
 /**
+ * El contacto, la conversación o la oportunidad a la que se quiso colgar la
+ * tarea no existe en la organización activa. Los tres se confunden a propósito:
+ * distinguirlos revelaría qué identificador ajeno existe.
+ */
+export class TaskSubjectNotInOrganizationError extends Error {
+  readonly subjectId: string;
+
+  constructor(subjectId: string) {
+    super(`El sujeto "${subjectId}" no pertenece a la organización indicada.`);
+    this.name = "TaskSubjectNotInOrganizationError";
+    this.subjectId = subjectId;
+  }
+}
+
+/**
  * Una fila persistida contiene un valor fuera del dominio esperado. Indica
  * corrupción o una migración incompleta, no una entrada del usuario.
  */

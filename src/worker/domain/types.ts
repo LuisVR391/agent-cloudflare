@@ -450,3 +450,95 @@ export type UpdateServiceInput = {
   price?: { amountCents: number; currency: string } | null;
   status?: ServiceStatus;
 };
+
+/**
+ * Nota del contacto: lo que el equipo entendió, en contraste con el mensaje,
+ * que es lo que el contacto dijo. Pertenece al contacto y conserva la
+ * conversación de origen cuando se escribió desde una.
+ *
+ * El nombre del autor viaja resuelto porque la ficha lo muestra en cada nota y
+ * resolverlo aparte exigiría una consulta por fila.
+ */
+export type ContactNote = {
+  id: string;
+  organizationId: string;
+  contactId: string;
+  conversationId: string | null;
+  authorMembershipId: string;
+  authorName: string | null;
+  body: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/**
+ * El autor no viaja en la entrada: lo pone el handler con la membresía de la
+ * sesión. Un identificador de autor enviado por el frontend no demostraría
+ * quién escribe.
+ */
+export type CreateContactNoteInput = {
+  contactId: string;
+  conversationId?: string | null;
+  body: string;
+  authorMembershipId: string;
+};
+
+export type TaskStatus = "open" | "done" | "cancelled";
+
+/** El sujeto de una tarea: a lo sumo uno, y ninguno también es válido. */
+export type TaskSubject =
+  | { type: "contact"; id: string }
+  | { type: "conversation"; id: string }
+  | { type: "opportunity"; id: string }
+  | null;
+
+/**
+ * Tarea con responsable y vencimiento. Una nota conserva lo que se entendió;
+ * la tarea conserva lo que quedó pendiente, y por eso tiene a quién le toca.
+ *
+ * El nombre del responsable y la etiqueta del sujeto viajan resueltos porque la
+ * lista los muestra en cada fila.
+ */
+export type Task = {
+  id: string;
+  organizationId: string;
+  title: string;
+  details: string | null;
+  assigneeMembershipId: string;
+  assigneeName: string | null;
+  createdByMembershipId: string;
+  dueAt: string | null;
+  status: TaskStatus;
+  subject: TaskSubject;
+  subjectLabel: string | null;
+  version: number;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/**
+ * Quien crea la tarea es la membresía de la sesión, igual que el autor de una
+ * nota. El responsable sí se elige, y debe tener membresía activa.
+ */
+export type CreateTaskInput = {
+  title: string;
+  details?: string | null;
+  assigneeMembershipId?: string;
+  dueAt?: string | null;
+  subject?: TaskSubject;
+  createdByMembershipId: string;
+};
+
+/**
+ * Campos ausentes se conservan; `dueAt: null` retira el vencimiento. Cerrar es
+ * un cambio de estado: `done` sella `completedAt` y reabrir lo borra.
+ */
+export type UpdateTaskInput = {
+  expectedVersion: number;
+  title?: string;
+  details?: string | null;
+  assigneeMembershipId?: string;
+  dueAt?: string | null;
+  status?: TaskStatus;
+};

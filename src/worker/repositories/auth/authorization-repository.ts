@@ -36,6 +36,8 @@ const permissionDefinitions = [
   ["pipelines.manage", "Configurar pipelines y sus etapas"],
   ["opportunities.read", "Consultar oportunidades"],
   ["opportunities.manage", "Crear y mover oportunidades"],
+  ["tasks.read", "Consultar tareas"],
+  ["tasks.manage", "Crear, asignar y cerrar tareas"],
   ["agents.read", "Consultar agentes"],
   ["agents.manage", "Gestionar agentes"],
   ["users.read", "Consultar el equipo y sus roles"],
@@ -57,6 +59,8 @@ const permissionsByRole: Record<OrganizationAccess["role"], string[]> = {
     "pipelines.manage",
     "opportunities.read",
     "opportunities.manage",
+    "tasks.read",
+    "tasks.manage",
     "agents.read",
     "agents.manage",
     "users.read",
@@ -79,6 +83,10 @@ const permissionsByRole: Record<OrganizationAccess["role"], string[]> = {
     // mueve; configurar el pipeline sigue siendo otra cosa.
     "opportunities.read",
     "opportunities.manage",
+    // Quien atiende descubre el pendiente; una tarea que solo puede crear su
+    // jefe llega tarde.
+    "tasks.read",
+    "tasks.manage",
     "users.read",
   ],
 };

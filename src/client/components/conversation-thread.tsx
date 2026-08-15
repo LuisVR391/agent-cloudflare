@@ -13,9 +13,11 @@ import {
   SystemNote,
   type MessageAuthor,
 } from "@/components/conversation-message";
+import { NoteSheet } from "@/components/contact-notes";
 import { ContactSheet } from "@/components/contact-sheet";
 import { DevInboundButton } from "@/components/dev-inbound-button";
 import { OpportunitySheet } from "@/components/opportunity-sheet";
+import { TaskSheet } from "@/components/task-list";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -181,6 +183,7 @@ export function ConversationThread({
   composerPlaceholder,
   contactAccess,
   opportunityAccess,
+  taskAccess,
   currentUser,
   loadingOlder,
   members,
@@ -207,6 +210,9 @@ export function ConversationThread({
   // Las oportunidades del contacto se anuncian a quien puede consultarlas y se
   // crean con permiso de gestión. El backend vuelve a comprobar ambas cosas.
   opportunityAccess: { canRead: boolean; canManage: boolean };
+  // Las tareas del hilo se anuncian a quien puede consultarlas y se crean con
+  // permiso de gestión. El backend vuelve a comprobar ambas cosas.
+  taskAccess: { canRead: boolean; canManage: boolean; canReadTeam: boolean };
   currentUser: { id: string; name: string };
   loadingOlder: boolean;
   members: TeamMember[] | null;
@@ -283,11 +289,27 @@ export function ConversationThread({
               contactId={selected.contactId}
             />
           ) : null}
+          {/* La nota pertenece al contacto y usa sus mismos permisos; lo que se
+              escriba aquí conserva esta conversación como origen. */}
+          {contactAccess.canRead ? (
+            <NoteSheet
+              canManage={contactAccess.canManage}
+              contactId={selected.contactId}
+              conversationId={selected.id}
+            />
+          ) : null}
           {opportunityAccess.canRead ? (
             <OpportunitySheet
               canManage={opportunityAccess.canManage}
               contactId={selected.contactId}
               conversationId={selected.id}
+            />
+          ) : null}
+          {taskAccess.canRead ? (
+            <TaskSheet
+              canManage={taskAccess.canManage}
+              canReadTeam={taskAccess.canReadTeam}
+              subject={{ type: "conversation", id: selected.id }}
             />
           ) : null}
           {canAssign && members ? (
