@@ -278,6 +278,13 @@ export function ConversationInbox() {
               "opportunities.manage",
             ),
           }}
+          taskAccess={{
+            canRead: panel.activeOrganization.permissions.includes("tasks.read"),
+            canManage: panel.activeOrganization.permissions.includes("tasks.manage"),
+            // Elegir responsable exige además leer el equipo; sin él, la tarea
+            // se crea a nombre de quien la escribe.
+            canReadTeam,
+          }}
           currentUser={panel.user}
           loadingOlder={loadingOlder}
           members={canReadTeam ? members : null}

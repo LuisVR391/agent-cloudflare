@@ -27,6 +27,7 @@ import { PanelOverview } from "@/components/panel-overview";
 import { PanelShell } from "@/components/panel-shell";
 import { PipelineBoard } from "@/components/pipeline-board";
 import { ServiceCatalog } from "@/components/service-catalog";
+import { TaskList } from "@/components/task-list";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -488,6 +489,7 @@ export function App() {
           <Route element={<ContactDirectory />} path="contactos" />
           <Route element={<ServiceCatalog />} path="servicios" />
           <Route element={<PipelineBoard />} path="pipeline" />
+          <Route element={<TaskList />} path="tareas" />
           <Route element={<TeamDirectory />} path="equipo" />
           <Route element={<Navigate replace to="/app" />} path="*" />
         </Route>

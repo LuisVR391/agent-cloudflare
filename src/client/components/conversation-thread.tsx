@@ -17,6 +17,7 @@ import { NoteSheet } from "@/components/contact-notes";
 import { ContactSheet } from "@/components/contact-sheet";
 import { DevInboundButton } from "@/components/dev-inbound-button";
 import { OpportunitySheet } from "@/components/opportunity-sheet";
+import { TaskSheet } from "@/components/task-list";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -182,6 +183,7 @@ export function ConversationThread({
   composerPlaceholder,
   contactAccess,
   opportunityAccess,
+  taskAccess,
   currentUser,
   loadingOlder,
   members,
@@ -208,6 +210,9 @@ export function ConversationThread({
   // Las oportunidades del contacto se anuncian a quien puede consultarlas y se
   // crean con permiso de gestión. El backend vuelve a comprobar ambas cosas.
   opportunityAccess: { canRead: boolean; canManage: boolean };
+  // Las tareas del hilo se anuncian a quien puede consultarlas y se crean con
+  // permiso de gestión. El backend vuelve a comprobar ambas cosas.
+  taskAccess: { canRead: boolean; canManage: boolean; canReadTeam: boolean };
   currentUser: { id: string; name: string };
   loadingOlder: boolean;
   members: TeamMember[] | null;
@@ -298,6 +303,13 @@ export function ConversationThread({
               canManage={opportunityAccess.canManage}
               contactId={selected.contactId}
               conversationId={selected.id}
+            />
+          ) : null}
+          {taskAccess.canRead ? (
+            <TaskSheet
+              canManage={taskAccess.canManage}
+              canReadTeam={taskAccess.canReadTeam}
+              subject={{ type: "conversation", id: selected.id }}
             />
           ) : null}
           {canAssign && members ? (

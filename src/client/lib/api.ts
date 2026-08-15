@@ -620,6 +620,124 @@ export async function updateOpportunity(
   return body.opportunity;
 }
 
+export type TaskStatus = "open" | "done" | "cancelled";
+
+/** El sujeto de una tarea: a lo sumo uno, y ninguno también es válido. */
+export type TaskSubject =
+  | { type: "contact"; id: string }
+  | { type: "conversation"; id: string }
+  | { type: "opportunity"; id: string }
+  | null;
+
+/**
+ * Tarea con responsable y vencimiento. El nombre del responsable y la etiqueta
+ * del sujeto viajan resueltos porque la lista los muestra en cada fila.
+ */
+export type Task = {
+  id: string;
+  title: string;
+  details: string | null;
+  assigneeMembershipId: string;
+  assigneeName: string | null;
+  createdByMembershipId: string;
+  dueAt: string | null;
+  status: TaskStatus;
+  subject: TaskSubject;
+  subjectLabel: string | null;
+  version: number;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/**
+ * `me` lo resuelve el backend con la membresía de la sesión, igual que el
+ * filtro de conversaciones: el cliente no necesita conocer su identificador.
+ */
+export type TaskAssigneeFilter = "all" | "me" | (string & {});
+
+/** `truncated` avisa de que la lista llegó al límite pedido. */
+export async function listTasks(
+  filters: {
+    assignee?: TaskAssigneeFilter;
+    status?: TaskStatus;
+    dueBefore?: string;
+  } = {},
+) {
+  const params = new URLSearchParams();
+  if (filters.assignee && filters.assignee !== "all") {
+    params.set("assignee", filters.assignee);
+  }
+  if (filters.status) params.set("status", filters.status);
+  if (filters.dueBefore) params.set("dueBefore", filters.dueBefore);
+  const suffix = params.size > 0 ? `?${params}` : "";
+  const response = await fetch(`/api/tasks${suffix}`, {
+    credentials: "same-origin",
+  });
+  if (!response.ok) throw new Error(await parseError(response, "No fue posible cargar las tareas."));
+  return response.json() as Promise<{
+    tasks: Task[];
+    limit: number;
+    truncated: boolean;
+  }>;
+}
+
+/** Tareas colgadas de un contacto, una conversación o una oportunidad. */
+export async function listSubjectTasks(subject: NonNullable<TaskSubject>) {
+  const response = await fetch(
+    `/api/tasks?subjectType=${subject.type}&subjectId=${encodeURIComponent(subject.id)}`,
+    { credentials: "same-origin" },
+  );
+  if (!response.ok) throw new Error(await parseError(response, "No fue posible cargar las tareas."));
+  const body = (await response.json()) as { tasks: Task[] };
+  return body.tasks;
+}
+
+/**
+ * Sin `assigneeMembershipId` la tarea queda a nombre de quien la crea, que es
+ * la membresía de la sesión. `dueAt` viaja en ISO 8601 UTC.
+ */
+export async function createTask(input: {
+  title: string;
+  details?: string | null;
+  assigneeMembershipId?: string;
+  dueAt?: string | null;
+  subject?: TaskSubject;
+}) {
+  const response = await fetch("/api/tasks", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error(await parseError(response, "No fue posible crear la tarea."));
+  const body = (await response.json()) as { task: Task };
+  return body.task;
+}
+
+/** Campos ausentes se conservan; `dueAt: null` retira el vencimiento. */
+export async function updateTask(
+  taskId: string,
+  input: {
+    expectedVersion: number;
+    title?: string;
+    details?: string | null;
+    assigneeMembershipId?: string;
+    dueAt?: string | null;
+    status?: TaskStatus;
+  },
+) {
+  const response = await fetch(`/api/tasks/${encodeURIComponent(taskId)}`, {
+    method: "PATCH",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error(await parseError(response, "No fue posible actualizar la tarea."));
+  const body = (await response.json()) as { task: Task };
+  return body.task;
+}
+
 export type TeamRole = "owner" | "manager" | "operator";
 
 export type TeamMember = {
