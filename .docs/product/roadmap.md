@@ -174,9 +174,51 @@ adaptados a su conocimiento.
 
 **Dependencia:** Fase 2 completada.
 
+**Seguimiento:** [Issue #53](https://github.com/LuisVR391/agent-cloudflare/issues/53),
+con cortes de agentes y versiones [#54](https://github.com/LuisVR391/agent-cloudflare/issues/54),
+ejecución en la conversación [#55](https://github.com/LuisVR391/agent-cloudflare/issues/55),
+herramientas autorizadas [#56](https://github.com/LuisVR391/agent-cloudflare/issues/56),
+conocimiento y recuperación aislada [#57](https://github.com/LuisVR391/agent-cloudflare/issues/57),
+routing entre agentes [#58](https://github.com/LuisVR391/agent-cloudflare/issues/58),
+memoria autorizada del contacto [#59](https://github.com/LuisVR391/agent-cloudflare/issues/59),
+modo supervisado [#60](https://github.com/LuisVR391/agent-cloudflare/issues/60) y
+presupuesto, costos y failover [#61](https://github.com/LuisVR391/agent-cloudflare/issues/61).
+
+| Entregable | Estado | Dependencia | Evidencia |
+| --- | --- | --- | --- |
+| Agentes configurables y sus versiones | Planificado | Fase 2 | [Issue #54](https://github.com/LuisVR391/agent-cloudflare/issues/54) |
+| Ejecución del agente en la conversación | Planificado | Agentes de #54 | [Issue #55](https://github.com/LuisVR391/agent-cloudflare/issues/55) |
+| Herramientas con autorización en backend | Planificado | Ejecución de #55 | [Issue #56](https://github.com/LuisVR391/agent-cloudflare/issues/56) |
+| Conocimiento empresarial y recuperación aislada | Planificado | Ejecución de #55 | [Issue #57](https://github.com/LuisVR391/agent-cloudflare/issues/57) |
+| Routing entre agentes | Planificado | Ejecución de #55 | [Issue #58](https://github.com/LuisVR391/agent-cloudflare/issues/58) |
+| Memoria autorizada del contacto | Planificado | Ejecución de #55 | [Issue #59](https://github.com/LuisVR391/agent-cloudflare/issues/59) |
+| Modo supervisado con aprobación humana | Planificado | Ejecución de #55 | [Issue #60](https://github.com/LuisVR391/agent-cloudflare/issues/60) |
+| Presupuesto, costos y failover | Planificado | Ejecución de #55, herramientas de #56 y conocimiento de #57 | [Issue #61](https://github.com/LuisVR391/agent-cloudflare/issues/61) |
+
+La evidencia de un entregable `Planificado` es su issue, no una capacidad
+disponible. La fase pasa a `En progreso` cuando exista trabajo verificable en
+`main`, y cada corte pasa a `Completado` al fusionarse el PR que satisface su
+criterio, agregando ese PR a su fila.
+
 **Entregables resumidos:** configuración y versiones de agentes, RAG aislado
 por empresa, herramientas con autorización en backend, routing, memoria
 permitida, modo supervisado, presupuesto y failover.
+
+**Decisiones de la fase:** ninguna está registrada todavía. El épico enumera las
+que la fase deberá tomar —versionado del agente, capa común de proveedor, forma
+del conocimiento, contrato de herramienta, alcance de la memoria, habilitación
+del modo y medición del costo— sin reservar números de ADR; cada corte registra
+la suya en el PR que la adopta.
+
+**Requisito transversal:** se mantiene la regla de la Fase 2 sobre el catálogo de
+permisos. Cada corte declara sus permisos para instalaciones nuevas, agrega una
+migración aditiva que los inserta y los concede a los roles existentes por
+`role_key`, y una prueba que verifica que una instalación nueva y una migrada
+producen el mismo catálogo.
+
+**Recursos nuevos:** el índice vectorial que exige el conocimiento de #57 no
+existe en ningún entorno. Se crea con autorización explícita para el entorno
+concreto, en el corte que lo necesita, y no se anticipa en producción.
 
 **Criterio de salida:** una versión identificable del agente responde con
 conocimiento autorizado, solo ejecuta herramientas permitidas y deja evidencia
