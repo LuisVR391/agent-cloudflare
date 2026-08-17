@@ -43,7 +43,7 @@ export const panelSections = [
   { label: "Pipeline", icon: KanbanSquare, path: "/app/pipeline" },
   { label: "Tareas", icon: ListTodo, path: "/app/tareas" },
   { label: "Agenda", icon: CalendarDays, path: "/app/agenda" },
-  { label: "Agentes", icon: Bot, path: null },
+  { label: "Agentes", icon: Bot, path: "/app/agentes" },
   { label: "Equipo", icon: Users, path: "/app/equipo" },
   { label: "Configuración", icon: Settings2, path: null },
 ] as const;

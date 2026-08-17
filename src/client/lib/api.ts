@@ -1087,3 +1087,166 @@ export async function getMetricsSummary(range: { from: string; to: string }) {
   }
   return response.json() as Promise<MetricsSummary>;
 }
+
+export type AgentSummary = {
+  id: string;
+  name: string;
+  purpose: string | null;
+  status: "active" | "archived";
+  publishedVersionId: string | null;
+  publishedVersionNumber: number | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AgentVersion = {
+  id: string;
+  agentId: string;
+  versionNumber: number;
+  status: "draft" | "published" | "archived";
+  instructions: string;
+  model: string;
+  playbook: string | null;
+  changeReason: string | null;
+  tools: string[];
+  knowledgeScopes: string[];
+  createdByName: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AgentPublication = {
+  id: string;
+  previousVersionNumber: number | null;
+  nextVersionNumber: number | null;
+  action: "published" | "unpublished" | "rolled_back";
+  reason: string;
+  actorName: string | null;
+  occurredAt: string;
+};
+
+export type AgentDetail = AgentSummary & {
+  versions: AgentVersion[];
+  publications: AgentPublication[];
+};
+
+/** Lo que define el comportamiento y queda congelado al publicar. */
+export type AgentVersionContent = {
+  instructions: string;
+  model: string;
+  playbook?: string | null;
+  tools?: string[];
+  knowledgeScopes?: string[];
+  changeReason?: string | null;
+};
+
+export async function listAgents(status: "active" | "archived" | "all" = "active") {
+  const response = await fetch(`/api/agents?status=${status}`, {
+    credentials: "same-origin",
+  });
+  if (!response.ok) throw new Error(await parseError(response, "No fue posible cargar los agentes."));
+  const body = (await response.json()) as { agents: AgentSummary[] };
+  return body.agents;
+}
+
+export async function getAgent(agentId: string) {
+  const response = await fetch(`/api/agents/${encodeURIComponent(agentId)}`, {
+    credentials: "same-origin",
+  });
+  if (!response.ok) throw new Error(await parseError(response, "No fue posible cargar el agente."));
+  const body = (await response.json()) as { agent: AgentDetail };
+  return body.agent;
+}
+
+export async function createAgent(input: { name: string; purpose?: string | null }) {
+  const response = await fetch("/api/agents", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error(await parseError(response, "No fue posible crear el agente."));
+  const body = (await response.json()) as { agent: AgentSummary };
+  return body.agent;
+}
+
+/** Nombre, propósito y estado. No crea una versión: no describen comportamiento. */
+export async function updateAgent(
+  agentId: string,
+  input: { expectedVersion: number; name?: string; purpose?: string | null; status?: AgentSummary["status"] },
+) {
+  const response = await fetch(`/api/agents/${encodeURIComponent(agentId)}`, {
+    method: "PATCH",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error(await parseError(response, "No fue posible actualizar el agente."));
+  const body = (await response.json()) as { agent: AgentSummary };
+  return body.agent;
+}
+
+/**
+ * Crea un borrador escrito entero, o derivado de otra revisión con
+ * `fromVersionId`. Nunca las dos cosas: el backend rechaza la mezcla.
+ */
+export async function createAgentVersion(
+  agentId: string,
+  input: ({ fromVersionId: string; changeReason?: string | null } | AgentVersionContent) & {
+    expectedVersion: number;
+  },
+) {
+  const response = await fetch(`/api/agents/${encodeURIComponent(agentId)}/versions`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error(await parseError(response, "No fue posible crear la versión."));
+  const body = (await response.json()) as { agent: AgentDetail };
+  return body.agent;
+}
+
+/**
+ * Reemplaza el contenido del borrador entero, y por eso es `PUT`: las
+ * herramientas y el alcance son conjuntos, así que omitirlos no diría si hay que
+ * conservarlos o vaciarlos.
+ */
+export async function replaceAgentVersion(
+  agentId: string,
+  versionId: string,
+  input: AgentVersionContent & { expectedVersion: number },
+) {
+  const response = await fetch(
+    `/api/agents/${encodeURIComponent(agentId)}/versions/${encodeURIComponent(versionId)}`,
+    {
+      method: "PUT",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    },
+  );
+  if (!response.ok) throw new Error(await parseError(response, "No fue posible guardar la versión."));
+  const body = (await response.json()) as { agent: AgentDetail };
+  return body.agent;
+}
+
+/**
+ * Publica, revierte o desactiva. `versionId: null` deja al agente sin versión
+ * publicada sin borrar ninguna. El motivo es obligatorio.
+ */
+export async function setAgentPublication(
+  agentId: string,
+  input: { expectedVersion: number; versionId: string | null; reason: string },
+) {
+  const response = await fetch(`/api/agents/${encodeURIComponent(agentId)}/publication`, {
+    method: "PUT",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error(await parseError(response, "No fue posible cambiar la publicación."));
+  const body = (await response.json()) as { agent: AgentDetail };
+  return body.agent;
+}
