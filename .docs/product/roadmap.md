@@ -25,7 +25,7 @@ cuando satisface sus criterios y el PR correspondiente está fusionado en
 | 0. Fundamentos | Completado | Ninguna | Fundamentos documentales, datos, seguridad y entornos validados; staging preparado sin crear producción sin autorización. |
 | 1. WhatsApp funcional | Completado | Fase 0 | Mensajes de WhatsApp procesados de extremo a extremo con seguridad, durabilidad, inbox y handoff humano. |
 | 2. CRM | Completado | Fase 1 | El flujo comercial desde contacto hasta cita puede operarse y medirse desde el CRM. |
-| 3. Agentes | Planificado | Fase 2 | Agentes versionados usan conocimiento y herramientas autorizadas con aislamiento y supervisión. |
+| 3. Agentes | En progreso | Fase 2 | Agentes versionados usan conocimiento y herramientas autorizadas con aislamiento y supervisión. |
 | 4. Automatización | Planificado | Fase 3 | Procesos de seguimiento se ejecutan como Workflows durables, recuperables y observables. |
 | 5. Mejora continua | Planificado | Fase 4 | Los cambios se evalúan, aprueban, publican y revierten de forma segura; el MVP queda cerrado. |
 | 6. Expansión | Planificado | Fase 5 y MVP validado | El núcleo admite nuevos canales, paquetes empresariales y la evolución controlada a SaaS. |
@@ -186,7 +186,7 @@ presupuesto, costos y failover [#61](https://github.com/LuisVR391/agent-cloudfla
 
 | Entregable | Estado | Dependencia | Evidencia |
 | --- | --- | --- | --- |
-| Agentes configurables y sus versiones | Planificado | Fase 2 | [Issue #54](https://github.com/LuisVR391/agent-cloudflare/issues/54) |
+| Agentes configurables y sus versiones | En progreso | Fase 2 | [Issue #54](https://github.com/LuisVR391/agent-cloudflare/issues/54), [ADR-0014](../decisions/ADR-0014-configurable-agents-and-published-versions.md) y el [módulo de agentes y versiones](../modules/agents-and-versions.md). En `main`: la persistencia y la superficie de API; el panel llega en el corte siguiente del mismo issue. |
 | Ejecución del agente en la conversación | Planificado | Agentes de #54 | [Issue #55](https://github.com/LuisVR391/agent-cloudflare/issues/55) |
 | Herramientas con autorización en backend | Planificado | Ejecución de #55 | [Issue #56](https://github.com/LuisVR391/agent-cloudflare/issues/56) |
 | Conocimiento empresarial y recuperación aislada | Planificado | Ejecución de #55 | [Issue #57](https://github.com/LuisVR391/agent-cloudflare/issues/57) |
@@ -204,17 +204,28 @@ criterio, agregando ese PR a su fila.
 por empresa, herramientas con autorización en backend, routing, memoria
 permitida, modo supervisado, presupuesto y failover.
 
-**Decisiones de la fase:** ninguna está registrada todavía. El épico enumera las
-que la fase deberá tomar —versionado del agente, capa común de proveedor, forma
-del conocimiento, contrato de herramienta, alcance de la memoria, habilitación
-del modo y medición del costo— sin reservar números de ADR; cada corte registra
-la suya en el PR que la adopta.
+**Decisiones de la fase:**
+[ADR-0014](../decisions/ADR-0014-configurable-agents-and-published-versions.md)
+está `Aceptado` desde el corte de agentes y versiones, que adopta su decisión
+central: la versión es una revisión inmutable y revertir reactiva la anterior en
+vez de derivar una copia. Las demás que el épico enumera —capa común de
+proveedor, forma del conocimiento, contrato de herramienta, alcance de la
+memoria, habilitación del modo y medición del costo— siguen sin registrar, sin
+reservar números de ADR; cada corte registra la suya en el PR que la adopta.
 
 **Requisito transversal:** se mantiene la regla de la Fase 2 sobre el catálogo de
 permisos. Cada corte declara sus permisos para instalaciones nuevas, agrega una
 migración aditiva que los inserta y los concede a los roles existentes por
 `role_key`, y una prueba que verifica que una instalación nueva y una migrada
 producen el mismo catálogo.
+
+El corte de agentes es la excepción que confirma la regla y queda registrada
+aquí: no introduce ningún permiso. `agents.read` y `agents.manage` se declaran
+en el catálogo de instalación desde el commit que creó la migración `0002`, y
+`seedOwner` es la única ruta de instalación, así que ninguna organización
+instalada carece de ellos. No hay catálogo que propagar, de modo que `0019` no
+lleva esa sección y la prueba comprueba directamente que `owner` y `manager` los
+tienen y `operator` no.
 
 **Recursos nuevos:** el índice vectorial que exige el conocimiento de #57 no
 existe en ningún entorno. Se crea con autorización explícita para el entorno
