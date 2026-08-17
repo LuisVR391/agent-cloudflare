@@ -54,7 +54,7 @@ forks del producto.
 | Workers AI | Binding preparado | Binding `AI` declarado, sin flujo de inferencia |
 | R2 | Implementada para Fase 1 | `MEDIA_BUCKET` conserva imágenes, audio y archivos con estado por adjunto; validado con medios reales en staging |
 | Observabilidad | Configurada | Logs y trazas habilitados en Wrangler |
-| D1 en local y pruebas | Implementada para Fase 1 y Fase 2 | Migraciones `0001` a `0018`, repositorios, mensajes, entregas, adjuntos, contactos, equipo, servicios, pipeline, oportunidades, notas, tareas, citas, métricas derivadas y aislamiento probado |
+| D1 en local y pruebas | Implementada para Fase 1 y Fase 2, y ampliada en Fase 3 | Migraciones `0001` a `0019`, repositorios, mensajes, entregas, adjuntos, contactos, equipo, servicios, pipeline, oportunidades, notas, tareas, citas, métricas derivadas, agentes con sus versiones y aislamiento probado |
 | Autenticación y autorización | Implementada | Better Auth, sesión D1, instalación única, alta por invitación ([ADR-0011](.docs/decisions/ADR-0011-collaborator-invitations.md)), roles fijos y contexto organizacional |
 | Entornos y staging | Staging desplegado | Recursos aislados; producción sigue sin provisionar |
 | Panel de conversaciones | Implementado para Fase 1 y ampliado en Fase 2 | Inbox protegido con sidebar fijo y paneles de scroll independiente, historial, recepción en vivo, handoff, estados de entrega, adjuntos con nombre, miniatura y descarga, y filtro por responsable |
@@ -69,7 +69,8 @@ forks del producto.
 | WhatsApp mediante Zernio | Implementado para Fase 1 | Recorrido bidireccional validado con tráfico real, incluidos estados de entrega y medios entrantes |
 | Queues, Workflows y Vectorize | Parcial | Queues de entrada/salida y DLQ provisionadas en staging; Workflows y Vectorize permanecen planificados |
 | CRM, agenda y pipelines | Implementados para Fase 2 | Contactos, equipo con asignación, catálogo de servicios, pipeline configurable, oportunidades con historial, notas, tareas, citas con agenda y métricas iniciales del proceso |
-| Versionado, evaluación y mejora de agentes | Planificados | Fuera del prototipo actual |
+| Configuración y versionado de agentes | Implementados para Fase 3 | Agentes por organización con revisiones inmutables, publicación, reversión e historial con autor y motivo ([ADR-0014](.docs/decisions/ADR-0014-configurable-agents-and-published-versions.md)); ninguna versión se ejecuta todavía |
+| Evaluación y mejora de agentes | Planificadas | Fuera del prototipo actual |
 
 `CustomerSupportAgent` coordina el estado vivo de cada conversación sin
 reemplazar el historial canónico de D1; el procesamiento automático mediante

@@ -1,3 +1,4 @@
+import { AgentRepository } from "./agent-repository";
 import { AppointmentRepository } from "./appointment-repository";
 import { CommunicationChannelRepository } from "./communication-channel-repository";
 import { ContactRepository } from "./contact-repository";
@@ -10,6 +11,7 @@ import { PipelineRepository } from "./pipeline-repository";
 import { ServiceRepository } from "./service-repository";
 import { TaskRepository } from "./task-repository";
 
+export { AgentRepository } from "./agent-repository";
 export { AppointmentRepository } from "./appointment-repository";
 export { CommunicationChannelRepository } from "./communication-channel-repository";
 export { ContactRepository } from "./contact-repository";
@@ -32,6 +34,7 @@ export type Repositories = {
   tasks: TaskRepository;
   appointments: AppointmentRepository;
   metrics: MetricsRepository;
+  agents: AgentRepository;
   communicationChannels: CommunicationChannelRepository;
   inboundWebhookEvents: InboundWebhookEventRepository;
 };
@@ -51,6 +54,7 @@ export function createRepositories(db: D1Database): Repositories {
     tasks: new TaskRepository(db),
     appointments: new AppointmentRepository(db),
     metrics: new MetricsRepository(db),
+    agents: new AgentRepository(db),
     communicationChannels: new CommunicationChannelRepository(db),
     inboundWebhookEvents: new InboundWebhookEventRepository(db),
   };

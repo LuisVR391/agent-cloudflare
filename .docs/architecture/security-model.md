@@ -51,9 +51,18 @@ leen el equipo, porque los tres asignan conversaciones y no se puede asignar una
 sin ver a quién. Invitar y revocar exigen `users.manage`, que solo tiene
 `owner`.
 
-El módulo de agentes todavía está planificado. El panel muestra su lugar futuro
-deshabilitado; los permisos no implican que esas interfaces o contratos ya
-existan.
+Los agentes ya son configuración con superficie propia: `agents.read` los
+consulta y `agents.manage` los crea, edita, publica, desactiva y revierte. Ese
+segundo permiso no se desdobla para publicar, porque ya es el privilegio que
+decide qué comportamiento tiene la empresa. `operator` no tiene ninguno de los
+dos: atender una conversación no es configurar quién la atiende. El detalle está
+en el [módulo de agentes y versiones](../modules/agents-and-versions.md) y en
+[ADR-0014](../decisions/ADR-0014-configurable-agents-and-published-versions.md).
+
+**Ejecutar** un agente sigue sin existir. Publicar una versión no cambia el
+comportamiento de ninguna conversación, y las herramientas que una versión
+declara no autorizan nada: no hay catálogo que las valide ni ruta que las
+ejecute.
 
 ### Crecimiento del catálogo de permisos
 

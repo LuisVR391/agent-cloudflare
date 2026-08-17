@@ -11,6 +11,7 @@ import type { InboundQueueMessage, OutboundQueueMessage } from "./integrations/z
 import { handleInboundQueue } from "./integrations/zernio/inbound-queue";
 import { handleOutboundQueue } from "./integrations/zernio/outbound-queue";
 import { handleZernioWebhook } from "./integrations/zernio/webhook";
+import { routeAgentApi } from "./agent-api";
 import { routeAppointmentApi } from "./appointment-api";
 import { routeContactApi } from "./contact-api";
 import { routeConversationApi } from "./conversation-api";
@@ -79,6 +80,9 @@ export default {
 
     const appointmentResponse = await routeAppointmentApi(request, workerEnv);
     if (appointmentResponse) return appointmentResponse;
+
+    const agentConfigurationResponse = await routeAgentApi(request, workerEnv);
+    if (agentConfigurationResponse) return agentConfigurationResponse;
 
     const metricsResponse = await routeMetricsApi(request, workerEnv);
     if (metricsResponse) return metricsResponse;

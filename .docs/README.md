@@ -100,13 +100,14 @@ escribe su documento de módulo cuando existen sus interfaces, no antes.
 
 ### Fase 3 — Agentes
 
-| Documento planificado | Estado | Contenido |
-| --- | --- | --- |
-| `modules/agents-and-versions.md` | Pendiente | Configuración, publicación, historial y rollback |
-| `modules/tools-and-permissions.md` | Pendiente | Catálogo, autorización y auditoría de herramientas |
-| `modules/knowledge-and-rag.md` | Pendiente | Ingesta, metadatos, búsqueda y aislamiento |
-| `modules/routing-and-memory.md` | Pendiente | Asignación, contexto y memoria autorizada |
-| `modules/model-providers.md` | Pendiente | Interfaz de modelos, presupuesto y failover |
+| Documento planificado | Estado | Corte | Contenido |
+| --- | --- | --- | --- |
+| [ADR-0014: Agente configurable y versión publicable inmutable](./decisions/ADR-0014-configurable-agents-and-published-versions.md) | Aceptado | [#54](https://github.com/LuisVR391/agent-cloudflare/issues/54) | Qué congela una publicación, revertir reactivando, punto único de concurrencia y declaraciones sin catálogo |
+| [Agentes y versiones](./modules/agents-and-versions.md) | Vigente | [#54](https://github.com/LuisVR391/agent-cloudflare/issues/54) | Configuración, revisión inmutable, publicación, historial y rollback |
+| `modules/tools-and-permissions.md` | Pendiente | — | Catálogo, autorización y auditoría de herramientas |
+| `modules/knowledge-and-rag.md` | Pendiente | — | Ingesta, metadatos, búsqueda y aislamiento |
+| `modules/routing-and-memory.md` | Pendiente | — | Asignación, contexto y memoria autorizada |
+| `modules/model-providers.md` | Pendiente | — | Interfaz de modelos, presupuesto y failover |
 
 ### Fase 4 — Automatización
 

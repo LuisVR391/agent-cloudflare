@@ -725,3 +725,147 @@ export type MetricsSummary = {
   operations: OperationsMetrics;
   commercial: CommercialMetrics;
 };
+
+/**
+ * Estado del agente. No se borra: se archiva, porque sus versiones y su
+ * historial deben seguir explicando con qué configuración se respondió.
+ */
+export type AgentStatus = "active" | "archived";
+
+/**
+ * Estado de una revisión. `draft` es editable; `published` y `archived` no
+ * vuelven a serlo nunca, así que `status !== "draft"` significa exactamente
+ * «contenido congelado» (ADR-0014).
+ */
+export type AgentVersionStatus = "draft" | "published" | "archived";
+
+/**
+ * Qué ocurrió con la publicación. La deriva el servidor comparando ordinales:
+ * quien llama no puede registrar un descenso de versión como una publicación.
+ */
+export type AgentPublicationAction =
+  | "published"
+  | "unpublished"
+  | "rolled_back";
+
+/**
+ * Configuración reutilizable de la organización. El nombre, el propósito y el
+ * estado se editan sin crear una versión: no describen comportamiento.
+ *
+ * `version` es concurrencia optimista de la configuración completa —agente,
+ * versiones y declaraciones—, como en `pipelines`. No confundir con el ordinal
+ * de una revisión.
+ */
+export type Agent = {
+  id: string;
+  organizationId: string;
+  name: string;
+  purpose: string | null;
+  status: AgentStatus;
+  publishedVersionId: string | null;
+  publishedVersionNumber: number | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/**
+ * Revisión inmutable del comportamiento. `versionNumber` es el `agentVersion`
+ * que los contratos transversales fijan en `AgentExecutionContext`.
+ *
+ * `tools` y `knowledgeScopes` son declaraciones sin catálogo: no autorizan
+ * nada y nada las ejecuta todavía.
+ */
+export type AgentVersion = {
+  id: string;
+  organizationId: string;
+  agentId: string;
+  versionNumber: number;
+  status: AgentVersionStatus;
+  instructions: string;
+  model: string;
+  playbook: string | null;
+  changeReason: string | null;
+  tools: string[];
+  knowledgeScopes: string[];
+  createdByMembershipId: string;
+  createdByName: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/**
+ * Entrada del historial de publicación. Es append-only y es el único dueño de
+ * cuándo se publicó cada versión, con motivo obligatorio.
+ */
+export type AgentPublicationTransition = {
+  id: string;
+  organizationId: string;
+  agentId: string;
+  previousVersionId: string | null;
+  previousVersionNumber: number | null;
+  nextVersionId: string | null;
+  nextVersionNumber: number | null;
+  action: AgentPublicationAction;
+  reason: string;
+  actorId: string | null;
+  actorName: string | null;
+  occurredAt: string;
+};
+
+export type AgentDetail = Agent & {
+  versions: AgentVersion[];
+  publications: AgentPublicationTransition[];
+};
+
+export type CreateAgentInput = {
+  name: string;
+  purpose?: string | null;
+  createdByMembershipId: string;
+};
+
+export type UpdateAgentInput = {
+  expectedVersion: number;
+  name?: string;
+  // `null` deja el agente sin propósito; omitirlo lo conserva.
+  purpose?: string | null;
+  status?: AgentStatus;
+};
+
+/** Lo que define el comportamiento y queda congelado al publicar. */
+export type AgentVersionContent = {
+  instructions: string;
+  model: string;
+  playbook?: string | null;
+  tools?: string[];
+  knowledgeScopes?: string[];
+};
+
+/**
+ * Un borrador nace escrito o derivado de otra revisión. `content` y
+ * `fromVersionId` son excluyentes: el router los resuelve antes de llamar.
+ */
+export type CreateAgentVersionInput = {
+  expectedVersion: number;
+  content: AgentVersionContent | null;
+  fromVersionId: string | null;
+  changeReason?: string | null;
+  createdByMembershipId: string;
+};
+
+export type UpdateAgentVersionInput = AgentVersionContent & {
+  expectedVersion: number;
+  changeReason?: string | null;
+};
+
+/**
+ * Publica, revierte o desactiva. `versionId` nulo deja al agente sin versión
+ * publicada sin borrar ninguna.
+ */
+export type SetAgentPublicationInput = {
+  expectedVersion: number;
+  versionId: string | null;
+  reason: string;
+  actorId: string;
+  correlationId: string;
+};
