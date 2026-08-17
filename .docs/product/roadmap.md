@@ -186,7 +186,7 @@ presupuesto, costos y failover [#61](https://github.com/LuisVR391/agent-cloudfla
 
 | Entregable | Estado | Dependencia | Evidencia |
 | --- | --- | --- | --- |
-| Agentes configurables y sus versiones | En progreso | Fase 2 | [Issue #54](https://github.com/LuisVR391/agent-cloudflare/issues/54), [PR #63](https://github.com/LuisVR391/agent-cloudflare/pull/63), [ADR-0014](../decisions/ADR-0014-configurable-agents-and-published-versions.md) y el [módulo de agentes y versiones](../modules/agents-and-versions.md). En `main`: la persistencia y la superficie de API; el panel llega en el corte siguiente del mismo issue. |
+| Agentes configurables y sus versiones | Completado | Fase 2 | [Issue #54](https://github.com/LuisVR391/agent-cloudflare/issues/54), los cortes [PR #63](https://github.com/LuisVR391/agent-cloudflare/pull/63) y el del panel, [ADR-0014](../decisions/ADR-0014-configurable-agents-and-published-versions.md) y el [módulo de agentes y versiones](../modules/agents-and-versions.md) |
 | Ejecución del agente en la conversación | Planificado | Agentes de #54 | [Issue #55](https://github.com/LuisVR391/agent-cloudflare/issues/55) |
 | Herramientas con autorización en backend | Planificado | Ejecución de #55 | [Issue #56](https://github.com/LuisVR391/agent-cloudflare/issues/56) |
 | Conocimiento empresarial y recuperación aislada | Planificado | Ejecución de #55 | [Issue #57](https://github.com/LuisVR391/agent-cloudflare/issues/57) |

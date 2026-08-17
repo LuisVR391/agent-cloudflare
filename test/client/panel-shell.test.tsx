@@ -23,6 +23,15 @@ vi.mock("../../src/client/lib/api", () => ({
   // conceder `metrics.read` a este contexto rompería la prueba por el mock, no
   // por el shell.
   getMetricsSummary: vi.fn(),
+  // Lo mismo para la pantalla de agentes: todo export que importe una sección
+  // del panel debe existir aquí, o falla el archivo entero por el mock.
+  listAgents: vi.fn(),
+  getAgent: vi.fn(),
+  createAgent: vi.fn(),
+  updateAgent: vi.fn(),
+  createAgentVersion: vi.fn(),
+  replaceAgentVersion: vi.fn(),
+  setAgentPublication: vi.fn(),
 }));
 
 const api = await import("../../src/client/lib/api");
@@ -43,6 +52,7 @@ const context = {
       "conversations.manage",
       "users.read",
       "users.manage",
+      "agents.read",
     ],
   },
   requiresOrganizationSelection: false,
@@ -72,6 +82,7 @@ beforeEach(() => {
   });
   vi.mocked(api.listTeamMembers).mockResolvedValue([]);
   vi.mocked(api.listTeamInvitations).mockResolvedValue([]);
+  vi.mocked(api.listAgents).mockResolvedValue([]);
 });
 
 describe("shell del panel", () => {
@@ -122,9 +133,21 @@ describe("shell del panel", () => {
     render(<App />);
     await screen.findByText("Hola, Ana");
 
-    for (const label of ["Agentes", "Configuración"]) {
-      expect(screen.getByRole("button", { name: label })).toBeDisabled();
-    }
+    expect(screen.getByRole("button", { name: "Configuración" })).toBeDisabled();
+  });
+
+  it("abre los agentes, que dejan de ser una sección planeada", async () => {
+    window.history.replaceState({}, "", "/app/agentes");
+
+    render(<App />);
+
+    expect(
+      await screen.findByRole("heading", { name: "Agentes", level: 1 }),
+    ).toBeInTheDocument();
+    const item = screen
+      .getAllByRole("link", { name: "Agentes" })
+      .find((element) => element.dataset.slot === "sidebar-menu-button");
+    expect(item?.dataset.active).toBe("true");
   });
 
   it("abre el equipo, que deja de ser una sección planeada", async () => {

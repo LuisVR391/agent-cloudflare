@@ -181,6 +181,36 @@ configurar quién la atiende.
 Publicar no exige un permiso propio porque `agents.manage` ya es el privilegio
 que decide qué comportamiento tiene la empresa.
 
+## En el panel
+
+`/app/agentes` es la superficie de configuración. La entrada del sidebar deja de
+estar deshabilitada con este corte.
+
+La lista muestra cada agente con su propósito y con **qué versión está
+publicada**, o que no hay ninguna. Quien gestiona ve también los archivados,
+para poder reactivarlos.
+
+El detalle de un agente se abre en un panel lateral con dos pestañas:
+
+- **Versiones**, de la más reciente a la más antigua, con su estado, su modelo
+  previsto, su motivo y su autor. Un borrador se edita; una versión publicada
+  alguna vez, no —el botón de editar sencillamente no está—. Cualquiera se
+  duplica en un borrador nuevo.
+- **Historial**, con quién cambió la publicación, por qué y cuándo.
+
+El **motivo del cambio de publicación es un campo obligatorio**: mientras esté
+vacío, publicar, revertir y desactivar están deshabilitados. Es la misma regla
+que aplica el backend, adelantada para que nadie escriba un cambio que va a ser
+rechazado.
+
+El botón de publicar dice **«Revertir a esta»** cuando la versión es anterior a
+la vigente. Es una ayuda de lectura, no un control: la acción que se registra la
+deriva el servidor.
+
+La pantalla dice explícitamente que **publicar deja la configuración lista, no la
+pone a responder**. Sin esa frase, una superficie que habla de agentes y de
+publicación anunciaría una capacidad que no existe.
+
 ## Nada cambia todavía
 
 Ninguna consulta lee la versión publicada. El
