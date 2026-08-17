@@ -65,3 +65,4 @@ histórica como si siempre hubiera sido distinta.
 | [ADR-0011](./ADR-0011-collaborator-invitations.md) | Aceptado | Incorporación de colaboradores por invitación |
 | [ADR-0012](./ADR-0012-initial-metrics.md) | Propuesto | Métricas iniciales derivadas de D1 por consulta acotada |
 | [ADR-0013](./ADR-0013-github-operations-by-api.md) | Aceptado | Operaciones de GitHub por API, con bloqueo por efecto y no por método |
+| [ADR-0014](./ADR-0014-configurable-agents-and-published-versions.md) | Aceptado | Agente configurable y versión publicable inmutable |
