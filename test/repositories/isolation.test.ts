@@ -7,11 +7,36 @@ import {
 import type { Organization } from "../../src/worker/domain/types";
 import { createRepositories } from "../../src/worker/repositories";
 
-const { organizations, contacts, services, pipelines, metrics } =
+const { organizations, contacts, services, pipelines, metrics, agents } =
   createRepositories(env.DB);
 
 let salon: Organization;
 let barberia: Organization;
+const memberships = new Map<string, string>();
+
+/**
+ * Un agente conserva quién lo creó, así que cada organización necesita una
+ * membresía real: la clave foránea compuesta rechazaría una de la otra.
+ */
+async function seedMembership(organizationId: string): Promise<string> {
+  const now = new Date().toISOString();
+  const userId = crypto.randomUUID();
+  const membershipId = crypto.randomUUID();
+  await env.DB.prepare(
+    `INSERT INTO users (id, name, email, email_verified, status, created_at, updated_at)
+     VALUES (?, 'Titular', ?, 0, 'active', ?, ?)`,
+  )
+    .bind(userId, `${userId}@example.com`, now, now)
+    .run();
+  await env.DB.prepare(
+    `INSERT INTO memberships (id, organization_id, user_id, status, created_at, updated_at)
+     VALUES (?, ?, ?, 'active', ?, ?)`,
+  )
+    .bind(membershipId, organizationId, userId, now, now)
+    .run();
+  memberships.set(organizationId, membershipId);
+  return membershipId;
+}
 
 beforeEach(async () => {
   salon = await organizations.create({
@@ -22,6 +47,8 @@ beforeEach(async () => {
     slug: `barberia-${crypto.randomUUID()}`,
     displayName: "Barbería Norte",
   });
+  await seedMembership(salon.id);
+  await seedMembership(barberia.id);
 });
 
 describe("aislamiento por organización", () => {
@@ -79,6 +106,53 @@ describe("aislamiento por organización", () => {
     expect(listados[0].stages).toHaveLength(propio.stages.length);
   });
 
+  it("no lista agentes de otra organización", async () => {
+    const propio = await agents.create(salon.id, {
+      name: "Recepción",
+      createdByMembershipId: memberships.get(salon.id)!,
+    });
+    await agents.create(barberia.id, {
+      name: "Recepción",
+      createdByMembershipId: memberships.get(barberia.id)!,
+    });
+
+    const listados = await agents.list(salon.id, { status: "all" });
+
+    expect(listados.map((agente) => agente.id)).toEqual([propio.id]);
+  });
+
+  it("no resuelve un agente ni su detalle desde otra organización", async () => {
+    const ajeno = await agents.create(barberia.id, {
+      name: "Recepción",
+      createdByMembershipId: memberships.get(barberia.id)!,
+    });
+
+    await expect(agents.find(salon.id, ajeno.id)).resolves.toBeNull();
+    await expect(agents.findDetail(salon.id, ajeno.id)).resolves.toBeNull();
+    await expect(agents.find(barberia.id, ajeno.id)).resolves.toMatchObject({
+      id: ajeno.id,
+      organizationId: barberia.id,
+    });
+  });
+
+  it("no alcanza desde otra organización la revisión de un agente ajeno", async () => {
+    const ajeno = await agents.create(barberia.id, {
+      name: "Recepción",
+      createdByMembershipId: memberships.get(barberia.id)!,
+    });
+    const detalle = await agents.createVersion(barberia.id, ajeno.id, {
+      expectedVersion: ajeno.version,
+      content: { instructions: "Secreto", model: "modelo-previsto" },
+      fromVersionId: null,
+      createdByMembershipId: memberships.get(barberia.id)!,
+    });
+    const versionId = detalle!.versions[0].id;
+
+    await expect(
+      agents.findVersion(salon.id, ajeno.id, versionId),
+    ).resolves.toBeNull();
+  });
+
   it("falla de forma cerrada cuando no hay organización", async () => {
     await expect(contacts.listByOrganization("")).rejects.toBeInstanceOf(
       MissingOrganizationScopeError,
@@ -105,6 +179,58 @@ describe("aislamiento por organización", () => {
       metrics.summary("", {
         from: "2026-08-01T06:00:00.000Z",
         to: "2026-09-01T06:00:00.000Z",
+      }),
+    ).rejects.toBeInstanceOf(MissingOrganizationScopeError);
+    await expect(agents.list("")).rejects.toBeInstanceOf(
+      MissingOrganizationScopeError,
+    );
+    await expect(agents.find("  ", "agente")).rejects.toBeInstanceOf(
+      MissingOrganizationScopeError,
+    );
+    await expect(agents.findDetail("", "agente")).rejects.toBeInstanceOf(
+      MissingOrganizationScopeError,
+    );
+    await expect(
+      agents.create("  ", { name: "Recepción", createdByMembershipId: "x" }),
+    ).rejects.toBeInstanceOf(MissingOrganizationScopeError);
+    await expect(
+      agents.update("", "agente", { expectedVersion: 1, name: "Otro" }),
+    ).rejects.toBeInstanceOf(MissingOrganizationScopeError);
+    await expect(
+      agents.createVersion("  ", "agente", {
+        expectedVersion: 1,
+        content: { instructions: "Hola", model: "modelo" },
+        fromVersionId: null,
+        createdByMembershipId: "x",
+      }),
+    ).rejects.toBeInstanceOf(MissingOrganizationScopeError);
+    await expect(
+      agents.updateVersion("", "agente", "version", {
+        expectedVersion: 1,
+        instructions: "Hola",
+        model: "modelo",
+      }),
+    ).rejects.toBeInstanceOf(MissingOrganizationScopeError);
+    await expect(
+      agents.setPublication("  ", "agente", {
+        expectedVersion: 1,
+        versionId: null,
+        reason: "Motivo",
+        actorId: "actor",
+        correlationId: "correlación",
+      }),
+    ).rejects.toBeInstanceOf(MissingOrganizationScopeError);
+    await expect(
+      agents.findVersion("", "agente", "version"),
+    ).rejects.toBeInstanceOf(MissingOrganizationScopeError);
+    await expect(
+      agents.recordAudit({
+        organizationId: "",
+        actorId: "actor",
+        resource: { type: "agent", id: null },
+        action: "agent.create",
+        result: "rejected",
+        correlationId: "correlación",
       }),
     ).rejects.toBeInstanceOf(MissingOrganizationScopeError);
   });

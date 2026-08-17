@@ -170,6 +170,67 @@ export class AppointmentTransitionNotAllowedError extends Error {
 }
 
 /**
+ * Ya existe un agente con ese nombre dentro de la organización. El nombre se
+ * compara plegado a minúsculas y sin espacios en los extremos, y sigue
+ * reservado aunque el agente esté archivado, para que reactivarlo no compita
+ * con un duplicado creado mientras tanto.
+ */
+export class DuplicateAgentNameError extends Error {
+  readonly agentName: string;
+
+  constructor(agentName: string) {
+    super(`Ya existe un agente llamado "${agentName}" en la organización.`);
+    this.name = "DuplicateAgentNameError";
+    this.agentName = agentName;
+  }
+}
+
+/**
+ * La versión referenciada no existe, pertenece a otro agente o a otra
+ * organización. Las tres se confunden a propósito: distinguirlas revelaría qué
+ * identificador ajeno existe.
+ */
+export class AgentVersionNotInOrganizationError extends Error {
+  readonly versionId: string;
+
+  constructor(versionId: string) {
+    super(`La versión "${versionId}" no pertenece al agente indicado.`);
+    this.name = "AgentVersionNotInOrganizationError";
+    this.versionId = versionId;
+  }
+}
+
+/**
+ * Se intentó editar una versión que ya se publicó alguna vez. Su contenido
+ * quedó congelado: cambiar el comportamiento exige una revisión nueva, o el
+ * historial dejaría de explicar con qué configuración se respondió (ADR-0014).
+ */
+export class AgentVersionNotEditableError extends Error {
+  readonly versionId: string;
+
+  constructor(versionId: string) {
+    super(`La versión "${versionId}" ya no es un borrador y no puede editarse.`);
+    this.name = "AgentVersionNotEditableError";
+    this.versionId = versionId;
+  }
+}
+
+/**
+ * La publicación pedida deja al agente exactamente como estaba. Se rechaza en
+ * vez de aceptarse: el historial acumularía transiciones que no cambian nada y
+ * `rolled_back` dejaría de poder derivarse.
+ */
+export class AgentPublicationUnchangedError extends Error {
+  readonly agentId: string;
+
+  constructor(agentId: string) {
+    super(`La publicación del agente "${agentId}" ya está en ese estado.`);
+    this.name = "AgentPublicationUnchangedError";
+    this.agentId = agentId;
+  }
+}
+
+/**
  * Una fila persistida contiene un valor fuera del dominio esperado. Indica
  * corrupción o una migración incompleta, no una entrada del usuario.
  */
