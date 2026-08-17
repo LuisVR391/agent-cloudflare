@@ -65,7 +65,7 @@ forks del producto.
 | Panel de tareas | Implementado para Fase 2 | Sección propia con filtro por responsable y estado, vencimientos con aviso de vencida, y tareas creadas desde la conversación |
 | Panel de agenda | Implementado para Fase 2 | Vistas de día y semana en la zona horaria de la organización, citas con servicio, responsable e historial de estado, alta desde la conversación y selector de zona para quien administra |
 | Resumen del panel | Implementado para Fase 2 | Métricas operativas y comerciales del periodo elegido, derivadas de D1 con rango acotado ([ADR-0012](.docs/decisions/ADR-0012-initial-metrics.md)), con estado vacío honesto cuando no hubo actividad |
-| Panel de agentes | Planificado | Navegación reservada y deshabilitada |
+| Panel de agentes | Implementado para Fase 3 | Agentes con la versión publicada a la vista, revisiones con su autor y su motivo, publicación y reversión con motivo obligatorio, e historial de quién cambió qué; publicar todavía no pone a responder a nadie |
 | WhatsApp mediante Zernio | Implementado para Fase 1 | Recorrido bidireccional validado con tráfico real, incluidos estados de entrega y medios entrantes |
 | Queues, Workflows y Vectorize | Parcial | Queues de entrada/salida y DLQ provisionadas en staging; Workflows y Vectorize permanecen planificados |
 | CRM, agenda y pipelines | Implementados para Fase 2 | Contactos, equipo con asignación, catálogo de servicios, pipeline configurable, oportunidades con historial, notas, tareas, citas con agenda y métricas iniciales del proceso |

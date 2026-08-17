@@ -51,8 +51,9 @@ leen el equipo, porque los tres asignan conversaciones y no se puede asignar una
 sin ver a quién. Invitar y revocar exigen `users.manage`, que solo tiene
 `owner`.
 
-Los agentes ya son configuración con superficie propia: `agents.read` los
-consulta y `agents.manage` los crea, edita, publica, desactiva y revierte. Ese
+Los agentes ya son configuración con superficie propia, en la API y en el panel:
+`agents.read` los consulta y `agents.manage` los crea, edita, publica, desactiva
+y revierte. Ese
 segundo permiso no se desdobla para publicar, porque ya es el privilegio que
 decide qué comportamiento tiene la empresa. `operator` no tiene ninguno de los
 dos: atender una conversación no es configurar quién la atiende. El detalle está
