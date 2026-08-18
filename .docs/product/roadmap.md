@@ -187,7 +187,7 @@ presupuesto, costos y failover [#61](https://github.com/LuisVR391/agent-cloudfla
 | Entregable | Estado | Dependencia | Evidencia |
 | --- | --- | --- | --- |
 | Agentes configurables y sus versiones | Completado | Fase 2 | [Issue #54](https://github.com/LuisVR391/agent-cloudflare/issues/54), los cortes [PR #63](https://github.com/LuisVR391/agent-cloudflare/pull/63) y el del panel, [ADR-0014](../decisions/ADR-0014-configurable-agents-and-published-versions.md) y el [módulo de agentes y versiones](../modules/agents-and-versions.md) |
-| Ejecución del agente en la conversación | Completado | Agentes de #54 | [Issue #55](https://github.com/LuisVR391/agent-cloudflare/issues/55), [ADR-0015](../decisions/ADR-0015-model-provider-and-agent-runs.md), el [módulo de proveedores de modelo](../modules/model-providers.md) y el [runtime de conversación](../modules/conversation-runtime.md) |
+| Ejecución del agente en la conversación | Completado | Agentes de #54 | [Issue #55](https://github.com/LuisVR391/agent-cloudflare/issues/55), [PR #66](https://github.com/LuisVR391/agent-cloudflare/pull/66), [ADR-0015](../decisions/ADR-0015-model-provider-and-agent-runs.md), el [módulo de proveedores de modelo](../modules/model-providers.md) y el [runtime de conversación](../modules/conversation-runtime.md) |
 | Herramientas con autorización en backend | Planificado | Ejecución de #55 | [Issue #56](https://github.com/LuisVR391/agent-cloudflare/issues/56) |
 | Conocimiento empresarial y recuperación aislada | Planificado | Ejecución de #55 | [Issue #57](https://github.com/LuisVR391/agent-cloudflare/issues/57) |
 | Routing entre agentes | Planificado | Ejecución de #55 | [Issue #58](https://github.com/LuisVR391/agent-cloudflare/issues/58) |
