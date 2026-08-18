@@ -9,10 +9,12 @@ import { mergeConversations, mergeMessages } from "@/lib/conversation-pagination
 import { cn } from "@/lib/utils";
 import {
   getConversationMessages,
+  listAgents,
   listConversations,
   listTeamMembers,
   sendConversationMessage,
   updateConversation,
+  type AgentSummary,
   type AssigneeFilter,
   type ConversationMessage,
   type ConversationSummary,
@@ -27,9 +29,13 @@ export function ConversationInbox() {
   const canManage = panel.activeOrganization.permissions.includes(
     "conversations.manage",
   );
+  const canReadAgents = panel.activeOrganization.permissions.includes(
+    "agents.read",
+  );
   const [status, setStatus] = useState<"open" | "resolved">("open");
   const [assignee, setAssignee] = useState<AssigneeFilter>("all");
   const [members, setMembers] = useState<TeamMember[]>([]);
+  const [agents, setAgents] = useState<AgentSummary[]>([]);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [selected, setSelected] = useState<ConversationSummary | null>(null);
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
@@ -149,6 +155,18 @@ export function ConversationInbox() {
       .catch(() => setMembers([]));
   }, [canReadTeam]);
 
+  // Solo un agente activo con versión publicada puede atender: es la misma
+  // condición que el backend exige al activarlo, adelantada para no ofrecer una
+  // opción que va a ser rechazada.
+  useEffect(() => {
+    if (!canReadAgents) return;
+    void listAgents("active")
+      .then((result) =>
+        setAgents(result.filter((agent) => agent.publishedVersionId !== null)),
+      )
+      .catch(() => setAgents([]));
+  }, [canReadAgents]);
+
   useEffect(() => {
     if (!selected) return;
     let socket: WebSocket | null = null;
@@ -204,8 +222,9 @@ export function ConversationInbox() {
 
   async function changeState(input: {
     status?: "open" | "resolved";
-    attentionMode?: "human" | "paused";
+    attentionMode?: "automatic" | "human" | "paused";
     assigneeMembershipId?: string | null;
+    agentId?: string | null;
   }) {
     if (!selected) return;
     try {
@@ -231,9 +250,11 @@ export function ConversationInbox() {
   const composerPlaceholder =
     selected?.status === "resolved"
       ? "Reabre la conversación para responder"
-      : selected?.attentionMode !== "human"
-        ? "Toma control para responder"
-        : "Escribe una respuesta…";
+      : selected?.attentionMode === "automatic"
+        ? "Responde el agente; devuélvela al equipo para escribir"
+        : selected?.attentionMode !== "human"
+          ? "Toma control para responder"
+          : "Escribe una respuesta…";
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -265,6 +286,10 @@ export function ConversationInbox() {
           status={status}
         />
         <ConversationThread
+          agentAccess={{
+            canManage,
+            agents: canReadAgents ? agents : null,
+          }}
           canLoadOlder={olderCursor !== null && !loadingOlder}
           composerDisabled={composerDisabled}
           composerPlaceholder={composerPlaceholder}

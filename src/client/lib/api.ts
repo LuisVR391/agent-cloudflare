@@ -110,6 +110,12 @@ export type ConversationAssignee = {
   name: string;
 };
 
+/** Agente que atiende la conversación, cuando alguien lo eligió. */
+export type ConversationAgent = {
+  id: string;
+  name: string;
+};
+
 export type ConversationSummary = {
   id: string;
   contactId: string;
@@ -119,6 +125,9 @@ export type ConversationSummary = {
   status: "open" | "resolved";
   attentionMode: "automatic" | "supervised" | "human" | "paused";
   assignee: ConversationAssignee | null;
+  // Se conserva al volver a control humano: reactivar el agente no obliga a
+  // elegirlo otra vez.
+  agent: ConversationAgent | null;
   version: number;
   lastMessageAt: string;
   lastMessageText: string | null;
@@ -128,8 +137,9 @@ export type ConversationMessage = {
   id: string;
   direction: "incoming" | "outgoing";
   senderType: "customer" | "staff" | "system";
-  // Identifica al colaborador que respondió. Es opaco: distingue a un autor de
-  // otro, pero no resuelve su nombre.
+  // Identifica a quien respondió: el colaborador, o el agente cuando
+  // `senderType` es `system`. Es opaco: distingue a un autor de otro, pero no
+  // resuelve su nombre.
   senderId: string | null;
   messageType:
     | "text"
@@ -211,9 +221,11 @@ export async function updateConversation(
   input: {
     expectedVersion: number;
     status?: "open" | "resolved";
-    attentionMode?: "human" | "paused";
+    attentionMode?: "automatic" | "human" | "paused";
     // Ausente conserva el responsable; `null` lo retira.
     assigneeMembershipId?: string | null;
+    // Ausente conserva el agente; `null` lo retira.
+    agentId?: string | null;
   },
 ) {
   const response = await fetch(`/api/conversations/${encodeURIComponent(conversationId)}`, {
