@@ -187,7 +187,7 @@ presupuesto, costos y failover [#61](https://github.com/LuisVR391/agent-cloudfla
 | Entregable | Estado | Dependencia | Evidencia |
 | --- | --- | --- | --- |
 | Agentes configurables y sus versiones | Completado | Fase 2 | [Issue #54](https://github.com/LuisVR391/agent-cloudflare/issues/54), los cortes [PR #63](https://github.com/LuisVR391/agent-cloudflare/pull/63) y el del panel, [ADR-0014](../decisions/ADR-0014-configurable-agents-and-published-versions.md) y el [módulo de agentes y versiones](../modules/agents-and-versions.md) |
-| Ejecución del agente en la conversación | Planificado | Agentes de #54 | [Issue #55](https://github.com/LuisVR391/agent-cloudflare/issues/55) |
+| Ejecución del agente en la conversación | Completado | Agentes de #54 | [Issue #55](https://github.com/LuisVR391/agent-cloudflare/issues/55), [ADR-0015](../decisions/ADR-0015-model-provider-and-agent-runs.md), el [módulo de proveedores de modelo](../modules/model-providers.md) y el [runtime de conversación](../modules/conversation-runtime.md) |
 | Herramientas con autorización en backend | Planificado | Ejecución de #55 | [Issue #56](https://github.com/LuisVR391/agent-cloudflare/issues/56) |
 | Conocimiento empresarial y recuperación aislada | Planificado | Ejecución de #55 | [Issue #57](https://github.com/LuisVR391/agent-cloudflare/issues/57) |
 | Routing entre agentes | Planificado | Ejecución de #55 | [Issue #58](https://github.com/LuisVR391/agent-cloudflare/issues/58) |
@@ -208,10 +208,15 @@ permitida, modo supervisado, presupuesto y failover.
 [ADR-0014](../decisions/ADR-0014-configurable-agents-and-published-versions.md)
 está `Aceptado` desde el corte de agentes y versiones, que adopta su decisión
 central: la versión es una revisión inmutable y revertir reactiva la anterior en
-vez de derivar una copia. Las demás que el épico enumera —capa común de
-proveedor, forma del conocimiento, contrato de herramienta, alcance de la
-memoria, habilitación del modo y medición del costo— siguen sin registrar, sin
-reservar números de ADR; cada corte registra la suya en el PR que la adopta.
+vez de derivar una copia.
+[ADR-0015](../decisions/ADR-0015-model-provider-and-agent-runs.md) está
+`Aceptado` desde el corte de ejecución, y resuelve dos de las que el épico
+enumeraba: la capa común de proveedor —con Workers AI como primero— y la
+habilitación del modo, que ocurre por conversación al elegir un agente publicado,
+sin mover ninguna conversación existente. Las restantes —forma del conocimiento,
+contrato de herramienta, alcance de la memoria y medición del costo— siguen sin
+registrar, sin reservar números de ADR; cada corte registra la suya en el PR que
+la adopta.
 
 **Requisito transversal:** se mantiene la regla de la Fase 2 sobre el catálogo de
 permisos. Cada corte declara sus permisos para instalaciones nuevas, agrega una
@@ -226,6 +231,10 @@ en el catálogo de instalación desde el commit que creó la migración `0002`, 
 instalada carece de ellos. No hay catálogo que propagar, de modo que `0019` no
 lleva esa sección y la prueba comprueba directamente que `owner` y `manager` los
 tienen y `operator` no.
+
+El corte de ejecución tampoco introduce permisos: decidir que un agente atienda
+una conversación es gestionarla, y `conversations.manage` ya es ese privilegio.
+Por eso `0020` tampoco lleva sección de catálogo.
 
 **Recursos nuevos:** el índice vectorial que exige el conocimiento de #57 no
 existe en ningún entorno. Se crea con autorización explícita para el entorno

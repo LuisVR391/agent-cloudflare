@@ -51,10 +51,10 @@ forks del producto.
 | Worker y API HTTP | Implementada | `src/worker/index.ts` y `GET /api/health` |
 | SPA React servida por el Worker | Implementada | Landing, `/setup`, `/login`, `/app`, React 19, Tailwind y shadcn/ui; shell y hilo compuestos con primitivas del registro ([ADR-0009](.docs/decisions/ADR-0009-client-ui-composition.md)) |
 | Agente durable | Base implementada | `CustomerSupportAgent` coordina cada conversación y sus conexiones en vivo |
-| Workers AI | Binding preparado | Binding `AI` declarado, sin flujo de inferencia |
+| Workers AI | Implementada para Fase 3 | Binding `AI` consumido detrás de una capa común de proveedor, con validación de la salida y códigos de fallo estables ([ADR-0015](.docs/decisions/ADR-0015-model-provider-and-agent-runs.md)) |
 | R2 | Implementada para Fase 1 | `MEDIA_BUCKET` conserva imágenes, audio y archivos con estado por adjunto; validado con medios reales en staging |
 | Observabilidad | Configurada | Logs y trazas habilitados en Wrangler |
-| D1 en local y pruebas | Implementada para Fase 1 y Fase 2, y ampliada en Fase 3 | Migraciones `0001` a `0019`, repositorios, mensajes, entregas, adjuntos, contactos, equipo, servicios, pipeline, oportunidades, notas, tareas, citas, métricas derivadas, agentes con sus versiones y aislamiento probado |
+| D1 en local y pruebas | Implementada para Fase 1 y Fase 2, y ampliada en Fase 3 | Migraciones `0001` a `0020`, repositorios, mensajes, entregas, adjuntos, contactos, equipo, servicios, pipeline, oportunidades, notas, tareas, citas, métricas derivadas, agentes con sus versiones, corridas del agente y aislamiento probado |
 | Autenticación y autorización | Implementada | Better Auth, sesión D1, instalación única, alta por invitación ([ADR-0011](.docs/decisions/ADR-0011-collaborator-invitations.md)), roles fijos y contexto organizacional |
 | Entornos y staging | Staging desplegado | Recursos aislados; producción sigue sin provisionar |
 | Panel de conversaciones | Implementado para Fase 1 y ampliado en Fase 2 | Inbox protegido con sidebar fijo y paneles de scroll independiente, historial, recepción en vivo, handoff, estados de entrega, adjuntos con nombre, miniatura y descarga, y filtro por responsable |
@@ -65,16 +65,19 @@ forks del producto.
 | Panel de tareas | Implementado para Fase 2 | Sección propia con filtro por responsable y estado, vencimientos con aviso de vencida, y tareas creadas desde la conversación |
 | Panel de agenda | Implementado para Fase 2 | Vistas de día y semana en la zona horaria de la organización, citas con servicio, responsable e historial de estado, alta desde la conversación y selector de zona para quien administra |
 | Resumen del panel | Implementado para Fase 2 | Métricas operativas y comerciales del periodo elegido, derivadas de D1 con rango acotado ([ADR-0012](.docs/decisions/ADR-0012-initial-metrics.md)), con estado vacío honesto cuando no hubo actividad |
-| Panel de agentes | Implementado para Fase 3 | Agentes con la versión publicada a la vista, revisiones con su autor y su motivo, publicación y reversión con motivo obligatorio, e historial de quién cambió qué; publicar todavía no pone a responder a nadie |
+| Panel de agentes | Implementado para Fase 3 | Agentes con la versión publicada a la vista, revisiones con su autor y su motivo, publicación y reversión con motivo obligatorio, e historial de quién cambió qué; publicar deja la configuración lista y es el inbox quien decide que atienda una conversación |
 | WhatsApp mediante Zernio | Implementado para Fase 1 | Recorrido bidireccional validado con tráfico real, incluidos estados de entrega y medios entrantes |
 | Queues, Workflows y Vectorize | Parcial | Queues de entrada/salida y DLQ provisionadas en staging; Workflows y Vectorize permanecen planificados |
 | CRM, agenda y pipelines | Implementados para Fase 2 | Contactos, equipo con asignación, catálogo de servicios, pipeline configurable, oportunidades con historial, notas, tareas, citas con agenda y métricas iniciales del proceso |
-| Configuración y versionado de agentes | Implementados para Fase 3 | Agentes por organización con revisiones inmutables, publicación, reversión e historial con autor y motivo ([ADR-0014](.docs/decisions/ADR-0014-configurable-agents-and-published-versions.md)); ninguna versión se ejecuta todavía |
+| Configuración y versionado de agentes | Implementados para Fase 3 | Agentes por organización con revisiones inmutables, publicación, reversión e historial con autor y motivo ([ADR-0014](.docs/decisions/ADR-0014-configurable-agents-and-published-versions.md)) |
+| Ejecución del agente en la conversación | Implementada para Fase 3 | La versión publicada responde cuando la conversación está en modo automático con un agente asignado, la respuesta sale por la salida existente y cada corrida deja traza con agente, versión y resultado ([ADR-0015](.docs/decisions/ADR-0015-model-provider-and-agent-runs.md)); sin herramientas, conocimiento recuperable ni medición de costo |
 | Evaluación y mejora de agentes | Planificadas | Fuera del prototipo actual |
 
 `CustomerSupportAgent` coordina el estado vivo de cada conversación sin
-reemplazar el historial canónico de D1; el procesamiento automático mediante
-agentes permanece fuera de este corte.
+reemplazar el historial canónico de D1, y ejecuta la versión publicada del agente
+cuando la conversación lo tiene asignado y está en modo automático. Ninguna
+conversación cambia de comportamiento sola: todas siguen en control humano hasta
+que alguien elija un agente desde el inbox.
 
 La base D1 conserva organizaciones, autenticación, canales, contactos,
 conversaciones, mensajes e intentos de entrega con aislamiento por organización.

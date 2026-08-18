@@ -29,17 +29,35 @@ canal emite timestamps con precisión de segundos.
   colaborador, y tipo de contenido. Cada adjunto declara tipo, tipo de contenido,
   tamaño, nombre de archivo y estado de conservación.
 - `POST /api/conversations/:id/messages`: respuesta humana idempotente.
-- `PATCH /api/conversations/:id`: modo, estado o responsable con control
+- `PATCH /api/conversations/:id`: modo, estado, responsable o agente con control
   optimista. El responsable se describe en el
-  [módulo de equipo](./teams-and-permissions.md).
+  [módulo de equipo](./teams-and-permissions.md); el agente, más abajo.
 - `GET /api/conversations/:id/live`: WebSocket derivado y autorizado en
   backend.
 
 `conversations.read` permite consulta; `conversations.manage` permite
-responder, pausar, tomar control, resolver y reabrir. El backend solo acepta una
-respuesta cuando la conversación está abierta y en modo `human`; una
-conversación resuelta debe reabrirse y un modo pausado debe volver a control
-humano.
+responder, pausar, tomar control, resolver, reabrir y decidir si responde un
+agente. El backend solo acepta una respuesta cuando la conversación está abierta
+y en modo `human`; una conversación resuelta debe reabrirse, y un modo pausado o
+automático debe volver a control humano.
+
+## Que responda un agente
+
+`attentionMode: "automatic"` exige un agente activo con versión publicada, y la
+comprobación viaja en la misma sentencia que escribe: un agente archivado, sin
+versión publicada, inexistente o de otra organización responde `409
+AGENT_NOT_RUNNABLE` sin distinguir cuál de los cuatro es, porque distinguirlos
+revelaría qué identificador ajeno existe.
+
+`agentId` conserva su valor al volver a control humano: la conversación recuerda
+a quién eligieron, y reactivarlo no obliga a elegirlo otra vez. Ninguna
+conversación existente cambia sola; todas siguen en `human` y sin agente.
+
+`supervised` sigue rechazado. Está en el contrato aceptado desde Fase 1, pero
+nada prepara todavía un borrador que aprobar.
+
+Lo que ocurre después —cuándo corre el agente, qué contexto recibe y qué pasa si
+falla— lo describe el [runtime de conversación](./conversation-runtime.md).
 
 Leer una conversación en el inbox no produce efectos hacia el canal: el producto
 no emite acuses de lectura. La razón y la condición bajo la que volvería a tener
@@ -82,6 +100,17 @@ La lista filtra por responsable junto al estado, y la cabecera del hilo permite
 asignarlo. Ambos controles solo aparecen con lectura de equipo, y asignar exige
 además gestionar conversaciones.
 
+La misma cabecera decide quién atiende: el equipo, o uno de los agentes activos
+con versión publicada. El control solo aparece con lectura de agentes y permiso
+de gestión, y la lista se filtra por versión publicada porque es la condición que
+el backend exige. Con la conversación respondiendo sola, el compositor explica
+que hay que devolverla al equipo antes de escribir.
+
+Una respuesta del agente se dibuja como cualquier otro saliente, firmada con el
+nombre del agente mientras siga atendiendo la conversación; si se cambió de
+agente se anuncia como `Agente`, porque nombrar al actual atribuiría una
+respuesta que no escribió.
+
 Un adjunto se identifica por el nombre que declaró el canal cuando existe, y por
 su tipo cuando no. Una imagen muestra miniatura y un audio puede reproducirse en
 el hilo. Un adjunto que no pudo conservarse se anuncia sin enlace, porque su
@@ -103,4 +132,5 @@ encolado, el compositor restaura el texto y conserva el mismo `clientRequestId`
 para un reintento seguro.
 
 Notas, pipeline, citas y métricas pertenecen a los cortes siguientes de Fase 2.
-Las respuestas automáticas y la IA pertenecen a Fase 3.
+La aprobación humana previa al envío —el modo supervisado— pertenece al corte
+[#60](https://github.com/LuisVR391/agent-cloudflare/issues/60).

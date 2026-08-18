@@ -17,7 +17,9 @@ pero no competir por la autoridad del mismo dato.
 | Intentos y estados de entrega saliente | D1 | Idempotencia y reconciliación empresarial |
 | Metadatos de adjuntos y clave opaca | D1 | Autorización y referencia al binario |
 | Agentes, sus versiones y el historial de publicación | D1 | Configuración publicada y trazabilidad de qué revisión estuvo viva ([ADR-0014](../decisions/ADR-0014-configurable-agents-and-published-versions.md)) |
-| Asignación de un agente a una conversación y permisos de herramienta | D1 | Todavía conceptual: llegan con la ejecución del agente y su catálogo de herramientas |
+| Asignación de un agente a una conversación | D1 | Qué agente atiende; el modo de atención decide si responde ([ADR-0015](../decisions/ADR-0015-model-provider-and-agent-runs.md)) |
+| Corridas del agente y su resultado | D1 | Con qué agente, versión y desenlace se respondió un mensaje; sin prompt ni contenido |
+| Permisos de herramienta | D1 | Todavía conceptual: llegan con el catálogo de herramientas |
 | Catálogo de servicios | D1 | Dato relacional que se agenda, se cobra y se cuenta |
 | Pipeline y sus etapas | D1 | Configuración comercial por organización, con orden explícito |
 | Oportunidades e historial de etapa | D1 | Estado comercial y evidencia de cómo avanzó |
@@ -78,8 +80,9 @@ existen en `migrations/` estas tablas:
 | `agent_versions` | Revisión inmutable con instrucciones, modelo previsto y playbook; a lo sumo una publicada por agente | `0019_agents_and_versions.sql` |
 | `agent_version_tools`, `agent_version_knowledge_scopes` | Lo que una revisión declara que usará; todavía sin catálogo que lo autorice | `0019_agents_and_versions.sql` |
 | `agent_publication_transitions` | Historial append-only de qué versión quedó publicada, con actor y motivo | `0019_agents_and_versions.sql` |
+| `agent_runs` | Traza de cada corrida: agente, versión, mensaje disparador, respuesta, resultado y correlación | `0020_agent_runs_and_conversation_agent.sql` |
 | `communication_channels`, `inbound_webhook_events` | Canal confiable y recepción deduplicada de Zernio | `0003_zernio_whatsapp_channel.sql` y `0005_message_sent_reconciliation.sql` |
-| `conversations`, `messages`, `message_attachments` | Historial canónico y metadatos de medios | `0004_conversations_and_messages.sql` y `0009_message_attachment_recovery.sql` |
+| `conversations`, `messages`, `message_attachments` | Historial canónico y metadatos de medios; `conversations.agent_id` conserva qué agente atiende | `0004_conversations_and_messages.sql`, `0009_message_attachment_recovery.sql` y `0020_agent_runs_and_conversation_agent.sql` |
 | `outbound_message_deliveries`, `message_status_events` | Idempotencia, intentos e historial de reconciliación por identificadores opacos | `0004` a `0006` |
 
 Las categorías no listadas siguen siendo conceptuales: se crearán con la capacidad
@@ -106,9 +109,11 @@ Cada conversación activa tendrá una identidad
 - Alarmas de corto plazo.
 - Conexiones en tiempo real asociadas a la conversación.
 
-Puede mantener una proyección de agente asignado, versión, modo de atención y
-contacto para ejecutar con baja latencia. Esa proyección no reemplaza la
-configuración ni el historial canónico de D1 y debe poder reconstruirse.
+Puede mantener una proyección de modo de atención y actividad reciente para
+difundir cambios con baja latencia. Esa proyección no reemplaza la configuración
+ni el historial canónico de D1 y no decide por sí sola: si el agente responde, y
+con qué configuración, se lee de D1 en cada corrida, porque un Durable Object
+recreado empieza con su estado inicial.
 
 No se almacenará en un único Durable Object el estado de todas las empresas,
 todos los contactos ni toda la analítica.
@@ -175,9 +180,9 @@ Inbound consumer
 
 Conversation Agent
   -> ordena y agrupa en su runtime
-  -> carga configuración canónica desde D1
-  -> ejecuta agente y herramientas autorizadas
-  -> persiste mensaje, resultado y auditoría en D1
+  -> carga modo, agente y versión publicada desde D1
+  -> ejecuta la corrida detrás de la capa común de proveedor
+  -> persiste mensaje, traza de la corrida y auditoría en D1
   -> publica referencia en Outbound Queue
 
 Outbound consumer
