@@ -52,12 +52,24 @@ export type AgentRunOutcome =
       escalated: boolean;
     };
 
+/**
+ * La cola de salida, declarada por lo único que la corrida usa de ella. El
+ * binding completo cumple esta forma, y una cola de prueba no necesita
+ * implementar el resto para ejercitar la corrida.
+ */
+export type OutboundDispatcher = {
+  send(
+    message: OutboundQueueMessage,
+    options?: { contentType?: "json" },
+  ): Promise<unknown>;
+};
+
 export type AgentRunDependencies = {
   db: D1Database;
   /** Nulo cuando el entorno no declara inferencia; se registra y se escala. */
   provider: ModelProvider | null;
   /** La salida ya existente de Fase 1. No se abre un camino paralelo. */
-  outbound: Queue<OutboundQueueMessage> | null;
+  outbound: OutboundDispatcher | null;
 };
 
 /**

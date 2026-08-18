@@ -5,6 +5,7 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 import { executeAgentRun } from "../src/worker/agents/agent-run";
 import type { ModelProvider, ModelRequest } from "../src/worker/agents/model-provider";
 import { createModelProvider } from "../src/worker/agents/workers-ai-provider";
+import type { OutboundQueueMessage } from "../src/worker/integrations/zernio/contracts";
 import { processOutboundQueueMessage } from "../src/worker/integrations/zernio/outbound-queue";
 import { AgentRunRepository } from "../src/worker/repositories/agent-run-repository";
 import { ConversationRepository } from "../src/worker/repositories/conversation-repository";
@@ -43,7 +44,9 @@ function providerReturning(text: string): ModelProvider & {
 }
 
 function queueRecording() {
-  return { send: vi.fn(async () => undefined) };
+  return {
+    send: vi.fn(async (_message: OutboundQueueMessage) => undefined),
+  };
 }
 
 describe.sequential("ejecución del agente en la conversación", () => {
