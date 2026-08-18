@@ -6,6 +6,7 @@ import { ConversationInbox } from "../../src/client/components/conversation-inbo
 import {
   getContact,
   getConversationMessages,
+  listAgents,
   listConversations,
   listTeamMembers,
   sendConversationMessage,
@@ -25,6 +26,7 @@ vi.mock("../../src/client/lib/api", () => ({
   addContactTag: vi.fn(),
   removeContactTag: vi.fn(),
   simulateInboundMessage: vi.fn(),
+  listAgents: vi.fn(),
 }));
 
 const conversation = {
@@ -36,6 +38,7 @@ const conversation = {
   status: "open" as const,
   attentionMode: "human" as const,
   assignee: null,
+  agent: null,
   version: 1,
   lastMessageAt: "2026-08-10T18:00:00.000Z",
   lastMessageText: "Quiero información",
@@ -51,6 +54,27 @@ const teammate = {
   role: "operator" as const,
   status: "active" as const,
   joinedAt: "2026-08-12T10:00:00.000Z",
+};
+
+const publishedAgent = {
+  id: "agent-1",
+  name: "Recepción",
+  purpose: null,
+  status: "active" as const,
+  publishedVersionId: "version-1",
+  publishedVersionNumber: 1,
+  version: 2,
+  createdAt: "2026-08-17T10:00:00.000Z",
+  updatedAt: "2026-08-17T10:00:00.000Z",
+};
+
+// Sin versión publicada no puede atender, así que el hilo no debe ofrecerlo.
+const draftAgent = {
+  ...publishedAgent,
+  id: "agent-2",
+  name: "Sin publicar",
+  publishedVersionId: null,
+  publishedVersionNumber: null,
 };
 
 const defaultPermissions = ["conversations.read", "conversations.manage"];
@@ -124,6 +148,7 @@ describe("inbox de conversaciones", () => {
     });
     vi.mocked(sendConversationMessage).mockResolvedValue(undefined);
     vi.mocked(listTeamMembers).mockResolvedValue([]);
+    vi.mocked(listAgents).mockResolvedValue([publishedAgent, draftAgent]);
   });
 
   it("abre el hilo y envía una respuesta humana", async () => {
@@ -548,6 +573,75 @@ describe("inbox de conversaciones", () => {
 
     expect(screen.queryByRole("button", { name: "Sin responsable" })).toBeNull();
     expect(listTeamMembers).not.toHaveBeenCalled();
+  });
+
+  it("activa el agente publicado desde la cabecera del hilo", async () => {
+    vi.mocked(updateConversation).mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    renderInbox([...defaultPermissions, "agents.read"]);
+    await user.click(await screen.findByRole("button", { name: /María/i }));
+
+    await user.click(
+      await screen.findByRole("button", { name: "Atiende el equipo" }),
+    );
+    // Un agente sin versión publicada no aparece: es la misma condición que el
+    // backend exige al activarlo.
+    expect(screen.queryByRole("menuitemradio", { name: /Sin publicar/ })).toBeNull();
+    await user.click(
+      await screen.findByRole("menuitemradio", { name: "Responde Recepción" }),
+    );
+
+    await waitFor(() =>
+      expect(updateConversation).toHaveBeenCalledWith("conversation-1", {
+        expectedVersion: 1,
+        attentionMode: "automatic",
+        agentId: "agent-1",
+      }),
+    );
+  });
+
+  it("no ofrece el agente a quien no puede leerlos", async () => {
+    await openThread();
+
+    expect(screen.queryByRole("button", { name: "Atiende el equipo" })).toBeNull();
+    expect(listAgents).not.toHaveBeenCalled();
+  });
+
+  it("atribuye al agente la respuesta que produjo, y bloquea el compositor", async () => {
+    const automatic = {
+      ...conversation,
+      attentionMode: "automatic" as const,
+      agent: { id: "agent-1", name: "Recepción" },
+    };
+    vi.mocked(listConversations).mockResolvedValue({
+      conversations: [automatic],
+      nextCursor: null,
+    });
+    vi.mocked(getConversationMessages).mockResolvedValue({
+      conversation: automatic,
+      messages: [message({
+        id: "out-agent",
+        direction: "outgoing",
+        senderType: "system",
+        senderId: "agent-1",
+        text: "Sí, tenemos cita mañana.",
+        status: "sent",
+      })],
+      nextCursor: null,
+    });
+    // Sin lectura de agentes no aparece el selector, así que el único
+    // «Recepción» de la pantalla es la firma del mensaje.
+    const user = userEvent.setup();
+    renderInbox();
+    await user.click(await screen.findByRole("button", { name: /María/i }));
+
+    expect(await screen.findByText("Sí, tenemos cita mañana.")).toBeInTheDocument();
+    expect(await screen.findByText("Recepción")).toBeInTheDocument();
+    expect(
+      await screen.findByPlaceholderText(
+        "Responde el agente; devuélvela al equipo para escribir",
+      ),
+    ).toBeDisabled();
   });
 
   it("atribuye a su nombre el mensaje que envió otra persona", async () => {

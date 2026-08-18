@@ -31,6 +31,7 @@ function conversation(overrides: Partial<ConversationSummary>): ConversationSumm
     status: "open",
     attentionMode: "human",
     assignee: null,
+    agent: null,
     version: 1,
     lastMessageAt: "2026-08-12T08:00:00.000Z",
     lastMessageText: "Hola",
