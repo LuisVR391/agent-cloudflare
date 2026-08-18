@@ -16,6 +16,7 @@ import type {
   AgentVersionStatus,
   CreateAgentInput,
   CreateAgentVersionInput,
+  RunnableAgentVersion,
   SetAgentPublicationInput,
   UpdateAgentInput,
   UpdateAgentVersionInput,
@@ -849,6 +850,55 @@ export class AgentRepository {
     return row === null
       ? null
       : { status: asMember(versionStatuses, row.status, "agent_versions.status") };
+  }
+
+  /**
+   * La configuración viva de un agente: su versión publicada, solo si el agente
+   * sigue activo. Es lo único que una corrida puede ejecutar, y por eso ambas
+   * condiciones viajan en la misma consulta: un agente archivado o sin versión
+   * publicada no responde, aunque la conversación lo tenga asignado.
+   */
+  async findRunnableVersion(
+    organizationId: string,
+    agentId: string,
+  ): Promise<RunnableAgentVersion | null> {
+    const scope = requireOrganizationScope(
+      organizationId,
+      "AgentRepository.findRunnableVersion",
+    );
+    const row = await this.#db
+      .prepare(
+        `SELECT a.id AS agent_id, a.name AS agent_name, v.id AS version_id,
+            v.version_number, v.instructions, v.model, v.playbook
+          FROM agents a
+          JOIN agent_versions v
+            ON v.organization_id = a.organization_id
+           AND v.agent_id = a.id
+           AND v.status = 'published'
+          WHERE a.organization_id = ? AND a.id = ? AND a.status = 'active'`,
+      )
+      .bind(scope, agentId)
+      .first<{
+        agent_id: string;
+        agent_name: string;
+        version_id: string;
+        version_number: number;
+        instructions: string;
+        model: string;
+        playbook: string | null;
+      }>();
+
+    return row === null
+      ? null
+      : {
+          agentId: row.agent_id,
+          agentName: row.agent_name,
+          versionId: row.version_id,
+          versionNumber: row.version_number,
+          instructions: row.instructions,
+          model: row.model,
+          playbook: row.playbook,
+        };
   }
 
   #versionBump(

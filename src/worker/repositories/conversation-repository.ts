@@ -1,4 +1,5 @@
 import {
+  AgentNotRunnableError,
   MembershipNotActiveInOrganizationError,
   requireOrganizationScope,
 } from "../domain/errors";
@@ -17,6 +18,7 @@ type SummaryRow = {
   attention_mode: AttentionMode; version: number; last_message_at: string;
   last_message_text: string | null; assignee_membership_id: string | null;
   assignee_user_id: string | null; assignee_name: string | null;
+  agent_id: string | null; agent_name: string | null;
 };
 
 /** Filtro del inbox: una membresía concreta o las conversaciones sin dueño. */
@@ -44,6 +46,7 @@ const summarySelect = `SELECT c.id, c.organization_id, c.channel_id, c.contact_i
   ch.display_name AS channel_display_name, c.status, c.attention_mode, c.version,
   c.last_message_at, am.id AS assignee_membership_id,
   am.user_id AS assignee_user_id, au.name AS assignee_name,
+  ag.id AS agent_id, ag.name AS agent_name,
   (SELECT m.text_content FROM messages m WHERE m.organization_id = c.organization_id
     AND m.conversation_id = c.id ORDER BY m.occurred_at DESC, m.id DESC LIMIT 1)
     AS last_message_text
@@ -55,7 +58,9 @@ const summarySelect = `SELECT c.id, c.organization_id, c.channel_id, c.contact_i
   AND ch.id = c.channel_id
  LEFT JOIN memberships am ON am.organization_id = c.organization_id
   AND am.id = c.assigned_membership_id
- LEFT JOIN users au ON au.id = am.user_id`;
+ LEFT JOIN users au ON au.id = am.user_id
+ LEFT JOIN agents ag ON ag.organization_id = c.organization_id
+  AND ag.id = c.agent_id`;
 
 function summary(row: SummaryRow): ConversationSummary {
   return {
@@ -72,6 +77,12 @@ function summary(row: SummaryRow): ConversationSummary {
           userId: row.assignee_user_id,
           name: row.assignee_name ?? "",
         }
+      : null,
+    // El agente se muestra aunque el modo ya no sea automático: la conversación
+    // conserva a quién eligieron para atenderla, y reactivarlo no obliga a
+    // elegirlo otra vez.
+    agent: row.agent_id
+      ? { id: row.agent_id, name: row.agent_name ?? "" }
       : null,
     version: row.version,
     lastMessageAt: row.last_message_at, lastMessageText: row.last_message_text,
@@ -169,6 +180,42 @@ export class ConversationRepository {
     };
   }
 
+  /**
+   * Un mensaje concreto del hilo. La corrida del agente lo necesita para saber
+   * qué disparó el trabajo y con qué correlación, sin recorrer la página del
+   * historial.
+   */
+  async findMessage(
+    organizationId: string,
+    conversationId: string,
+    messageId: string,
+  ): Promise<Pick<
+    ConversationMessage,
+    "id" | "direction" | "messageType" | "text"
+  > & { correlationId: string } | null> {
+    const scope = requireOrganizationScope(
+      organizationId, "ConversationRepository.findMessage");
+    const row = await this.db.prepare(`SELECT id, direction, message_type,
+      text_content, correlation_id FROM messages
+      WHERE organization_id = ? AND conversation_id = ? AND id = ?`)
+      .bind(scope, conversationId, messageId).first<{
+        id: string;
+        direction: ConversationMessage["direction"];
+        message_type: ConversationMessage["messageType"];
+        text_content: string | null;
+        correlation_id: string;
+      }>();
+    return row
+      ? {
+          id: row.id,
+          direction: row.direction,
+          messageType: row.message_type,
+          text: row.text_content,
+          correlationId: row.correlation_id,
+        }
+      : null;
+  }
+
   async upsertInbound(input: {
     organizationId: string; channelId: string; externalConversationId: string;
     externalContactId: string; contactPhoneNumber?: string | null;
@@ -233,8 +280,15 @@ export class ConversationRepository {
     return { conversationId: conversation.id, messageId: message.id };
   }
 
+  /**
+   * Crea la respuesta saliente y su entrega idempotente. `senderType` distingue
+   * quién responde: una persona del equipo o el agente de la organización, cuyo
+   * identificador viaja en `actorId`. La ruta humana no lo envía y conserva su
+   * comportamiento.
+   */
   async createOutgoing(input: {
     organizationId: string; conversationId: string; actorId: string;
+    senderType?: "staff" | "system";
     clientRequestId: string; text: string; correlationId: string;
   }): Promise<{
     messageId: string;
@@ -290,9 +344,10 @@ export class ConversationRepository {
         (id, organization_id, conversation_id, client_request_id, direction, sender_type,
          sender_id, message_type, text_content, status, correlation_id, occurred_at,
          created_at, updated_at)
-        VALUES (?, ?, ?, ?, 'outgoing', 'staff', ?, 'text', ?, 'queued', ?, ?, ?, ?)`)
+        VALUES (?, ?, ?, ?, 'outgoing', ?, ?, 'text', ?, 'queued', ?, ?, ?, ?)`)
         .bind(messageId, scope, input.conversationId, input.clientRequestId,
-          input.actorId, input.text, input.correlationId, now, now, now),
+          input.senderType ?? "staff", input.actorId, input.text,
+          input.correlationId, now, now, now),
       this.db.prepare(`INSERT INTO outbound_message_deliveries
         (id, organization_id, message_id, idempotency_key, status, created_at, updated_at)
         VALUES (?, ?, ?, ?, 'pending', ?, ?)`)
@@ -380,8 +435,9 @@ export class ConversationRepository {
   }
 
   /**
-   * Cambia estado, modo de atención o responsable con control optimista. Un
-   * campo ausente conserva su valor; en el responsable, `null` lo retira.
+   * Cambia estado, modo de atención, responsable o agente con control
+   * optimista. Un campo ausente conserva su valor; en el responsable y en el
+   * agente, `null` lo retira.
    *
    * La actualización y su historial viajan en un solo lote —que D1 ejecuta
    * como transacción— y cada inserción comprueba que la conversación quedó en
@@ -391,8 +447,9 @@ export class ConversationRepository {
    */
   async updateState(input: {
     organizationId: string; conversationId: string; expectedVersion: number;
-    status?: ConversationStatus; attentionMode?: "human" | "paused";
+    status?: ConversationStatus; attentionMode?: "automatic" | "human" | "paused";
     assigneeMembershipId?: string | null;
+    agentId?: string | null;
     actorId: string; correlationId: string;
   }): Promise<ConversationSummary | null> {
     const scope = requireOrganizationScope(
@@ -406,27 +463,45 @@ export class ConversationRepository {
       : input.assigneeMembershipId;
     const nextStatus = input.status ?? current.status;
     const nextAttentionMode = input.attentionMode ?? current.attentionMode;
-    // Sondea que la fila quedó como la dejó esta operación. La versión sola no
-    // basta: otra petición podría haber alcanzado el mismo número.
-    const applied = `WHERE EXISTS (SELECT 1 FROM conversations
-      WHERE organization_id = ? AND id = ? AND version = ? AND updated_at = ?)`;
+    const previousAgentId = current.agent?.id ?? null;
+    const nextAgentId = input.agentId === undefined
+      ? previousAgentId
+      : input.agentId;
+    // Responder automáticamente sin agente no es un estado posible, así que se
+    // rechaza antes de tocar SQL en vez de escribir una conversación que el
+    // runtime tendría que devolver a una persona en el primer mensaje.
+    if (nextAttentionMode === "automatic" && nextAgentId === null) {
+      throw new AgentNotRunnableError(null);
+    }
+    const applied = this.#appliedProbe();
     const appliedBindings = [
       scope, input.conversationId, input.expectedVersion + 1, now,
     ];
 
+    // La configuración viva del agente solo se exige cuando la conversación
+    // queda respondiendo sola. Archivar un agente no debe impedir devolver a
+    // control humano una conversación que lo tenía asignado.
+    const runnableGuard = nextAttentionMode === "automatic" ? nextAgentId : null;
+
     const statements = [
       // El responsable solo se escribe si es una membresía activa de esta
-      // organización. Comprobarlo en la misma sentencia no deja ventana entre
-      // verificar y escribir.
+      // organización, y el agente solo queda respondiendo si sigue activo y con
+      // versión publicada. Comprobarlo en la misma sentencia no deja ventana
+      // entre verificar y escribir.
       this.db.prepare(`UPDATE conversations SET status = ?, attention_mode = ?,
-        assigned_membership_id = ?, version = version + 1, updated_at = ?
+        assigned_membership_id = ?, agent_id = ?, version = version + 1, updated_at = ?
         WHERE organization_id = ? AND id = ? AND version = ?
           AND (? IS NULL OR EXISTS (SELECT 1 FROM memberships m
                 WHERE m.organization_id = conversations.organization_id
-                  AND m.id = ? AND m.status = 'active'))`)
-        .bind(nextStatus, nextAttentionMode, nextAssignee, now,
+                  AND m.id = ? AND m.status = 'active'))
+          AND (? IS NULL OR EXISTS (SELECT 1 FROM agents a
+                JOIN agent_versions v ON v.organization_id = a.organization_id
+                  AND v.agent_id = a.id AND v.status = 'published'
+                WHERE a.organization_id = conversations.organization_id
+                  AND a.id = ? AND a.status = 'active'))`)
+        .bind(nextStatus, nextAttentionMode, nextAssignee, nextAgentId, now,
           scope, input.conversationId, input.expectedVersion,
-          nextAssignee, nextAssignee),
+          nextAssignee, nextAssignee, runnableGuard, runnableGuard),
       this.db.prepare(`INSERT INTO conversation_status_history
         (id, organization_id, conversation_id, actor_type, actor_id, previous_status,
          next_status, previous_attention_mode, next_attention_mode, correlation_id, occurred_at)
@@ -448,14 +523,72 @@ export class ConversationRepository {
     const [update] = await this.db.batch(statements);
     if (update.meta.changes !== 1) {
       // El lote no cambió nada: o la versión quedó obsoleta, o la membresía no
-      // está activa aquí. Distinguirlo permite responder con precisión sin
-      // revelar a quién pertenece un identificador ajeno.
+      // está activa aquí, o el agente no puede responder. Distinguirlo permite
+      // responder con precisión sin revelar a quién pertenece un identificador
+      // ajeno.
       if (nextAssignee && !(await this.#isActiveMembership(scope, nextAssignee))) {
         throw new MembershipNotActiveInOrganizationError(nextAssignee);
+      }
+      if (runnableGuard && !(await this.#isRunnableAgent(scope, runnableGuard))) {
+        throw new AgentNotRunnableError(runnableGuard);
       }
       return null;
     }
     return this.find(scope, input.conversationId);
+  }
+
+  /**
+   * Devuelve la conversación a control humano después de una corrida que no
+   * pudo responder. No la escribe una persona, así que no hay `expectedVersion`
+   * que exigir: la condición es que siga respondiendo sola, y una conversación
+   * que alguien ya movió no se toca.
+   *
+   * El motivo no vive aquí. La traza de la corrida conserva el código y la
+   * auditoría el resultado; el historial de estado solo registra que el sistema
+   * devolvió la conversación al equipo.
+   */
+  async escalateToHuman(input: {
+    organizationId: string; conversationId: string; correlationId: string;
+  }): Promise<boolean> {
+    const scope = requireOrganizationScope(
+      input.organizationId, "ConversationRepository.escalateToHuman");
+    const current = await this.find(scope, input.conversationId);
+    if (!current || current.attentionMode !== "automatic") return false;
+    const now = new Date().toISOString();
+    const [update] = await this.db.batch([
+      this.db.prepare(`UPDATE conversations SET attention_mode = 'human',
+        version = version + 1, updated_at = ?
+        WHERE organization_id = ? AND id = ? AND attention_mode = 'automatic'`)
+        .bind(now, scope, input.conversationId),
+      this.db.prepare(`INSERT INTO conversation_status_history
+        (id, organization_id, conversation_id, actor_type, actor_id, previous_status,
+         next_status, previous_attention_mode, next_attention_mode, correlation_id,
+         occurred_at)
+        SELECT ?, ?, ?, 'system', NULL, ?, ?, 'automatic', 'human', ?, ?
+        ${this.#appliedProbe()}`)
+        .bind(crypto.randomUUID(), scope, input.conversationId,
+          current.status, current.status, input.correlationId, now,
+          scope, input.conversationId, current.version + 1, now),
+    ]);
+    return update.meta.changes === 1;
+  }
+
+  /**
+   * Sonda que la fila quedó como la dejó esta operación. La versión sola no
+   * basta: otra petición podría haber alcanzado el mismo número.
+   */
+  #appliedProbe(): string {
+    return `WHERE EXISTS (SELECT 1 FROM conversations
+      WHERE organization_id = ? AND id = ? AND version = ? AND updated_at = ?)`;
+  }
+
+  #isRunnableAgent(organizationId: string, agentId: string) {
+    return this.db.prepare(`SELECT 1 AS present FROM agents a
+      JOIN agent_versions v ON v.organization_id = a.organization_id
+        AND v.agent_id = a.id AND v.status = 'published'
+      WHERE a.organization_id = ? AND a.id = ? AND a.status = 'active'`)
+      .bind(organizationId, agentId).first<{ present: number }>()
+      .then((row) => row !== null);
   }
 
   #isActiveMembership(organizationId: string, membershipId: string) {

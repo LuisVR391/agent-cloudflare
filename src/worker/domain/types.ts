@@ -147,6 +147,12 @@ export type ConversationSummary = {
   status: ConversationStatus;
   attentionMode: AttentionMode;
   assignee: ConversationAssignee | null;
+  /**
+   * Agente que atiende la conversación, cuando alguien lo eligió. Es
+   * independiente del modo: conservarlo al volver a control humano permite
+   * reactivarlo sin volver a elegirlo.
+   */
+  agent: ConversationAgent | null;
   version: number;
   lastMessageAt: string;
   lastMessageText: string | null;
@@ -308,6 +314,16 @@ export type InvitationLookup = {
 export type ConversationAssignee = {
   membershipId: string;
   userId: string;
+  name: string;
+};
+
+/**
+ * Agente que atiende una conversación. Solo su identidad y su nombre: con qué
+ * versión responde lo decide cada corrida al leer la publicada, porque publicar
+ * otra debe cambiar el comportamiento sin tocar la conversación.
+ */
+export type ConversationAgent = {
+  id: string;
   name: string;
 };
 
@@ -868,4 +884,51 @@ export type SetAgentPublicationInput = {
   reason: string;
   actorId: string;
   correlationId: string;
+};
+
+/**
+ * Estado de una corrida del agente. `running` se escribe antes de invocar al
+ * modelo, así que una corrida abandonada se queda ahí: es evidencia de que
+ * empezó y no cerró. `skipped` es la que no llegó a invocarlo porque no había
+ * nada que responder.
+ */
+export type AgentRunStatus = "running" | "succeeded" | "failed" | "skipped";
+
+/**
+ * Traza de una corrida. Responde con qué agente y qué versión se respondió, qué
+ * mensaje la originó y cómo terminó. No conserva el prompt, el texto del
+ * mensaje ni la respuesta: ese contenido ya tiene dueño en `messages`.
+ *
+ * `model` no es una columna: se deriva de la versión, que es inmutable.
+ */
+export type AgentRun = {
+  id: string;
+  organizationId: string;
+  conversationId: string;
+  agentId: string;
+  agentVersionId: string;
+  agentVersionNumber: number;
+  model: string;
+  triggerMessageId: string;
+  responseMessageId: string | null;
+  status: AgentRunStatus;
+  failureCode: string | null;
+  correlationId: string;
+  startedAt: string;
+  finishedAt: string | null;
+};
+
+/**
+ * La configuración viva de un agente en el instante de responder: la versión
+ * publicada de un agente activo. Si falta cualquiera de las dos condiciones, no
+ * hay nada que ejecutar.
+ */
+export type RunnableAgentVersion = {
+  agentId: string;
+  agentName: string;
+  versionId: string;
+  versionNumber: number;
+  instructions: string;
+  model: string;
+  playbook: string | null;
 };

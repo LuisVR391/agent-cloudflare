@@ -231,6 +231,24 @@ export class AgentPublicationUnchangedError extends Error {
 }
 
 /**
+ * El agente que se pidió para atender la conversación no existe, pertenece a
+ * otra organización, está archivado o no tiene versión publicada. Los cuatro se
+ * confunden a propósito: distinguirlos revelaría qué identificador ajeno
+ * existe, y ninguno puede responder.
+ */
+export class AgentNotRunnableError extends Error {
+  readonly agentId: string | null;
+
+  constructor(agentId: string | null) {
+    super(
+      `El agente "${agentId ?? "(ninguno)"}" no puede atender la conversación.`,
+    );
+    this.name = "AgentNotRunnableError";
+    this.agentId = agentId;
+  }
+}
+
+/**
  * Una fila persistida contiene un valor fuera del dominio esperado. Indica
  * corrupción o una migración incompleta, no una entrada del usuario.
  */
