@@ -410,6 +410,46 @@ function readOnlyCommandViolation(command, policy) {
   return null;
 }
 
+// El prompt se compara sin acentos ni mayúsculas: quien escribe deprisa no
+// escribe «planificación» con tilde, y el recordatorio dejaría de aparecer justo
+// cuando más sirve.
+function normalizeIntent(value) {
+  return String(value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+// Recordatorio, nunca bloqueo: el prompt sigue su camino y el agente decide.
+// Un corte que ya tiene plan se continúa por el ciclo; uno que no lo tiene se
+// planifica antes de escribir código.
+function skillReminder(input, policy, runtime = {}) {
+  const routing = policy.skillRouting;
+  if (!routing) return null;
+  const prompt = normalizeIntent(input.prompt);
+  if (!prompt) return null;
+  const wantsPlanning = matchesAny(prompt, routing.planningIntentPatterns);
+  const wantsImplementation = matchesAny(
+    prompt,
+    routing.implementationIntentPatterns,
+  );
+  if (!wantsPlanning && !wantsImplementation) return null;
+
+  const prefix = (runtime.skillCommand || "/")[0];
+  const plan = activePlan(
+    input.cwd || repositoryRoot,
+    policy,
+    runtime.runGit || runGit,
+  );
+  if (plan) {
+    return `Esta rama ya tiene un plan aprobado en ${plan.path}. Continúa por ${prefix}${routing.cycleSkill} en vez de volver a planificar; el SPEC es el contrato del corte.`;
+  }
+  if (wantsPlanning) {
+    return `Usa ${prefix}${routing.planningSkill} para investigar, clasificar las decisiones y escribir el SPEC antes de tocar código.`;
+  }
+  return `Este corte no tiene plan. Si no es un cambio trivial, pasa antes por ${prefix}${routing.planningSkill}: sin criterios de aceptación no hay forma de verificar que terminó.`;
+}
+
 function handleSessionStart(input, policy, runtime = {}) {
   const sourceList = policy.sourcesOfTruth.join(", ");
   const skill = runtime.skillCommand || "deliver-agent-cloudflare-change";
@@ -430,7 +470,7 @@ function handleSubagentStart(input, policy) {
   );
 }
 
-function handleUserPromptSubmit(input, policy) {
+function handleUserPromptSubmit(input, policy, runtime = {}) {
   const prompt = String(input.prompt || "");
   if (matchesAny(prompt, policy.highConfidenceSecretPatterns)) {
     return {
@@ -439,7 +479,8 @@ function handleUserPromptSubmit(input, policy) {
         "El prompt parece contener un secreto de alta confianza. Retíralo, rótalo si fue real y vuelve a enviar una versión redactada.",
     };
   }
-  return null;
+  const reminder = skillReminder(input, policy, runtime);
+  return reminder ? addContext("UserPromptSubmit", reminder) : null;
 }
 
 function handlePreToolUse(input, policy, runtime = {}) {
@@ -601,7 +642,7 @@ export function handleHook(input, policy = loadPolicy(), runtime = {}) {
     case "SubagentStart":
       return handleSubagentStart(input, policy);
     case "UserPromptSubmit":
-      return handleUserPromptSubmit(input, policy);
+      return handleUserPromptSubmit(input, policy, runtime);
     case "PreToolUse":
       return handlePreToolUse(input, policy, runtime);
     case "PostToolUse":

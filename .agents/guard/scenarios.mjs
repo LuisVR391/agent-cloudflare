@@ -618,3 +618,100 @@ test("SessionStart recupera el plan activo de la rama", () => {
 
   rmSync(workspace, { recursive: true, force: true });
 });
+
+test("UserPromptSubmit recuerda el skill según la intención", () => {
+  function prompt(text, runtime = {}) {
+    return handleHook(
+      { hook_event_name: "UserPromptSubmit", prompt: text, cwd: repositoryRoot },
+      policy,
+      { skillCommand: "/deliver-agent-cloudflare-change", ...runtime },
+    );
+  }
+
+  const planear = prompt("Vamos a planear el corte de herramientas autorizadas");
+  assert.match(
+    planear.hookSpecificOutput.additionalContext,
+    /plan-agent-cloudflare-change/,
+  );
+
+  // Sin acentos y en minúsculas: el recordatorio debe seguir apareciendo.
+  const sinAcentos = prompt("planificacion del corte de conocimiento");
+  assert.match(
+    sinAcentos.hookSpecificOutput.additionalContext,
+    /plan-agent-cloudflare-change/,
+  );
+
+  const implementar = prompt("implementa el endpoint de herramientas");
+  assert.match(
+    implementar.hookSpecificOutput.additionalContext,
+    /no tiene plan/i,
+  );
+
+  // Una pregunta informativa no dispara ningún recordatorio.
+  assert.equal(prompt("¿dónde vive el catálogo de permisos?"), null);
+
+  // El prefijo del skill lo aporta cada agente.
+  const codex = prompt("planea el corte", {
+    skillCommand: "$deliver-agent-cloudflare-change",
+  });
+  assert.match(
+    codex.hookSpecificOutput.additionalContext,
+    /\$plan-agent-cloudflare-change/,
+  );
+});
+
+test("con plan activo el recordatorio apunta al ciclo", () => {
+  const workspace = mkdtempSync(join(tmpdir(), "agent-cloudflare-routing-"));
+  const planDirectory = join(workspace, ".plans", "issue-56-herramientas");
+  mkdirSync(planDirectory, { recursive: true });
+  writeFileSync(
+    join(planDirectory, "SPEC.md"),
+    [
+      "---",
+      "feature: Herramientas con autorización en backend",
+      "slug: issue-56-herramientas",
+      "rama: feat/issue-56-herramientas",
+      "estado: activo",
+      "---",
+    ].join("\n"),
+  );
+
+  const output = handleHook(
+    {
+      hook_event_name: "UserPromptSubmit",
+      prompt: "retomamos la implementación",
+      cwd: workspace,
+    },
+    policy,
+    {
+      skillCommand: "/deliver-agent-cloudflare-change",
+      runGit(args) {
+        if (args.join(" ") === "rev-parse --abbrev-ref HEAD") {
+          return "feat/issue-56-herramientas";
+        }
+        return "";
+      },
+    },
+  );
+  assert.match(
+    output.hookSpecificOutput.additionalContext,
+    /run-agent-cloudflare-cycle/,
+  );
+
+  rmSync(workspace, { recursive: true, force: true });
+});
+
+test("el bloqueo de secretos tiene precedencia sobre el recordatorio", () => {
+  const secret = "sk-0123456789abcdef0123456789abcdef";
+  const output = handleHook(
+    {
+      hook_event_name: "UserPromptSubmit",
+      prompt: `implementa esto con ${secret}`,
+      cwd: repositoryRoot,
+    },
+    policy,
+    { skillCommand: "/deliver-agent-cloudflare-change" },
+  );
+  assert.equal(output.decision, "block");
+  assert.doesNotMatch(JSON.stringify(output), new RegExp(secret));
+});

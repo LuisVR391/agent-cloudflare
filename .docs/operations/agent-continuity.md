@@ -15,7 +15,9 @@ una sola vez. La decisión está registrada en
 
 | Componente | Responsabilidad |
 | --- | --- |
-| [Skill de entrega](../../.agents/skills/deliver-agent-cloudflare-change/SKILL.md) | Organiza inspección, alcance, implementación, documentación, validación y publicación. |
+| [Skill de planificación](../../.agents/skills/plan-agent-cloudflare-change/SKILL.md) | Investiga el estado real, clasifica cada decisión y produce el SPEC con criterios verificables. |
+| [Skill del ciclo](../../.agents/skills/run-agent-cloudflare-cycle/SKILL.md) | Reparte el SPEC, verifica de forma independiente, registra findings y declara el cierre. |
+| [Skill de entrega](../../.agents/skills/deliver-agent-cloudflare-change/SKILL.md) | Audita el diff, declara el impacto, comitea y publica con trazabilidad. |
 | [Política mecánica](../../.agents/guard/policy.json) | Declara fuentes de verdad, rutas, secretos, comandos bloqueados y mapa documental. |
 | [Núcleo del guardrail](../../.agents/guard/project-guard.mjs) | Evalúa cada evento sin registrar el prompt, payload o secreto recibido. |
 | [Validador](../../.agents/guard/validate-agent-config.mjs) | Comprueba estructura, referencias, configuración de ambas integraciones y cuerpo del PR en CI. |
@@ -35,18 +37,25 @@ y cómo se invoca el skill; toda decisión pertenece al núcleo compartido.
 
 ### Codex
 
-Codex descubre automáticamente el skill desde `.agents/skills` al trabajar
-dentro del repositorio. Puede invocarse explícitamente con:
+Codex descubre automáticamente los skills desde `.agents/skills` al trabajar
+dentro del repositorio. Se invocan explícitamente con:
 
 ```text
+$plan-agent-cloudflare-change
+$run-agent-cloudflare-cycle
 $deliver-agent-cloudflare-change
 ```
+
+Los tres están disponibles en ambos agentes, pero el del ciclo asume
+subagentes: en Codex describe el método —criterios, findings, severidad y
+cierre— sin la verificación independiente, porque no hay a quién delegarla.
 
 Los hooks locales solo se cargan en un proyecto confiable y sus comandos
 requieren revisión humana. Después de actualizar la rama:
 
 1. Inicia o reinicia Codex desde cualquier directorio dentro del repositorio.
 2. Ejecuta `/skills` y confirma que aparecen
+   `plan-agent-cloudflare-change`, `run-agent-cloudflare-cycle`,
    `deliver-agent-cloudflare-change` y `shadcn`.
 3. Ejecuta `/hooks`.
 4. Revisa el origen `.codex/hooks.json`, el comando exacto y los eventos.
@@ -60,10 +69,12 @@ en los hooks requerirá una revisión nueva. No se debe usar
 ### Claude Code
 
 Claude Code carga [`CLAUDE.md`](../../CLAUDE.md), que importa `AGENTS.md` con
-`@AGENTS.md`. El skill se descubre desde `.claude/skills`, que es un symlink al
-directorio único en `.agents/skills`. Se invoca con:
+`@AGENTS.md`. Los skills se descubren desde `.claude/skills`, que son symlinks al
+directorio único en `.agents/skills`. Se invocan con:
 
 ```text
+/plan-agent-cloudflare-change
+/run-agent-cloudflare-cycle
 /deliver-agent-cloudflare-change
 ```
 
@@ -74,6 +85,7 @@ de actualizar la rama:
 1. Inicia o reinicia Claude Code dentro del repositorio y acepta la confianza
    del proyecto solo si revisaste el contenido de `.claude/` y `.mcp.json`.
 2. Ejecuta `/skills` y confirma que aparecen
+   `plan-agent-cloudflare-change`, `run-agent-cloudflare-cycle`,
    `deliver-agent-cloudflare-change` y `shadcn`.
 3. Ejecuta `/hooks` y revisa el origen `Project Settings`, el comando exacto y
    los eventos registrados.
@@ -173,6 +185,12 @@ y está registrada en
 rol en dos formatos sin generador común produciría la deriva que ADR-0005 evitó
 para la política.
 
+El método se escribe en dos skills y los roles lo ejecutan.
+`plan-agent-cloudflare-change` produce `.plans/<slug>/SPEC.md` con criterios de
+aceptación binarios; `run-agent-cloudflare-cycle` los reparte, verifica y
+cierra; y `deliver-agent-cloudflare-change` publica. Un cambio pequeño puede
+usar solo el último.
+
 Los roles viven en `.claude/agents/`:
 
 | Subagente | Dominio | Restricción |
@@ -229,7 +247,10 @@ prompt. `SessionStart` añade además el plan activo de la rama, si existe.
 
 `UserPromptSubmit` bloquea patrones de secreto de alta confianza, como llaves
 privadas y tokens con formatos inequívocos. El mensaje de rechazo nunca repite
-el valor detectado. Esta revisión es una defensa adicional, no un escáner
+el valor detectado. Cuando el prompt no contiene secretos pero sí intención de
+planificar o de implementar, añade un recordatorio del skill que corresponde:
+el del ciclo si la rama ya tiene plan activo, el de planificación si no lo
+tiene. Es contexto, no bloqueo, y la comparación ignora acentos y mayúsculas. Esta revisión es una defensa adicional, no un escáner
 exhaustivo; un secreto expuesto debe rotarse.
 
 ### Antes de usar herramientas

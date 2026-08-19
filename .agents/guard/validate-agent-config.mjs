@@ -46,7 +46,11 @@ const continuityGuide = ".docs/operations/agent-continuity.md";
 // Skills propias del repositorio y skills traídas de un origen externo. Ambas
 // viven una sola vez en `.agents/skills`; la segunda lista además debe quedar
 // fijada en el lockfile para que la versión sea reproducible.
-const ownSkills = ["deliver-agent-cloudflare-change"];
+const ownSkills = [
+  "deliver-agent-cloudflare-change",
+  "plan-agent-cloudflare-change",
+  "run-agent-cloudflare-cycle",
+];
 const vendoredSkills = ["shadcn"];
 
 // Servidores MCP que ambos agentes deben ofrecer. Son herramientas de
@@ -121,28 +125,45 @@ for (const name of vendoredSkills) {
   }
 }
 
-const skill = readFileSync(join(root, skillPath), "utf8");
-const frontmatter = skill.match(/^---\n([\s\S]*?)\n---/);
-if (!frontmatter) {
-  fail(`${skillPath}: falta frontmatter YAML`);
-} else {
-  if (!/^name:\s*deliver-agent-cloudflare-change$/m.test(frontmatter[1])) {
-    fail(`${skillPath}: name no coincide con el directorio`);
-  }
-  const description = frontmatter[1].match(/^description:\s*(.+)$/m)?.[1] || "";
-  if (description.length < 80 || !/Úsalo|Usalo/.test(description)) {
-    fail(`${skillPath}: description debe explicar alcance y disparadores`);
-  }
-}
+// Cada skill propia se descubre por su descripción: si no explica alcance y
+// disparadores, la invocación implícita se activa donde no toca o no se activa
+// donde debería.
+for (const name of ownSkills) {
+  const currentSkillPath = `.agents/skills/${name}/SKILL.md`;
+  const currentMetadataPath = `.agents/skills/${name}/agents/openai.yaml`;
+  requireFile(currentMetadataPath);
 
-const metadata = readFileSync(join(root, metadataPath), "utf8");
-const shortDescription =
-  metadata.match(/short_description:\s*"([^"]+)"/)?.[1] || "";
-if (shortDescription.length < 25 || shortDescription.length > 64) {
-  fail(`${metadataPath}: short_description debe tener entre 25 y 64 caracteres`);
-}
-if (!metadata.includes("$deliver-agent-cloudflare-change")) {
-  fail(`${metadataPath}: default_prompt debe mencionar el skill explícitamente`);
+  if (existsSync(join(root, currentSkillPath))) {
+    const skill = readFileSync(join(root, currentSkillPath), "utf8");
+    const frontmatter = skill.match(/^---\n([\s\S]*?)\n---/);
+    if (!frontmatter) {
+      fail(`${currentSkillPath}: falta frontmatter YAML`);
+    } else {
+      if (!new RegExp(`^name:\\s*${name}$`, "m").test(frontmatter[1])) {
+        fail(`${currentSkillPath}: name no coincide con el directorio`);
+      }
+      const description =
+        frontmatter[1].match(/^description:\s*(.+)$/m)?.[1] || "";
+      if (description.length < 80 || !/Úsalo|Usalo/.test(description)) {
+        fail(`${currentSkillPath}: description debe explicar alcance y disparadores`);
+      }
+    }
+  }
+
+  if (!existsSync(join(root, currentMetadataPath))) continue;
+  const metadata = readFileSync(join(root, currentMetadataPath), "utf8");
+  const shortDescription =
+    metadata.match(/short_description:\s*"([^"]+)"/)?.[1] || "";
+  if (shortDescription.length < 25 || shortDescription.length > 64) {
+    fail(
+      `${currentMetadataPath}: short_description debe tener entre 25 y 64 caracteres`,
+    );
+  }
+  if (!metadata.includes(`$${name}`)) {
+    fail(
+      `${currentMetadataPath}: default_prompt debe mencionar el skill explícitamente`,
+    );
+  }
 }
 
 const policy = readJson(policyPath);

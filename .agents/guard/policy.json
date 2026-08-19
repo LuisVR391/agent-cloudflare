@@ -70,6 +70,28 @@
     "directory": ".plans",
     "specFileName": "SPEC.md"
   },
+  "skillRouting": {
+    "planningSkill": "plan-agent-cloudflare-change",
+    "cycleSkill": "run-agent-cloudflare-cycle",
+    "planningIntentPatterns": [
+      "\\bplan(ea|ifica)\\w*\\b",
+      "\\bplan de (implementacion|trabajo|entrega)\\b",
+      "\\bdise(n|ñ)a(r|mos)? (la|una|el) (feature|funcionalidad|pantalla|api)\\b",
+      "\\bcriterios de aceptacion\\b",
+      "\\bspec\\b"
+    ],
+    "implementationIntentPatterns": [
+      "\\bimplementa(r|mos|remos)?\\b",
+      "\\bcodifica(r|mos)?\\b",
+      "\\bconstruye(mos)?\\b",
+      "\\bdesarrolla(r|mos)?\\b",
+      "\\bretoma(r|mos)?\\b",
+      "\\barranca(r|mos)? (el|la|con)\\b",
+      "\\bcontinua(r|mos)? (el|la|con)\\b",
+      "\\bresuelve el issue\\b",
+      "\\bcorrige\\b"
+    ]
+  },
   "readOnlyRole": {
     "allowedCommands": [
       "basename",
