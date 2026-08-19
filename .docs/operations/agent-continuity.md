@@ -24,6 +24,8 @@ una sola vez. La decisión está registrada en
 | [Ajustes de Claude Code](../../.claude/settings.json) y [su adaptador](../../.claude/hooks/project-guard.mjs) | Registran los eventos de Claude Code, sus permisos denegados y la identidad del agente. |
 | [Skill de shadcn](../../.agents/skills/shadcn/SKILL.md) | Aporta el contexto real del proyecto, las convenciones del CLI y las reglas de composición de la interfaz. |
 | [Servidor MCP para Claude Code](../../.mcp.json) y [para Codex](../../.codex/config.toml) | Declaran el servidor de shadcn en cada agente para consultar e instalar desde los registros. |
+| [Subagentes de Claude Code](../../.claude/agents/) | Declaran los roles del ciclo de entrega: tres implementadores por dominio y dos agentes sin escritura. |
+| [Adaptador de solo lectura](../../.claude/hooks/readonly-guard.mjs) | Aplica el rol de lectura del núcleo en los turnos del revisor, registrado en su propia definición. |
 | [Lockfile de skills](../../skills-lock.json) | Fija el origen y el hash de cada skill externa para que su versión sea reproducible. |
 
 Los adaptadores no contienen reglas. Solo declaran cómo se identifica el agente
@@ -162,6 +164,54 @@ registros privados, así que ningún token entra en este flujo. Si algún día s
 configura un registro privado, su token pertenece a `.env.local` y nunca al
 repositorio.
 
+## Ciclo de entrega con subagentes
+
+Esta capa la consume **solo Claude Code**. Codex conserva el skill de entrega y
+la ruta lineal, que bastan para cumplir `AGENTS.md`. La asimetría es deliberada
+y está registrada en
+[ADR-0016](../decisions/ADR-0016-multi-agent-delivery-cycle.md): replicar cada
+rol en dos formatos sin generador común produciría la deriva que ADR-0005 evitó
+para la política.
+
+Los roles viven en `.claude/agents/`:
+
+| Subagente | Dominio | Restricción |
+| --- | --- | --- |
+| `worker-backend` | `src/worker/` y sus pruebas en `test/` | No toca `migrations/` ni `src/client/` |
+| `client-ui` | `src/client/` y sus pruebas en `test/client/` | No toca `src/worker/`; compone con las primitivas del registro |
+| `d1-schema` | Migración nueva en `migrations/` y catálogo de permisos | Nunca edita una migración existente ni consulta una base remota |
+| `revisor` | Verificación en una pasada de criterios y calidad | Sin herramientas de escritura y con hook de solo lectura |
+| `corredor` | Comandos largos del ciclo | Sin herramientas de escritura; devuelve un marcador, no el volcado |
+
+Dos reglas sostienen el diseño. **Quien implementa no verifica**: el revisor no
+recibe `Edit` ni `Write`, y su definición registra
+`.claude/hooks/readonly-guard.mjs` en `PreToolUse`, de modo que la restricción
+se aplica en sus turnos y no en los del resto. **El contexto no absorbe
+volcados**: el corredor ejecuta las suites y devuelve una línea.
+
+El rol de solo lectura evalúa una **lista de comandos permitidos**, declarada en
+`readOnlyRole` de la política. Rechaza cualquier binario que no esté en ella, los
+argumentos que escriben —`-i`, `-delete`, `-exec`, `--write`, `--fix`— y las
+formas de shell que evaden el análisis: redirección, heredoc, sustitución de
+comandos y `tee`. Un comando de inspección legítimo que falte se agrega a la
+política, no se rodea.
+
+Ningún subagente ejecuta un efecto remoto. El push, el despliegue, la migración
+remota y la fusión pertenecen al turno principal, que es el único con canal para
+pedir la autorización.
+
+### El plan de la rama
+
+El plan vive fuera de git, en `.plans/<slug>/SPEC.md`. `SessionStart` lo recupera
+cuando el frontmatter declara `estado: activo` y su `rama` o su `slug`
+corresponden a la rama actual, y añade una línea con la feature y su ruta. Un
+frontmatter con marcadores `<...>` sin rellenar es una plantilla y no cuenta como
+plan.
+
+Se mantiene fuera del control de versiones a propósito: es el artefacto de la
+rama que lo produce. Lo permanente vive en el issue, en el cuerpo del PR y en
+`.docs/`.
+
 ## Comportamiento por evento
 
 Ambas integraciones registran los mismos seis eventos y comparten las mismas
@@ -173,7 +223,7 @@ formas, incluidas las rutas absolutas que exige Claude Code.
 
 `SessionStart` y `SubagentStart` agregan contexto breve con las fuentes de
 verdad y las restricciones críticas. No copian documentos completos en el
-prompt.
+prompt. `SessionStart` añade además el plan activo de la rama, si existe.
 
 ### Prompt del usuario
 
@@ -352,7 +402,10 @@ los symlinks de `.claude/skills` y el `SKILL.md` de cada skill, el origen y el
 hash de las skills externas en `skills-lock.json`, la paridad del servidor MCP
 entre `.mcp.json` y `.codex/config.toml`, el nombre exacto de `CLAUDE.md`, los
 archivos referenciados, los eventos registrados por cada agente, las reglas
-denegadas, la sintaxis Node.js y los escenarios simulados de `scenarios.mjs`.
+denegadas, la definición de los cinco subagentes —incluida la ausencia de
+herramientas de escritura en el revisor y el corredor, y el hook de solo
+lectura del revisor—, la sintaxis Node.js y los escenarios simulados de
+`scenarios.mjs`.
 En un evento `pull_request`,
 también exige contenido real bajo las secciones `Documentación`, `ADR`,
 `Roadmap` y `Validación`.
