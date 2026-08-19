@@ -15,6 +15,10 @@ worker-configuration.d.ts
 .DS_Store
 coverage/
 
+# Artefactos del ciclo de trabajo. El SPEC y los findings son de la rama que
+# los produce; lo permanente vive en el issue, el cuerpo del PR y .docs/.
+.plans/
+
 .vscode/
 .idea/
 *.iml

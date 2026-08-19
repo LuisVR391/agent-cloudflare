@@ -35,6 +35,7 @@ const corePath = ".agents/guard/project-guard.mjs";
 const scenariosPath = ".agents/guard/scenarios.mjs";
 const codexAdapterPath = ".codex/hooks/project-guard.mjs";
 const claudeAdapterPath = ".claude/hooks/project-guard.mjs";
+const claudeReadOnlyAdapterPath = ".claude/hooks/readonly-guard.mjs";
 const codexHooksPath = ".codex/hooks.json";
 const claudeSettingsPath = ".claude/settings.json";
 const codexConfigPath = ".codex/config.toml";
@@ -60,6 +61,7 @@ for (const path of [
   scenariosPath,
   codexAdapterPath,
   claudeAdapterPath,
+  claudeReadOnlyAdapterPath,
   codexHooksPath,
   claudeSettingsPath,
   codexConfigPath,
@@ -285,12 +287,85 @@ for (const name of sharedMcpServers) {
 }
 
 // Los adaptadores solo declaran identidad; la lógica pertenece al núcleo.
-for (const adapter of [codexAdapterPath, claudeAdapterPath]) {
+for (const adapter of [
+  codexAdapterPath,
+  claudeAdapterPath,
+  claudeReadOnlyAdapterPath,
+]) {
   if (!existsSync(join(root, adapter))) continue;
   const source = readFileSync(join(root, adapter), "utf8");
   if (!source.includes("runHook") || !source.includes("project-guard.mjs")) {
     fail(`${adapter}: debe delegar en runHook del núcleo compartido`);
   }
+}
+
+
+// Los subagentes son la única pieza asimétrica de la integración: Codex no los
+// consume y conserva la ruta lineal del skill de entrega. La decisión está en
+// ADR-0016. Se validan igual que el resto porque su definición es entregable.
+const subagentDirectory = ".claude/agents";
+const implementerAgents = ["worker-backend", "client-ui", "d1-schema"];
+const readOnlyAgents = ["revisor", "corredor"];
+
+for (const name of [...implementerAgents, ...readOnlyAgents]) {
+  const agentPath = `${subagentDirectory}/${name}.md`;
+  if (!existsSync(join(root, agentPath))) {
+    fail(`${agentPath}: subagente requerido ausente`);
+    continue;
+  }
+  const definition = readFileSync(join(root, agentPath), "utf8");
+  const frontmatter = definition.match(/^---\n([\s\S]*?)\n---/);
+  if (!frontmatter) {
+    fail(`${agentPath}: falta frontmatter YAML`);
+    continue;
+  }
+  const block = frontmatter[1];
+  if (!new RegExp(`^name:\\s*${name}$`, "m").test(block)) {
+    fail(`${agentPath}: name no coincide con el archivo`);
+  }
+  const description = block.match(/^description:\s*(.+)$/m)?.[1] || "";
+  if (description.length < 80) {
+    fail(`${agentPath}: description debe explicar alcance y disparadores`);
+  }
+  // Un agente que verifica o solo ejecuta comandos no puede escribir: sin esta
+  // línea dejaría de ser independiente de lo que juzga.
+  if (readOnlyAgents.includes(name)) {
+    const disallowed = block.match(/^disallowedTools:\s*(.+)$/m)?.[1] || "";
+    for (const tool of ["Edit", "Write"]) {
+      if (!disallowed.includes(tool)) {
+        fail(`${agentPath}: disallowedTools debe incluir ${tool}`);
+      }
+    }
+    if (/^tools:.*\b(Edit|Write)\b/m.test(block)) {
+      fail(`${agentPath}: tools no puede declarar herramientas de escritura`);
+    }
+  }
+}
+
+// El revisor es el único que corre comandos sobre el código que juzga, así que
+// su restricción tiene que estar en su propia definición.
+const reviewerDefinition = existsSync(join(root, `${subagentDirectory}/revisor.md`))
+  ? readFileSync(join(root, `${subagentDirectory}/revisor.md`), "utf8")
+  : "";
+if (!reviewerDefinition.includes(claudeReadOnlyAdapterPath)) {
+  fail(`${subagentDirectory}/revisor.md: debe registrar ${claudeReadOnlyAdapterPath} en PreToolUse`);
+}
+
+// El rol de solo lectura es una lista de comandos permitidos. Si queda vacía,
+// el agente no puede verificar nada; si desaparece, deja de estar restringido.
+for (const key of [
+  "allowedCommands",
+  "allowedGitSubcommands",
+  "allowedNpmScripts",
+  "blockedArgumentPatterns",
+  "blockedShellPatterns",
+]) {
+  if (!Array.isArray(policy.readOnlyRole?.[key]) || policy.readOnlyRole[key].length === 0) {
+    fail(`${policyPath}: readOnlyRole.${key} debe ser una lista no vacía`);
+  }
+}
+if (!policy.planArtifacts?.directory || !policy.planArtifacts?.specFileName) {
+  fail(`${policyPath}: planArtifacts debe declarar directory y specFileName`);
 }
 
 if (

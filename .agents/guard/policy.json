@@ -66,6 +66,78 @@
     "environmentVariable": "AGENT_PUSH_CONFIRMED",
     "value": "1"
   },
+  "planArtifacts": {
+    "directory": ".plans",
+    "specFileName": "SPEC.md"
+  },
+  "readOnlyRole": {
+    "allowedCommands": [
+      "basename",
+      "cat",
+      "column",
+      "comm",
+      "cut",
+      "diff",
+      "dirname",
+      "echo",
+      "find",
+      "git",
+      "grep",
+      "head",
+      "jq",
+      "ls",
+      "nl",
+      "npm",
+      "printf",
+      "pwd",
+      "rg",
+      "sed",
+      "sort",
+      "stat",
+      "tail",
+      "tr",
+      "uniq",
+      "wc"
+    ],
+    "allowedGitSubcommands": [
+      "blame",
+      "branch",
+      "cat-file",
+      "describe",
+      "diff",
+      "log",
+      "ls-files",
+      "merge-base",
+      "rev-parse",
+      "shortlog",
+      "show",
+      "status"
+    ],
+    "allowedNpmScripts": [
+      "check:agents",
+      "db:migrations:list",
+      "test",
+      "test:client",
+      "test:worker"
+    ],
+    "blockedArgumentPatterns": [
+      "(^|\\s)-i(\\s|$)",
+      "--in-place",
+      "(^|\\s)-delete(\\s|$)",
+      "(^|\\s)-exec(dir)?(\\s|$)",
+      "(^|\\s)-ok(dir)?(\\s|$)",
+      "(^|\\s)-fprint(f)?(\\s|$)",
+      "--write(\\s|=|$)",
+      "--fix(\\s|=|$)"
+    ],
+    "blockedShellPatterns": [
+      ">",
+      "<<",
+      "\\$\\(",
+      "`",
+      "(^|[;&|]\\s*|\\s)tee(\\s|$)"
+    ]
+  },
   "blockedCommandPatterns": [
     {
       "id": "git-reset-hard",

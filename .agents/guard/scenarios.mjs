@@ -1,5 +1,12 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
@@ -495,4 +502,119 @@ test("Stop exige el cierre una vez y acepta las cuatro secciones", () => {
     policy,
   );
   assert.equal(complete.continue, true);
+});
+
+test("el rol de solo lectura rechaza cualquier escritura", () => {
+  const readOnly = { role: "readOnly" };
+
+  const edit = handleHook(
+    {
+      hook_event_name: "PreToolUse",
+      tool_name: "Edit",
+      cwd: repositoryRoot,
+      tool_input: { file_path: join(repositoryRoot, "src/worker/index.ts") },
+    },
+    policy,
+    readOnly,
+  );
+  assert.equal(denied(edit), true);
+  assert.match(
+    edit.hookSpecificOutput.permissionDecisionReason,
+    /verifica y no modifica/i,
+  );
+
+  const escrituras = [
+    "echo 'x' > src/worker/index.ts",
+    "sed -i 's/a/b/' src/worker/index.ts",
+    "rm -rf test",
+    "git commit -m 'fix'",
+    "npm run deploy:staging",
+    "cat README.md | tee copia.md",
+    "grep -r $(cat lista.txt) src",
+    "npx prettier --write src",
+  ];
+  for (const command of escrituras) {
+    assert.equal(denied(preTool(command, {}, readOnly)), true, command);
+  }
+});
+
+test("el rol de solo lectura permite inspeccionar y correr pruebas", () => {
+  const readOnly = { role: "readOnly" };
+  const lecturas = [
+    "cat src/worker/index.ts",
+    "sed -n '1,40p' AGENTS.md",
+    "grep -rn organizationId src/worker",
+    "git diff --name-status",
+    "git log --oneline -5",
+    "npm run test:client",
+    "npm run check:agents",
+    "find migrations -name '*.sql'",
+  ];
+  for (const command of lecturas) {
+    assert.equal(preTool(command, {}, readOnly), null, command);
+  }
+});
+
+test("sin el rol de solo lectura las reglas generales no cambian", () => {
+  assert.equal(preTool("sed -i 's/a/b/' src/worker/index.ts"), null);
+  assert.equal(preTool("cat README.md | tee copia.md"), null);
+});
+
+test("SessionStart recupera el plan activo de la rama", () => {
+  const workspace = mkdtempSync(join(tmpdir(), "agent-cloudflare-plan-"));
+  const planDirectory = join(workspace, ".plans", "issue-56-herramientas");
+  mkdirSync(planDirectory, { recursive: true });
+  writeFileSync(
+    join(planDirectory, "SPEC.md"),
+    [
+      "---",
+      "feature: Herramientas con autorización en backend",
+      "slug: issue-56-herramientas",
+      "issue: 56",
+      "rama: feat/issue-56-herramientas",
+      "estado: activo",
+      "---",
+      "",
+      "# Herramientas",
+    ].join("\n"),
+  );
+  const branchRunner = {
+    runGit(args) {
+      if (args.join(" ") === "rev-parse --abbrev-ref HEAD") {
+        return "feat/issue-56-herramientas";
+      }
+      return "";
+    },
+  };
+
+  const conPlan = handleHook(
+    { hook_event_name: "SessionStart", source: "startup", cwd: workspace },
+    policy,
+    branchRunner,
+  );
+  assert.match(
+    conPlan.hookSpecificOutput.additionalContext,
+    /plan activo: Herramientas con autorización en backend/,
+  );
+  assert.match(
+    conPlan.hookSpecificOutput.additionalContext,
+    /\.plans\/issue-56-herramientas\/SPEC\.md/,
+  );
+
+  const otraRama = handleHook(
+    { hook_event_name: "SessionStart", source: "startup", cwd: workspace },
+    policy,
+    {
+      runGit(args) {
+        if (args.join(" ") === "rev-parse --abbrev-ref HEAD") return "main";
+        return "";
+      },
+    },
+  );
+  assert.doesNotMatch(
+    otraRama.hookSpecificOutput.additionalContext,
+    /plan activo/,
+  );
+
+  rmSync(workspace, { recursive: true, force: true });
 });
