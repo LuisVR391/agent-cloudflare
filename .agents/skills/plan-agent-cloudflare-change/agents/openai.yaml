@@ -1,0 +1,4 @@
+interface:
+  display_name: "Planificar cambio de Agent Cloudflare"
+  short_description: "Planifica un corte con criterios verificables"
+  default_prompt: "Use $plan-agent-cloudflare-change to investigate, classify decisions, and write a SPEC with binary acceptance criteria before writing code."
