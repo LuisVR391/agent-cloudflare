@@ -2,17 +2,22 @@
 
 > **Estado:** vigente para la configuración y la publicación del primer
 > entregable de Fase 3
-> ([#54](https://github.com/LuisVR391/agent-cloudflare/issues/54)). Este
-> documento describe lo que existe hoy, no lo planificado.
+> ([#54](https://github.com/LuisVR391/agent-cloudflare/issues/54)). Su
+> ejecución la describe el
+> [runtime de conversación](./conversation-runtime.md), desde el corte
+> [#55](https://github.com/LuisVR391/agent-cloudflare/issues/55). Este documento
+> describe lo que existe hoy, no lo planificado.
 
 Un agente es **configuración de la empresa**, no comportamiento escrito en el
 código. Una versión es una **revisión inmutable** de esa configuración. Juntos
 responden la pregunta que la Fase 3 entera necesita: *¿con qué configuración se
 respondió esta conversación?*
 
-Este corte **no ejecuta nada**. Publicar una versión no cambia el comportamiento
-de ninguna conversación: cargar la versión viva y llamar a un modelo es el corte
-siguiente. Las decisiones que gobiernan lo que sigue están en
+Publicar una versión **no pone a responder a nadie**: deja lista la
+configuración. Quién responde una conversación lo decide su modo de atención y
+el agente que se le asigna, como describe el
+[runtime de conversación](./conversation-runtime.md). Las decisiones que
+gobiernan este módulo están en
 [ADR-0014](../decisions/ADR-0014-configurable-agents-and-published-versions.md).
 
 ## Qué conserva cada tabla
@@ -127,11 +132,14 @@ de tabla.
 
 ## El modelo previsto
 
-`agent_versions.model` es un **identificador opaco**, sin `CHECK` ni catálogo.
-Qué contrato aísla el runtime del proveedor de inferencia se decide en el corte
-de ejecución; fijar aquí una lista de modelos anticiparía esa decisión. La
-columna **no guarda ninguna credencial**: los secretos pertenecen a Cloudflare
-Secrets.
+`agent_versions.model` es un **identificador opaco**, sin `CHECK` ni catálogo. Lo
+consume la capa común de
+[proveedores de modelo](./model-providers.md), que es donde se decidió qué
+contrato aísla el runtime del proveedor de inferencia
+([ADR-0015](../decisions/ADR-0015-model-provider-and-agent-runs.md)). Un modelo
+que el proveedor no reconoce no rompe la conversación: la corrida queda
+registrada como proveedor no disponible. La columna **no guarda ninguna
+credencial**: los secretos pertenecen a Cloudflare Secrets.
 
 ## Superficie HTTP
 
@@ -208,18 +216,22 @@ la vigente. Es una ayuda de lectura, no un control: la acción que se registra l
 deriva el servidor.
 
 La pantalla dice explícitamente que **publicar deja la configuración lista, no la
-pone a responder**. Sin esa frase, una superficie que habla de agentes y de
-publicación anunciaría una capacidad que no existe.
+pone a responder**: quien decide que un agente atienda una conversación es el
+inbox, eligiéndolo en el hilo. Sin esa frase, una superficie que habla de agentes
+y de publicación sugeriría que basta con publicar.
 
-## Nada cambia todavía
+## Publicar sigue sin mover ninguna conversación
 
-Ninguna consulta lee la versión publicada. El
-[runtime de conversación](./conversation-runtime.md) sigue conociendo solo
-`human` y `paused`, y sigue sin cargar configuración de agente. La prueba
-`publicar una versión no cambia ninguna conversación` lo verifica comparando el
-modo de atención antes y después.
+La prueba `publicar una versión no cambia ninguna conversación` lo verifica
+comparando el modo de atención antes y después, y sigue siendo cierta después del
+corte de ejecución: lo que cambia el comportamiento de una conversación es
+asignarle un agente y ponerla en modo `automatic`, no publicar una versión.
 
-Cuando llegue la ejecución, el mapeo al `AgentExecutionContext` de los
+Quien sí lee la versión publicada es la corrida, en el instante de responder. Una
+publicación nueva cambia con qué configuración se responde el mensaje siguiente,
+sin tocar las conversaciones.
+
+El mapeo al `AgentExecutionContext` de los
 [contratos transversales](../architecture/contracts.md) es directo:
 
 ```text
@@ -229,14 +241,14 @@ agentVersion ← agent_versions.version_number
 
 ## Fuera de alcance
 
-Ejecutar el agente y llamar a un modelo, recuperar conocimiento, ejecutar
-herramientas, enrutar entre agentes y recordar al contacto son cortes
-posteriores de la fase. Comparar dos versiones con evidencia, evaluarlas antes de
+Recuperar conocimiento, ejecutar herramientas, enrutar entre agentes y recordar
+al contacto son cortes posteriores de la fase. Comparar dos versiones con evidencia, evaluarlas antes de
 publicar y proponer cambios son Fase 5.
 
 Tampoco entra borrar un borrador: el ciclo del corte es crear, publicar,
 desactivar y volver atrás, y un borrador equivocado se corrige editándolo.
 
 El agente predeterminado de un canal (`channels.default_agent_id`) se decide en
-el corte de routing, y la asignación de una versión a una conversación en el de
-ejecución, que es su primer consumidor.
+el corte de routing. Qué agente atiende una conversación ya vive en
+`conversations.agent_id` desde el corte de ejecución, que fue su primer
+consumidor.

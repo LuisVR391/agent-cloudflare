@@ -9,7 +9,10 @@ import {
   ConversationRepository,
   type AssigneeFilter,
 } from "./repositories/conversation-repository";
-import { MembershipNotActiveInOrganizationError } from "./domain/errors";
+import {
+  AgentNotRunnableError,
+  MembershipNotActiveInOrganizationError,
+} from "./domain/errors";
 import type { ConversationSummary } from "./domain/types";
 
 type ConversationEnv = WorkerEnv & {
@@ -20,12 +23,16 @@ type ConversationEnv = WorkerEnv & {
 const updateSchema = z.object({
   expectedVersion: z.number().int().positive(),
   status: z.enum(["open", "resolved"]).optional(),
-  attentionMode: z.enum(["human", "paused"]).optional(),
+  // `supervised` sigue reservado por el contrato aceptado: el modo existe en el
+  // esquema desde Fase 1, pero nada prepara todavía un borrador que aprobar.
+  attentionMode: z.enum(["automatic", "human", "paused"]).optional(),
   // Ausente conserva el responsable; `null` lo retira. Campo nuevo y opcional:
   // un cliente que no lo envía sigue viendo el mismo contrato.
   assigneeMembershipId: z.uuid().nullable().optional(),
+  // Qué agente atiende la conversación. Ausente lo conserva; `null` lo retira.
+  agentId: z.uuid().nullable().optional(),
 }).refine((value) => value.status !== undefined || value.attentionMode !== undefined
-  || value.assigneeMembershipId !== undefined);
+  || value.assigneeMembershipId !== undefined || value.agentId !== undefined);
 const sendSchema = z.object({
   clientRequestId: z.uuid(),
   text: z.string().trim().min(1).max(65_536),
@@ -283,6 +290,12 @@ export async function routeConversationApi(
       // distinguirlas revelaría a quién pertenece un identificador ajeno.
       if (caught instanceof MembershipNotActiveInOrganizationError) {
         return error(400, "INVALID_ASSIGNEE", "El responsable indicado no pertenece al equipo activo.", correlationId);
+      }
+      // Inexistente, archivado, sin versión publicada o de otra organización se
+      // confunden igual: ninguno puede responder, y distinguirlos revelaría qué
+      // identificador ajeno existe.
+      if (caught instanceof AgentNotRunnableError) {
+        return error(409, "AGENT_NOT_RUNNABLE", "Elige un agente activo con una versión publicada.", correlationId);
       }
       throw caught;
     }

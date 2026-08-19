@@ -76,7 +76,7 @@ estructura y proceso de sustitución.
 | --- | --- | --- |
 | [Ciclo de vida de mensajes](./architecture/message-lifecycle.md) | Vigente | Webhook, normalización, colas, runtime y salida |
 | [Canal de WhatsApp mediante Zernio](./modules/zernio-whatsapp-channel.md) | Vigente | Firma, payloads, estados y adaptador bidireccional de Zernio |
-| [Runtime de conversación](./modules/conversation-runtime.md) | Vigente | Identidad, buffer, orden, modos y concurrencia |
+| [Runtime de conversación](./modules/conversation-runtime.md) | Vigente | Identidad, buffer, orden, modos, concurrencia y ejecución del agente |
 | [Inbox y handoff](./modules/inbox-and-handoff.md) | Vigente | Actualización en tiempo real e intervención humana |
 | [Configuración operativa de Zernio](./operations/zernio-whatsapp-setup.md) | Vigente | Conexión manual de cuentas, webhook y secretos por entorno |
 
@@ -103,11 +103,12 @@ escribe su documento de módulo cuando existen sus interfaces, no antes.
 | Documento planificado | Estado | Corte | Contenido |
 | --- | --- | --- | --- |
 | [ADR-0014: Agente configurable y versión publicable inmutable](./decisions/ADR-0014-configurable-agents-and-published-versions.md) | Aceptado | [#54](https://github.com/LuisVR391/agent-cloudflare/issues/54) | Qué congela una publicación, revertir reactivando, punto único de concurrencia y declaraciones sin catálogo |
+| [ADR-0015: Capa común de proveedor y traza de la corrida](./decisions/ADR-0015-model-provider-and-agent-runs.md) | Aceptado | [#55](https://github.com/LuisVR391/agent-cloudflare/issues/55) | Contrato con el proveedor, activación por modo y agente, una corrida por disparador y escalamiento ante cualquier corrida sin respuesta |
 | [Agentes y versiones](./modules/agents-and-versions.md) | Vigente | [#54](https://github.com/LuisVR391/agent-cloudflare/issues/54) | Configuración, revisión inmutable, publicación, historial y rollback |
 | `modules/tools-and-permissions.md` | Pendiente | — | Catálogo, autorización y auditoría de herramientas |
 | `modules/knowledge-and-rag.md` | Pendiente | — | Ingesta, metadatos, búsqueda y aislamiento |
 | `modules/routing-and-memory.md` | Pendiente | — | Asignación, contexto y memoria autorizada |
-| `modules/model-providers.md` | Pendiente | — | Interfaz de modelos, presupuesto y failover |
+| [Proveedores de modelo](./modules/model-providers.md) | Vigente | [#55](https://github.com/LuisVR391/agent-cloudflare/issues/55) | Contrato común con el proveedor, validación de la salida y códigos de fallo; presupuesto y failover siguen pendientes |
 
 ### Fase 4 — Automatización
 

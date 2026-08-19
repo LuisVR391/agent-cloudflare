@@ -1,5 +1,6 @@
 import {
   ArrowLeft,
+  Bot,
   MessageCircleMore,
   Pause,
   Send,
@@ -48,6 +49,8 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
 import type {
+  AgentSummary,
+  ConversationAgent,
   ConversationMessage,
   ConversationSummary,
   TeamMember,
@@ -82,15 +85,28 @@ export type ThreadRow = {
  * equipo. Sigue anunciándose como equipo cuando ese directorio no está
  * disponible —la sesión no puede leerlo o quien envió ya no aparece—, porque
  * atribuirlo a la cuenta actual sería falso.
+ *
+ * Un saliente del agente lleva su nombre cuando sigue siendo el que atiende la
+ * conversación. Si se cambió de agente, se anuncia genéricamente: nombrar al
+ * agente actual atribuiría una respuesta que no escribió.
  */
 function messageAuthor(
   message: ConversationMessage,
   contactName: string,
   currentUser: { id: string; name: string },
   members: TeamMember[] | null,
+  agent: ConversationAgent | null,
 ): MessageAuthor {
   if (message.direction === "incoming") {
     return { key: "contact", name: contactName, anonymousTeam: false };
+  }
+  if (message.senderType === "system") {
+    const known = agent && agent.id === message.senderId ? agent.name : "Agente";
+    return {
+      key: `agent:${message.senderId ?? "desconocido"}`,
+      name: known,
+      anonymousTeam: false,
+    };
   }
   if (message.senderId && message.senderId === currentUser.id) {
     return { key: `user:${currentUser.id}`, name: currentUser.name, anonymousTeam: false };
@@ -118,6 +134,7 @@ export function threadRows(
   contactName: string,
   currentUser: { id: string; name: string },
   members: TeamMember[] | null = null,
+  agent: ConversationAgent | null = null,
 ): ThreadRow[] {
   let currentDay: string | null = null;
   const rows: ThreadRow[] = messages.map((message) => {
@@ -127,9 +144,11 @@ export function threadRows(
     currentDay = day;
     return {
       message,
-      author: message.senderType === "system"
+      // Una nota del sistema no tiene autor; la respuesta del agente sí, y se
+      // dibuja como cualquier otro saliente del negocio.
+      author: message.senderType === "system" && message.direction !== "outgoing"
         ? null
-        : messageAuthor(message, contactName, currentUser, members),
+        : messageAuthor(message, contactName, currentUser, members, agent),
       dayLabel: startsDay
         ? occurred.toLocaleDateString([], { day: "numeric", month: "long", year: "numeric" })
         : null,
@@ -178,6 +197,7 @@ function LoadOlderOnReveal({
 }
 
 export function ConversationThread({
+  agentAccess,
   canAssign,
   canLoadOlder,
   composerDisabled,
@@ -200,6 +220,12 @@ export function ConversationThread({
   sending,
   text,
 }: {
+  /**
+   * Agentes publicados que pueden atender la conversación. Es `null` cuando la
+   * sesión no puede leerlos: sin esa lectura no se ofrece el control, y el
+   * backend vuelve a comprobar el permiso de gestión al activarlo.
+   */
+  agentAccess: { canManage: boolean; agents: AgentSummary[] | null };
   // Elegir responsable exige gestionar conversaciones y leer el equipo; el
   // backend vuelve a comprobar ambas cosas.
   canAssign: boolean;
@@ -233,8 +259,9 @@ export function ConversationThread({
   onBack: () => void;
   onChangeState: (input: {
     status?: "open" | "resolved";
-    attentionMode?: "human" | "paused";
+    attentionMode?: "automatic" | "human" | "paused";
     assigneeMembershipId?: string | null;
+    agentId?: string | null;
   }) => void;
   onComposerChange: (event: ChangeEvent<HTMLTextAreaElement>) => void;
   onLoadOlder: () => void;
@@ -264,9 +291,16 @@ export function ConversationThread({
   }
 
   const paused = selected.attentionMode === "paused";
+  const automatic = selected.attentionMode === "automatic";
   const resolved = selected.status === "resolved";
+  // El control aparece con permiso de gestión y agentes legibles. Una lista
+  // vacía solo se ofrece si la conversación ya responde sola, para poder
+  // devolverla al equipo.
+  const canChooseAgent = agentAccess.canManage
+    && agentAccess.agents !== null
+    && (agentAccess.agents.length > 0 || automatic);
   const contactName = selected.contactDisplayName ?? selected.contactExternalId;
-  const rows = threadRows(messages, contactName, currentUser, members);
+  const rows = threadRows(messages, contactName, currentUser, members, selected.agent);
 
   return (
     <div className="flex min-h-0 flex-col">
@@ -336,6 +370,39 @@ export function ConversationThread({
               conversationId={selected.id}
               timeZone={appointmentAccess.timeZone}
             />
+          ) : null}
+          {canChooseAgent ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline">
+                  <Bot />
+                  {automatic
+                    ? selected.agent?.name ?? "Responde el agente"
+                    : "Atiende el equipo"}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuRadioGroup
+                  onValueChange={(value) =>
+                    onChangeState(
+                      value === "team"
+                        ? { attentionMode: "human" }
+                        : { attentionMode: "automatic", agentId: value },
+                    )
+                  }
+                  value={automatic && selected.agent ? selected.agent.id : "team"}
+                >
+                  <DropdownMenuRadioItem value="team">
+                    Atiende el equipo
+                  </DropdownMenuRadioItem>
+                  {(agentAccess.agents ?? []).map((agent) => (
+                    <DropdownMenuRadioItem key={agent.id} value={agent.id}>
+                      Responde {agent.name}
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
           ) : null}
           {canAssign && members ? (
             <DropdownMenu>

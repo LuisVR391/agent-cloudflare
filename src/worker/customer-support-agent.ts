@@ -1,5 +1,14 @@
 import { Agent } from "agents";
 
+import { executeAgentRun } from "./agents/agent-run";
+import { createModelProvider } from "./agents/workers-ai-provider";
+
+/**
+ * Modos que el runtime opera hoy. `supervised` sigue reservado por el contrato
+ * aceptado y no se habilita hasta el corte que introduce la aprobación humana.
+ */
+type RuntimeAttentionMode = "automatic" | "human" | "paused";
+
 export type CustomerSupportState = {
   status: "ready";
   channel: "whatsapp";
@@ -7,10 +16,19 @@ export type CustomerSupportState = {
   lastMessageAt: string | null;
   organizationId: string | null;
   conversationId: string | null;
-  attentionMode: "human" | "paused";
+  attentionMode: RuntimeAttentionMode;
   pendingMessageIds: string[];
   lastProcessedMessageId: string | null;
+  /**
+   * Una corrida en curso. Es lo que impide que un mensaje que llega mientras el
+   * modelo responde dispare una segunda corrida; la garantía dura sigue siendo
+   * el índice único de `agent_runs` por mensaje disparador.
+   */
+  agentRunInFlight: boolean;
 };
+
+/** Cuánto espera un flush que encontró una corrida en curso. */
+const AGENT_RUN_RETRY_SECONDS = 2;
 
 export class CustomerSupportAgent extends Agent<
   Env,
@@ -26,6 +44,7 @@ export class CustomerSupportAgent extends Agent<
     attentionMode: "human",
     pendingMessageIds: [],
     lastProcessedMessageId: null,
+    agentRunInFlight: false,
   };
 
   async acceptInboundMessage(input: {
@@ -63,18 +82,51 @@ export class CustomerSupportAgent extends Agent<
     );
   }
 
+  /**
+   * Vence el buffer: el último mensaje agrupado es el que dispara la corrida.
+   *
+   * Si el modo o el agente no permiten responder, la corrida no ocurre y el
+   * cursor avanza igual, como hasta ahora. Quien decide es D1 y no la
+   * proyección del runtime: un Durable Object recreado empieza con el estado
+   * inicial, y confiar en él dejaría muda una conversación que sí responde.
+   */
   async flushPendingMessages(): Promise<void> {
-    const lastProcessedMessageId =
-      this.state.pendingMessageIds.at(-1) ??
-      this.state.lastProcessedMessageId;
+    const triggerMessageId = this.state.pendingMessageIds.at(-1) ?? null;
+    if (this.state.agentRunInFlight) {
+      await this.schedule(AGENT_RUN_RETRY_SECONDS, "flushPendingMessages");
+      return;
+    }
+    const { organizationId, conversationId } = this.state;
     this.setState({
       ...this.state,
       pendingMessageIds: [],
-      lastProcessedMessageId,
+      lastProcessedMessageId:
+        triggerMessageId ?? this.state.lastProcessedMessageId,
     });
+    if (!triggerMessageId || !organizationId || !conversationId) return;
+
+    this.setState({ ...this.state, agentRunInFlight: true });
+    try {
+      const outcome = await executeAgentRun(
+        {
+          db: this.env.DB,
+          provider: createModelProvider(this.env),
+          outbound: this.env.OUTBOUND_MESSAGES ?? null,
+        },
+        { organizationId, conversationId, triggerMessageId },
+      );
+      if (outcome.result === "unanswered" && outcome.escalated) {
+        await this.updateAttentionMode("human");
+      }
+    } finally {
+      this.setState({ ...this.state, agentRunInFlight: false });
+      if (this.state.pendingMessageIds.length > 0) {
+        await this.schedule(0, "flushPendingMessages");
+      }
+    }
   }
 
-  async updateAttentionMode(mode: "human" | "paused"): Promise<void> {
+  async updateAttentionMode(mode: RuntimeAttentionMode): Promise<void> {
     this.setState({ ...this.state, attentionMode: mode });
     if (this.state.conversationId) {
       this.broadcast(

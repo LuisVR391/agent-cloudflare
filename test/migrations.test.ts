@@ -18,6 +18,7 @@ describe("migraciones de D1", () => {
     expect(await objectNames("table")).toEqual(
       expect.arrayContaining([
         "agent_publication_transitions",
+        "agent_runs",
         "agent_version_knowledge_scopes",
         "agent_version_tools",
         "agent_versions",
@@ -81,6 +82,7 @@ describe("migraciones de D1", () => {
       "0017_appointments_and_time_zone.sql",
       "0018_metrics_read_access.sql",
       "0019_agents_and_versions.sql",
+      "0020_agent_runs_and_conversation_agent.sql",
     ]);
   });
 
@@ -97,6 +99,11 @@ describe("migraciones de D1", () => {
         "agent_version_tools_organization_tool_idx",
         "agent_version_knowledge_scopes_organization_label_idx",
         "agent_publication_transitions_organization_agent_idx",
+        // Un mensaje entrante produce a lo sumo una corrida: es el motor, y no
+        // la bandera del runtime, lo que impide dos respuestas al mismo
+        // disparador (ADR-0015).
+        "agent_runs_trigger_unique",
+        "agent_runs_organization_conversation_idx",
         "appointments_organization_starts_idx",
         "appointments_organization_assignee_starts_idx",
         "appointment_transitions_organization_appointment_idx",
