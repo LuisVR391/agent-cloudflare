@@ -313,6 +313,26 @@ describe.sequential("ejecución del agente en la conversación", () => {
     expect(request.instructions).toContain("agenda citas del salón");
   });
 
+  it("acota en el marco lo que el agente puede afirmar del negocio", async () => {
+    const { conversationId, messageId } = await automaticConversation({
+      external: "marco",
+    });
+    const provider = providerReturning("Lo confirmo con el equipo.");
+    await executeAgentRun(
+      { db: env.DB, provider, outbound: queueRecording() },
+      { organizationId, conversationId, triggerMessageId: messageId },
+    );
+
+    const [{ instructions }] = provider.requests;
+    // Las instrucciones publicadas mandan y van primero; el marco las envuelve.
+    expect(instructions.startsWith("Atiende con calidez")).toBe(true);
+    // El catálogo de servicios tiene dueño en D1 y ninguna herramienta lo expone
+    // todavía, así que el marco impide afirmarlo en vez de invitar a inventarlo.
+    expect(instructions).toContain("No afirmes servicios, precios");
+    expect(instructions).toContain("una persona del equipo lo confirme");
+    expect(instructions).toContain("4000 caracteres");
+  });
+
   it("no produce mensaje cuando la salida del modelo no cumple el schema", async () => {
     const { conversationId, messageId } = await automaticConversation({
       external: "schema",

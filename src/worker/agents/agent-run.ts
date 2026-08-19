@@ -104,6 +104,13 @@ function toTurn(message: ConversationMessage): ModelTurn | null {
  * El marco que el backend impone alrededor de las instrucciones publicadas. El
  * modelo no puede modificarlo: organización, conversación y límites los fija
  * quien llama, no lo que el contacto escriba.
+ *
+ * La segunda regla acota lo que el agente puede afirmar del negocio. Hoy la
+ * corrida solo lleva el hilo y las instrucciones publicadas: el catálogo de
+ * servicios, sus precios y la agenda tienen dueño en D1 y ninguna herramienta
+ * los expone todavía, así que preguntar por ellos invita a inventarlos. No es un
+ * control de seguridad —un prompt nunca lo es— sino la respuesta honesta
+ * mientras el catálogo llega por una herramienta autorizada en backend.
  */
 function buildInstructions(version: {
   instructions: string;
@@ -112,6 +119,9 @@ function buildInstructions(version: {
   return [
     version.instructions,
     version.playbook ? `Playbook:\n${version.playbook}` : null,
+    `No afirmes servicios, precios, promociones ni horarios disponibles que no`
+      + ` estén escritos arriba: no puedes consultarlos. Si te los piden, dilo y`
+      + ` ofrece que una persona del equipo lo confirme.`,
     `Responde con un solo mensaje de WhatsApp, en el idioma del contacto y con`
       + ` un máximo de ${MODEL_REPLY_MAX_CHARACTERS} caracteres.`,
   ].filter((part): part is string => part !== null).join("\n\n");

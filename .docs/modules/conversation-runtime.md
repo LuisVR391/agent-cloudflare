@@ -51,6 +51,23 @@ Nada de otra conversación, de otro contacto o de otra organización entra al
 contexto. El límite de veinte es una decisión de contexto, no una verdad: una
 conversación muy larga pierde su principio.
 
+## Qué puede afirmar
+
+Las instrucciones publicadas van primero, y el backend las envuelve en un marco
+que el modelo no puede modificar: responder con un solo mensaje de WhatsApp
+dentro del límite del canal, y **no afirmar servicios, precios, promociones ni
+horarios que no estén escritos en esas instrucciones**, ofreciendo en su lugar
+que una persona lo confirme.
+
+Esa segunda regla existe porque el catálogo de servicios, sus precios y la agenda
+tienen dueño en D1 y **ninguna herramienta los expone todavía**: preguntar por
+ellos sin poder consultarlos invita a inventarlos. No es un control de seguridad
+—un prompt nunca lo es, según las reglas compartidas— sino la respuesta honesta
+mientras el catálogo llega por una herramienta autorizada en backend
+([#56](https://github.com/LuisVR391/agent-cloudflare/issues/56)), que es donde
+`services` debe entrar por ser dato relacional
+([ADR-0010](../decisions/ADR-0010-crm-commercial-model.md)).
+
 ## Un mensaje que no es texto
 
 No se contesta a ciegas. La corrida queda `skipped` con

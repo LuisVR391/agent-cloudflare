@@ -31,9 +31,11 @@ herramienta. El proveedor resuelve sus secretos desde su binding o desde
 Cloudflare Secrets, y el aislamiento se decide antes, al construir el contexto.
 
 `instructions` lo compone el backend con las instrucciones de la versión
-publicada, su playbook si lo tiene, y el marco que fija el canal. El modelo no
-puede modificarlo, y lo que el contacto escriba entra siempre como turno, nunca
-como instrucción.
+publicada, su playbook si lo tiene, y el marco que fijan el canal y los datos que
+el agente todavía no puede consultar. El modelo no puede modificarlo, y lo que el
+contacto escriba entra siempre como turno, nunca como instrucción. Qué contiene
+ese marco lo describe el
+[runtime de conversación](./conversation-runtime.md).
 
 ## Workers AI, el primer proveedor
 
