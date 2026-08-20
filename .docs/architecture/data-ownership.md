@@ -19,7 +19,7 @@ pero no competir por la autoridad del mismo dato.
 | Agentes, sus versiones y el historial de publicación | D1 | Configuración publicada y trazabilidad de qué revisión estuvo viva ([ADR-0014](../decisions/ADR-0014-configurable-agents-and-published-versions.md)) |
 | Asignación de un agente a una conversación | D1 | Qué agente atiende; el modo de atención decide si responde ([ADR-0015](../decisions/ADR-0015-model-provider-and-agent-runs.md)) |
 | Corridas del agente y su resultado | D1 | Con qué agente, versión y desenlace se respondió un mensaje; sin prompt ni contenido |
-| Permisos de herramienta | D1 | Todavía conceptual: llegan con el catálogo de herramientas |
+| Herramientas del agente y sus intentos | Código y D1 | El catálogo cerrado vive en código, porque el handler es código; D1 conserva qué declara cada versión y qué intentó cada corrida ([ADR-0017](../decisions/ADR-0017-agent-tool-contract.md)) |
 | Catálogo de servicios | D1 | Dato relacional que se agenda, se cobra y se cuenta |
 | Pipeline y sus etapas | D1 | Configuración comercial por organización, con orden explícito |
 | Oportunidades e historial de etapa | D1 | Estado comercial y evidencia de cómo avanzó |
@@ -78,9 +78,11 @@ existen en `migrations/` estas tablas:
 | `appointments`, `appointment_transitions` | Cita con su intervalo en UTC, su origen y el historial de estado y horario | `0017_appointments_and_time_zone.sql` |
 | `agents` | Agente de la organización: nombre único, propósito y estado | `0019_agents_and_versions.sql` |
 | `agent_versions` | Revisión inmutable con instrucciones, modelo previsto y playbook; a lo sumo una publicada por agente | `0019_agents_and_versions.sql` |
-| `agent_version_tools`, `agent_version_knowledge_scopes` | Lo que una revisión declara que usará; todavía sin catálogo que lo autorice | `0019_agents_and_versions.sql` |
+| `agent_version_tools` | Qué herramientas del catálogo cerrado declara una revisión; la declaración es una de las cuatro condiciones que la corrida comprueba antes de anunciarlas | `0019_agents_and_versions.sql` |
+| `agent_version_knowledge_scopes` | Alcance de conocimiento que una revisión declara; todavía sin catálogo que lo autorice | `0019_agents_and_versions.sql` |
 | `agent_publication_transitions` | Historial append-only de qué versión quedó publicada, con actor y motivo | `0019_agents_and_versions.sql` |
 | `agent_runs` | Traza de cada corrida: agente, versión, mensaje disparador, respuesta, resultado y correlación | `0020_agent_runs_and_conversation_agent.sql` |
+| `agent_tool_calls` | Traza de cada herramienta que una corrida intentó ejecutar, con su orden, resultado y código; sin argumentos ni resultado de la consulta | `0021_agent_tool_calls.sql` |
 | `communication_channels`, `inbound_webhook_events` | Canal confiable y recepción deduplicada de Zernio | `0003_zernio_whatsapp_channel.sql` y `0005_message_sent_reconciliation.sql` |
 | `conversations`, `messages`, `message_attachments` | Historial canónico y metadatos de medios; `conversations.agent_id` conserva qué agente atiende | `0004_conversations_and_messages.sql`, `0009_message_attachment_recovery.sql` y `0020_agent_runs_and_conversation_agent.sql` |
 | `outbound_message_deliveries`, `message_status_events` | Idempotencia, intentos e historial de reconciliación por identificadores opacos | `0004` a `0006` |

@@ -51,22 +51,49 @@ Nada de otra conversación, de otro contacto o de otra organización entra al
 contexto. El límite de veinte es una decisión de contexto, no una verdad: una
 conversación muy larga pierde su principio.
 
+## Qué puede consultar
+
+Antes de la primera llamada al modelo, la corrida resuelve qué herramientas
+puede anunciar: las que la versión publicada declaró, que existen en el catálogo
+cerrado del producto, cuya audiencia es la conversación con el contacto y cuyos
+datos se acotan a la organización y al contacto leídos en D1. **Lo que no
+sobrevive a esos cuatro controles no llega al modelo**, y sin ninguna
+superviviente la petición no lleva herramientas.
+
+Hoy son dos, ambas de solo lectura: el catálogo de servicios activos y la próxima
+cita del propio contacto. Cada intento —ejecutado, rechazado o fallido— deja
+traza en `agent_tool_calls` y en la auditoría, y la corrida admite hasta dos
+rondas de herramientas y cuatro llamadas en total antes de devolver la
+conversación al equipo. El detalle está en el
+[módulo de herramientas y su autorización](./tools-and-permissions.md) y en
+[ADR-0017](../decisions/ADR-0017-agent-tool-contract.md).
+
+```text
+mensaje entrante -> buffer -> corrida -> herramientas anunciadas
+  -> el modelo responde texto            -> salida existente
+  -> el modelo pide herramientas         -> ejecutar, trazar y volver a llamar
+```
+
 ## Qué puede afirmar
 
 Las instrucciones publicadas van primero, y el backend las envuelve en un marco
 que el modelo no puede modificar: responder con un solo mensaje de WhatsApp
-dentro del límite del canal, y **no afirmar servicios, precios, promociones ni
-horarios que no estén escritos en esas instrucciones**, ofreciendo en su lugar
-que una persona lo confirme.
+dentro del límite del canal, y no afirmar lo que la corrida no puede consultar,
+ofreciendo en su lugar que una persona lo confirme.
 
-Esa segunda regla existe porque el catálogo de servicios, sus precios y la agenda
-tienen dueño en D1 y **ninguna herramienta los expone todavía**: preguntar por
-ellos sin poder consultarlos invita a inventarlos. No es un control de seguridad
-—un prompt nunca lo es, según las reglas compartidas— sino la respuesta honesta
-mientras el catálogo llega por una herramienta autorizada en backend
-([#56](https://github.com/LuisVR391/agent-cloudflare/issues/56)), que es donde
-`services` debe entrar por ser dato relacional
-([ADR-0010](../decisions/ADR-0010-crm-commercial-model.md)).
+Esa segunda regla **se acota con lo que la corrida realmente puede consultar**.
+Con herramientas anunciadas, los servicios, sus precios y la cita del contacto
+dejan de ser materia de invención y pasan a consultarse; lo que **ninguna**
+herramienta expone —horarios de atención, disponibilidad y promociones— conserva
+su prohibición. Sin herramientas anunciadas, la regla queda entera: no afirmar
+servicios, precios, promociones ni horarios que no estén escritos en las
+instrucciones.
+
+No es un control de seguridad —un prompt nunca lo es, según las reglas
+compartidas— sino la respuesta honesta a lo que el agente no puede saber. Que
+`services` se consulte por una herramienta autorizada en backend, y no por una
+copia en el prompt, es lo que exige su condición de dato relacional con dueño en
+D1 ([ADR-0010](../decisions/ADR-0010-crm-commercial-model.md)).
 
 ## Un mensaje que no es texto
 
@@ -77,10 +104,11 @@ que mirar la imagen o escuchar el audio.
 ## Cuando no hay respuesta
 
 Toda corrida que no responde —proveedor caído, salida inválida, agente sin
-versión publicada, mensaje sin texto— deja traza con su código y **devuelve la
-conversación a `human`**, con su entrada en `conversation_status_history` como
-actor `system` y su registro en la auditoría. El silencio prolongado sin que
-nadie se entere no es una opción.
+versión publicada, mensaje sin texto, o herramientas pedidas más allá de los
+límites de la corrida— deja traza con su código y **devuelve la conversación a
+`human`**, con su entrada en `conversation_status_history` como actor `system` y
+su registro en la auditoría. El silencio prolongado sin que nadie se entere no es
+una opción.
 
 Reactivar al agente vuelve a ser una decisión humana explícita.
 

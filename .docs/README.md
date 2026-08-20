@@ -104,8 +104,9 @@ escribe su documento de módulo cuando existen sus interfaces, no antes.
 | --- | --- | --- | --- |
 | [ADR-0014: Agente configurable y versión publicable inmutable](./decisions/ADR-0014-configurable-agents-and-published-versions.md) | Aceptado | [#54](https://github.com/LuisVR391/agent-cloudflare/issues/54) | Qué congela una publicación, revertir reactivando, punto único de concurrencia y declaraciones sin catálogo |
 | [ADR-0015: Capa común de proveedor y traza de la corrida](./decisions/ADR-0015-model-provider-and-agent-runs.md) | Aceptado | [#55](https://github.com/LuisVR391/agent-cloudflare/issues/55) | Contrato con el proveedor, activación por modo y agente, una corrida por disparador y escalamiento ante cualquier corrida sin respuesta |
+| [ADR-0017: Contrato de herramienta y autorización por catálogo cerrado](./decisions/ADR-0017-agent-tool-contract.md) | Aceptado | [#56](https://github.com/LuisVR391/agent-cloudflare/issues/56) | Autorización como conjunción de cuatro controles en backend, catálogo en código, traza sin contenido y límites de la corrida |
 | [Agentes y versiones](./modules/agents-and-versions.md) | Vigente | [#54](https://github.com/LuisVR391/agent-cloudflare/issues/54) | Configuración, revisión inmutable, publicación, historial y rollback |
-| `modules/tools-and-permissions.md` | Pendiente | — | Catálogo, autorización y auditoría de herramientas |
+| [Herramientas y su autorización](./modules/tools-and-permissions.md) | Vigente | [#56](https://github.com/LuisVR391/agent-cloudflare/issues/56) | Catálogo cerrado, autorización antes de anunciar, traza y auditoría de cada intento, y límites de la corrida |
 | `modules/knowledge-and-rag.md` | Pendiente | — | Ingesta, metadatos, búsqueda y aislamiento |
 | `modules/routing-and-memory.md` | Pendiente | — | Asignación, contexto y memoria autorizada |
 | [Proveedores de modelo](./modules/model-providers.md) | Vigente | [#55](https://github.com/LuisVR391/agent-cloudflare/issues/55) | Contrato común con el proveedor, validación de la salida y códigos de fallo; presupuesto y failover siguen pendientes |

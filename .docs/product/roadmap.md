@@ -189,7 +189,7 @@ presupuesto, costos y failover [#61](https://github.com/LuisVR391/agent-cloudfla
 | --- | --- | --- | --- |
 | Agentes configurables y sus versiones | Completado | Fase 2 | [Issue #54](https://github.com/LuisVR391/agent-cloudflare/issues/54), los cortes [PR #63](https://github.com/LuisVR391/agent-cloudflare/pull/63) y el del panel, [ADR-0014](../decisions/ADR-0014-configurable-agents-and-published-versions.md) y el [módulo de agentes y versiones](../modules/agents-and-versions.md) |
 | Ejecución del agente en la conversación | Completado | Agentes de #54 | [Issue #55](https://github.com/LuisVR391/agent-cloudflare/issues/55), [PR #66](https://github.com/LuisVR391/agent-cloudflare/pull/66), [ADR-0015](../decisions/ADR-0015-model-provider-and-agent-runs.md), el [módulo de proveedores de modelo](../modules/model-providers.md) y el [runtime de conversación](../modules/conversation-runtime.md) |
-| Herramientas con autorización en backend | Planificado | Ejecución de #55 | [Issue #56](https://github.com/LuisVR391/agent-cloudflare/issues/56) |
+| Herramientas con autorización en backend | Completado | Ejecución de #55 | [Issue #56](https://github.com/LuisVR391/agent-cloudflare/issues/56), [ADR-0017](../decisions/ADR-0017-agent-tool-contract.md) y el [módulo de herramientas y su autorización](../modules/tools-and-permissions.md); el PR del corte se enlaza aquí al fusionarse |
 | Conocimiento empresarial y recuperación aislada | Planificado | Ejecución de #55 | [Issue #57](https://github.com/LuisVR391/agent-cloudflare/issues/57) |
 | Routing entre agentes | Planificado | Ejecución de #55 | [Issue #58](https://github.com/LuisVR391/agent-cloudflare/issues/58) |
 | Memoria autorizada del contacto | Planificado | Ejecución de #55 | [Issue #59](https://github.com/LuisVR391/agent-cloudflare/issues/59) |
@@ -214,10 +214,15 @@ vez de derivar una copia.
 `Aceptado` desde el corte de ejecución, y resuelve dos de las que el épico
 enumeraba: la capa común de proveedor —con Workers AI como primero— y la
 habilitación del modo, que ocurre por conversación al elegir un agente publicado,
-sin mover ninguna conversación existente. Las restantes —forma del conocimiento,
-contrato de herramienta, alcance de la memoria y medición del costo— siguen sin
-registrar, sin reservar números de ADR; cada corte registra la suya en el PR que
-la adopta.
+sin mover ninguna conversación existente.
+[ADR-0017](../decisions/ADR-0017-agent-tool-contract.md) está `Aceptado` desde el
+corte de herramientas y resuelve la cuarta: el contrato de herramienta y su
+autorización, que es la conjunción de cuatro controles en backend —lo declaró la
+versión publicada, existe en el catálogo cerrado del producto, su audiencia es el
+contacto, y sus datos se acotan a la organización y al contacto de esa
+conversación—. Extiende ADR-0015 sin sustituirlo. Las restantes —forma del
+conocimiento, alcance de la memoria y medición del costo— siguen sin registrar,
+sin reservar números de ADR; cada corte registra la suya en el PR que la adopta.
 
 **Requisito transversal:** se mantiene la regla de la Fase 2 sobre el catálogo de
 permisos. Cada corte declara sus permisos para instalaciones nuevas, agrega una
@@ -236,6 +241,16 @@ tienen y `operator` no.
 El corte de ejecución tampoco introduce permisos: decidir que un agente atienda
 una conversación es gestionarla, y `conversations.manage` ya es ese privilegio.
 Por eso `0020` tampoco lleva sección de catálogo.
+
+El corte de herramientas es la tercera excepción, y su motivo es quién es el
+sujeto: una corrida disparada por un mensaje entrante no tiene actor humano al
+que cargarle un rol. La unidad de autorización es la versión publicada, que es
+inmutable y conserva autor, motivo e historial; declarar qué herramientas usa un
+agente ya exige `agents.manage` y consultar el catálogo exige `agents.read`,
+ambos en el catálogo de instalación desde el commit que creó `0002`. Un permiso
+nuevo no protegería nada que `agents.manage` no conceda ya, así que `0021`
+tampoco lleva sección de catálogo y la prueba comprueba que una instalación
+nueva y una migrada terminan con el mismo catálogo.
 
 **Recursos nuevos:** el índice vectorial que exige el conocimiento de #57 no
 existe en ningún entorno. Se crea con autorización explícita para el entorno
