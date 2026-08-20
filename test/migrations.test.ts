@@ -1,7 +1,11 @@
-import { env } from "cloudflare:workers";
+import type { D1Migration } from "cloudflare:test";
+import { env, exports } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 
 type NameRow = { name: string };
+
+const fetchWorker = (path: string, init?: RequestInit) =>
+  exports.default.fetch(new Request(`https://example.com${path}`, init));
 
 async function objectNames(type: "table" | "index"): Promise<string[]> {
   const { results } = await env.DB.prepare(
@@ -13,12 +17,126 @@ async function objectNames(type: "table" | "index"): Promise<string[]> {
   return results.map((row) => row.name);
 }
 
+/** Una corrida completa en una organización, y otra ajena para intentar cruzarla. */
+async function seedAgentRun() {
+  const now = new Date().toISOString();
+  const organizationId = crypto.randomUUID();
+  const intruderId = crypto.randomUUID();
+  const userId = crypto.randomUUID();
+  const membershipId = crypto.randomUUID();
+  const channelId = crypto.randomUUID();
+  const contactId = crypto.randomUUID();
+  const conversationId = crypto.randomUUID();
+  const messageId = crypto.randomUUID();
+  const agentId = crypto.randomUUID();
+  const versionId = crypto.randomUUID();
+  const runId = crypto.randomUUID();
+
+  await env.DB.batch([
+    ...[organizationId, intruderId].map((id) =>
+      env.DB.prepare(`INSERT INTO organizations
+        (id, slug, display_name, status, created_at, updated_at)
+        VALUES (?, ?, 'Traza cruzada', 'active', ?, ?)`).bind(
+        id,
+        `tool-calls-${id}`,
+        now,
+        now,
+      ),
+    ),
+    env.DB.prepare(`INSERT INTO users
+      (id, name, email, email_verified, status, created_at, updated_at)
+      VALUES (?, 'Dueña', ?, 0, 'active', ?, ?)`).bind(
+      userId,
+      `${userId}@example.com`,
+      now,
+      now,
+    ),
+  ]);
+  await env.DB.batch([
+    env.DB.prepare(`INSERT INTO memberships
+      (id, organization_id, user_id, status, created_at, updated_at)
+      VALUES (?, ?, ?, 'active', ?, ?)`)
+      .bind(membershipId, organizationId, userId, now, now),
+    env.DB.prepare(`INSERT INTO communication_channels
+      (id, organization_id, provider, adapter, external_account_id,
+       status, created_at, updated_at)
+      VALUES (?, ?, 'whatsapp', 'zernio', ?, 'active', ?, ?)`)
+      .bind(channelId, organizationId, `account-${organizationId}`, now, now),
+    env.DB.prepare(`INSERT INTO contacts
+      (id, organization_id, status, created_at, updated_at)
+      VALUES (?, ?, 'active', ?, ?)`)
+      .bind(contactId, organizationId, now, now),
+  ]);
+  await env.DB.prepare(`INSERT INTO conversations
+    (id, organization_id, channel_id, contact_id, external_conversation_id,
+     last_message_at, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+    .bind(
+      conversationId,
+      organizationId,
+      channelId,
+      contactId,
+      `external-${conversationId}`,
+      now,
+      now,
+      now,
+    )
+    .run();
+  await env.DB.batch([
+    env.DB.prepare(`INSERT INTO messages
+      (id, organization_id, conversation_id, direction, sender_type,
+       message_type, text_content, status, correlation_id, occurred_at,
+       created_at, updated_at)
+      VALUES (?, ?, ?, 'incoming', 'customer', 'text', '¿Qué servicios tienen?',
+              'received', ?, ?, ?, ?)`)
+      .bind(
+        messageId,
+        organizationId,
+        conversationId,
+        crypto.randomUUID(),
+        now,
+        now,
+        now,
+      ),
+    env.DB.prepare(`INSERT INTO agents
+      (id, organization_id, name, normalized_name, status,
+       created_by_membership_id, created_at, updated_at)
+      VALUES (?, ?, 'Recepción', 'recepción', 'active', ?, ?, ?)`)
+      .bind(agentId, organizationId, membershipId, now, now),
+  ]);
+  await env.DB.prepare(`INSERT INTO agent_versions
+    (id, organization_id, agent_id, version_number, status, instructions,
+     model, created_by_membership_id, created_at, updated_at)
+    VALUES (?, ?, ?, 1, 'published', 'Atiende con amabilidad.',
+            'modelo-previsto', ?, ?, ?)`)
+    .bind(versionId, organizationId, agentId, membershipId, now, now)
+    .run();
+  await env.DB.prepare(`INSERT INTO agent_runs
+    (id, organization_id, conversation_id, agent_id, agent_version_id,
+     trigger_message_id, status, correlation_id, started_at)
+    VALUES (?, ?, ?, ?, ?, ?, 'running', ?, ?)`)
+    .bind(
+      runId,
+      organizationId,
+      conversationId,
+      agentId,
+      versionId,
+      messageId,
+      crypto.randomUUID(),
+      now,
+    )
+    .run();
+
+  return { organizationId, intruderId, runId };
+}
+
 describe("migraciones de D1", () => {
   it("crea el esquema inicial desde una base vacía", async () => {
     expect(await objectNames("table")).toEqual(
       expect.arrayContaining([
         "agent_publication_transitions",
         "agent_runs",
+        "agent_tool_calls",
         "agent_version_knowledge_scopes",
         "agent_version_tools",
         "agent_versions",
@@ -83,6 +201,7 @@ describe("migraciones de D1", () => {
       "0018_metrics_read_access.sql",
       "0019_agents_and_versions.sql",
       "0020_agent_runs_and_conversation_agent.sql",
+      "0021_agent_tool_calls.sql",
     ]);
   });
 
@@ -104,6 +223,15 @@ describe("migraciones de D1", () => {
         // disparador (ADR-0015).
         "agent_runs_trigger_unique",
         "agent_runs_organization_conversation_idx",
+        // SQLite exige este índice en el padre para admitir la clave foránea
+        // compuesta de `agent_tool_calls`; `0020` no lo creó y `0021` lo añade
+        // sin editarla.
+        "agent_runs_organization_id_unique",
+        // Un reintento de la misma corrida no duplica la traza: ninguna
+        // herramienta del corte produce efecto, así que la pareja
+        // corrida-ordinal es la única garantía que hace falta.
+        "agent_tool_calls_run_sequence_unique",
+        "agent_tool_calls_organization_tool_idx",
         "appointments_organization_starts_idx",
         "appointments_organization_assignee_starts_idx",
         "appointment_transitions_organization_appointment_idx",
@@ -381,6 +509,130 @@ describe("migraciones de D1", () => {
     await expect(publish(firstAgentId, 2)).rejects.toThrow();
     // El índice es parcial y por agente: otro agente sí publica la suya.
     await expect(publish(secondAgentId, 1)).resolves.toBeDefined();
+  });
+
+  it("impide que la traza de una herramienta cruce organizaciones", async () => {
+    const { organizationId, intruderId, runId } = await seedAgentRun();
+    const now = new Date().toISOString();
+
+    const trace = (scope: string, sequence: number, result: string) =>
+      env.DB.prepare(`INSERT INTO agent_tool_calls
+        (id, organization_id, run_id, sequence, tool_key, result,
+         failure_code, correlation_id, occurred_at)
+        VALUES (?, ?, ?, ?, 'list_services', ?, NULL, ?, ?)`)
+        .bind(
+          crypto.randomUUID(),
+          scope,
+          runId,
+          sequence,
+          result,
+          crypto.randomUUID(),
+          now,
+        )
+        .run();
+
+    await expect(trace(organizationId, 1, "succeeded")).resolves.toBeDefined();
+    // La corrida es de la otra organización: sin el índice único que `0021`
+    // añade sobre `agent_runs`, la clave foránea compuesta ni siquiera podría
+    // declararse, y la pertenencia dependería solo del repositorio.
+    await expect(trace(intruderId, 2, "succeeded")).rejects.toThrow();
+    // Un ordinal repetido dentro de la misma corrida es un reintento que
+    // duplicaría la traza.
+    await expect(trace(organizationId, 1, "succeeded")).rejects.toThrow();
+    // Un intento que no salió bien declara su motivo.
+    await expect(trace(organizationId, 3, "rejected")).rejects.toThrow();
+  });
+
+  it("no introduce ningún permiso en 0021", async () => {
+    const setup = await fetchWorker("/api/setup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        setupToken: "test-only-setup-token",
+        organizationName: "Salón de Herramientas",
+        organizationSlug: "salon-herramientas",
+        ownerName: "Olga Owner",
+        ownerEmail: "owner-tools@example.com",
+        ownerPassword: "correct-horse-battery-staple",
+      }),
+    });
+    const installed = (await setup.json()) as { organization: { id: string } };
+
+    const now = new Date().toISOString();
+    const legacyId = crypto.randomUUID();
+    const roleIds = {
+      owner: crypto.randomUUID(),
+      manager: crypto.randomUUID(),
+      operator: crypto.randomUUID(),
+    };
+    await env.DB.prepare(
+      `INSERT INTO organizations (id, slug, display_name, status, created_at, updated_at)
+       VALUES (?, ?, 'Salón heredado', 'active', ?, ?)`,
+    )
+      .bind(legacyId, `legacy-tools-${legacyId}`, now, now)
+      .run();
+    await env.DB.batch(
+      Object.entries(roleIds).map(([roleKey, roleId]) =>
+        env.DB.prepare(
+          `INSERT INTO roles (id, organization_id, role_key, display_name, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+        ).bind(roleId, legacyId, roleKey, roleKey, now, now),
+      ),
+    );
+    // Estado previo al corte. Se copia de la instalación porque este corte no
+    // toca `permissionDefinitions`: lo que tenía una organización instalada
+    // antes de `0021` es exactamente lo que siembra hoy `seedOwner`.
+    await env.DB.batch(
+      Object.entries(roleIds).map(([roleKey, roleId]) =>
+        env.DB.prepare(
+          `INSERT INTO role_permissions (organization_id, role_id, permission_id, granted_at)
+           SELECT ?, ?, rp.permission_id, ?
+             FROM role_permissions rp
+             JOIN roles r ON r.id = rp.role_id
+            WHERE rp.organization_id = ? AND r.role_key = ?`,
+        ).bind(legacyId, roleId, now, installed.organization.id, roleKey),
+      ),
+    );
+
+    const catalog = async (scope: string) => {
+      const { results } = await env.DB.prepare(
+        `SELECT r.role_key, p.permission_key
+           FROM role_permissions rp
+           JOIN roles r ON r.id = rp.role_id
+           JOIN permissions p ON p.id = rp.permission_id
+          WHERE rp.organization_id = ?
+          ORDER BY r.role_key, p.permission_key`,
+      )
+        .bind(scope)
+        .all<{ role_key: string; permission_key: string }>();
+      return results.map((row) => `${row.role_key}:${row.permission_key}`);
+    };
+
+    const before = await catalog(legacyId);
+    expect(before.length).toBeGreaterThan(0);
+
+    const migrations = (env as unknown as { TEST_MIGRATIONS: D1Migration[] })
+      .TEST_MIGRATIONS;
+    const migration = migrations.find(
+      (item) => item.name === "0021_agent_tool_calls.sql",
+    );
+    expect(migration).toBeDefined();
+    // Declarar qué herramientas usa un agente ya exige `agents.manage` y
+    // consultarlas exige `agents.read`, ambos en el catálogo de instalación
+    // desde `0002`: este corte no introduce ninguno, así que no hay sentencia
+    // de catálogo que propagar a las organizaciones ya instaladas.
+    const grants = migration!.queries.filter((query) =>
+      /INSERT INTO (permissions|role_permissions)/i.test(query),
+    );
+    expect(grants).toEqual([]);
+    for (const query of grants) {
+      await env.DB.prepare(query).run();
+    }
+
+    expect(await catalog(legacyId)).toEqual(before);
+    expect(await catalog(legacyId)).toEqual(
+      await catalog(installed.organization.id),
+    );
   });
 
   it("acepta message.sent en recepción y ciclo de estado", async () => {
