@@ -253,7 +253,7 @@ describe.sequential("agentes y sus versiones", () => {
     const withVersion = await addVersion(first.id, first.version, {
       instructions: "Agenda citas.",
       model: "modelo-previsto",
-      tools: ["agenda.crear", "agenda.crear", "  AGENDA.crear  "],
+      tools: ["list_services", "list_services", "  LIST_SERVICES  "],
       knowledgeScopes: ["Políticas", "políticas "],
     });
     expect(withVersion.versions).toHaveLength(1);
@@ -263,7 +263,7 @@ describe.sequential("agentes y sus versiones", () => {
       createdByName: setupBody.ownerName,
     });
     // Las declaraciones son un conjunto: se normalizan y se deduplican.
-    expect(withVersion.versions[0].tools).toEqual(["agenda.crear"]);
+    expect(withVersion.versions[0].tools).toEqual(["list_services"]);
     expect(withVersion.versions[0].knowledgeScopes).toEqual(["Políticas"]);
 
     const secondVersion = await addVersion(first.id, withVersion.version, {
@@ -288,7 +288,7 @@ describe.sequential("agentes y sus versiones", () => {
       instructions: "Texto original.",
       model: "modelo-previsto",
       playbook: "Saluda primero.",
-      tools: ["catalogo.consultar"],
+      tools: ["list_services"],
       knowledgeScopes: ["Servicios"],
     });
     const sourceId = base.versions[0].id;
@@ -305,7 +305,7 @@ describe.sequential("agentes y sus versiones", () => {
       changeReason: "Partir de la anterior",
       status: "draft",
     });
-    expect(copy.tools).toEqual(["catalogo.consultar"]);
+    expect(copy.tools).toEqual(["list_services"]);
     expect(copy.knowledgeScopes).toEqual(["Servicios"]);
 
     // Una versión de otra organización no puede sembrar un borrador.
@@ -347,7 +347,7 @@ describe.sequential("agentes y sus versiones", () => {
     const created = await addVersion(agent.id, agent.version, {
       instructions: "Texto publicado.",
       model: "modelo-previsto",
-      tools: ["catalogo.consultar"],
+      tools: ["list_services"],
     });
     const versionId = created.versions[0].id;
 
@@ -408,7 +408,7 @@ describe.sequential("agentes y sus versiones", () => {
     const withDraft = await addVersion(agent.id, afterPublish.version, {
       instructions: "Borrador.",
       model: "modelo-previsto",
-      tools: ["uno", "dos"],
+      tools: ["list_services", "get_own_appointment"],
     });
     const draftId = withDraft.versions.find((item) => item.status === "draft")!.id;
 
@@ -418,7 +418,7 @@ describe.sequential("agentes y sus versiones", () => {
         expectedVersion: withDraft.version,
         instructions: "Borrador corregido.",
         model: "otro-modelo",
-        tools: ["tres"],
+        tools: ["get_own_appointment"],
       }),
     });
     expect(edited.status).toBe(200);
@@ -428,7 +428,7 @@ describe.sequential("agentes y sus versiones", () => {
       instructions: "Borrador corregido.",
       model: "otro-modelo",
     });
-    expect(draft.tools).toEqual(["tres"]);
+    expect(draft.tools).toEqual(["get_own_appointment"]);
 
     // La publicada conserva su texto y sigue siendo la viva.
     const live = detail.versions.find((item) => item.id === publishedId)!;
@@ -881,6 +881,82 @@ describe.sequential("agentes y sus versiones", () => {
     expect(after?.attention_mode).toBe("human");
   });
 
+  it("ofrece el catálogo cerrado de herramientas del producto", async () => {
+    const response = await call("/api/agent-tools");
+    expect(response.status).toBe(200);
+    const { tools } = (await response.json()) as {
+      tools: { key: string; label: string; description: string }[];
+    };
+    // Es el catálogo del producto y no de la organización: las mismas dos
+    // claves para todas, con lo que el panel muestra y lo que el modelo lee.
+    expect(tools.map((tool) => tool.key)).toEqual([
+      "list_services",
+      "get_own_appointment",
+    ]);
+    for (const tool of tools) {
+      expect(Object.keys(tool)).toEqual(["key", "label", "description"]);
+      expect(tool.label.length).toBeGreaterThan(0);
+      expect(tool.description.length).toBeGreaterThan(0);
+    }
+
+    const posted = await call("/api/agent-tools", { method: "POST" });
+    expect(posted.status).toBe(405);
+  });
+
+  it("rechaza declarar una herramienta que no existe en el catálogo", async () => {
+    const agent = await createAgent("Declaraciones");
+    const withDraft = await addVersion(agent.id, agent.version, {
+      instructions: "Borrador con declaraciones.",
+      model: "modelo-previsto",
+      tools: ["list_services"],
+    });
+    const draftId = withDraft.versions[0].id;
+
+    const rejected = await call(`/api/agents/${agent.id}/versions/${draftId}`, {
+      method: "PUT",
+      body: JSON.stringify({
+        expectedVersion: withDraft.version,
+        instructions: "Borrador con declaraciones.",
+        model: "modelo-previsto",
+        tools: ["list_services", "agenda.crear"],
+      }),
+    });
+    expect(rejected.status).toBe(400);
+    expect((await rejected.json()) as { error: { code: string } }).toMatchObject(
+      { error: { code: "AGENT_TOOL_UNKNOWN" } },
+    );
+
+    // No se escribió ninguna fila: la declaración anterior queda intacta y la
+    // desconocida no existe.
+    const stored = await env.DB.prepare(
+      `SELECT tool_key FROM agent_version_tools
+        WHERE organization_id = ? AND agent_version_id = ?
+        ORDER BY tool_key`,
+    )
+      .bind(organizationId, draftId)
+      .all<{ tool_key: string }>();
+    expect(stored.results.map((row) => row.tool_key)).toEqual(["list_services"]);
+
+    // Y tampoco se puede crear una revisión nueva declarándola.
+    const created = await call(`/api/agents/${agent.id}/versions`, {
+      method: "POST",
+      body: JSON.stringify({
+        expectedVersion: withDraft.version,
+        instructions: "Otra revisión.",
+        model: "modelo-previsto",
+        tools: ["agenda.crear"],
+      }),
+    });
+    expect(created.status).toBe(400);
+    const total = await env.DB.prepare(
+      `SELECT count(*) AS total FROM agent_version_tools
+        WHERE organization_id = ? AND tool_key = 'agenda.crear'`,
+    )
+      .bind(organizationId)
+      .first<{ total: number }>();
+    expect(total?.total).toBe(0);
+  });
+
   it("concede agentes a owner y manager, y no a operator", async () => {
     const { results } = await env.DB.prepare(
       `SELECT r.role_key, p.permission_key
@@ -957,11 +1033,18 @@ describe.sequential("agentes y sus versiones", () => {
     });
     expect(listed.status).toBe(403);
 
+    // El catálogo de herramientas se lee con el mismo permiso y falla igual.
+    const catalogCorrelationId = crypto.randomUUID();
+    const catalog = await call("/api/agent-tools", {
+      headers: { "X-Correlation-Id": catalogCorrelationId },
+    });
+    expect(catalog.status).toBe(403);
+
     // Un rechazo de lectura no escribe auditoría: no hubo intento de efecto.
     const audit = await env.DB.prepare(
-      `SELECT count(*) AS total FROM audit_logs WHERE correlation_id = ?`,
+      `SELECT count(*) AS total FROM audit_logs WHERE correlation_id IN (?, ?)`,
     )
-      .bind(correlationId)
+      .bind(correlationId, catalogCorrelationId)
       .first<{ total: number }>();
     expect(audit?.total).toBe(0);
   });

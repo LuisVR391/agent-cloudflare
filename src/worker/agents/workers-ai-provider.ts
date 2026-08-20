@@ -4,6 +4,8 @@ import {
   type ModelProvider,
   type ModelReply,
   type ModelRequest,
+  type ModelToolDeclaration,
+  type ModelTurn,
 } from "./model-provider";
 
 /**
@@ -21,11 +23,41 @@ type InferenceBinding = {
   run(
     model: string,
     inputs: {
-      messages: Array<{ role: string; content: string }>;
+      messages: Array<{ role: string; content: string; name?: string }>;
       max_tokens: number;
+      tools?: BindingTool[];
     },
   ): Promise<unknown>;
 };
+
+/**
+ * La forma concreta con la que el binding anuncia una función
+ * (`AiTextGenerationToolInput`). El contrato común conserva su vocabulario
+ * propio y la traducción vive aquí: cambiar de proveedor no debe reescribir el
+ * catálogo ni la corrida.
+ */
+type BindingTool = {
+  type: "function";
+  function: ModelToolDeclaration;
+};
+
+/**
+ * El binding solo admite `role`, `content` y `name` por turno: no tiene forma
+ * de transportar la petición de herramienta que el modelo emitió. La segunda
+ * vuelta se le devuelve, entonces, con el resultado etiquetado por el nombre de
+ * la función, que es lo que necesita para continuar; el turno del asistente que
+ * solo pidió herramientas no aporta contenido y se omite en vez de inventarle
+ * un texto que el modelo leería como suyo.
+ */
+function toBindingMessage(
+  turn: ModelTurn,
+): { role: string; content: string; name?: string } | null {
+  if (turn.role === "tool") {
+    return { role: "tool", name: turn.name, content: turn.content };
+  }
+  if (turn.content.trim() === "") return null;
+  return { role: turn.role, content: turn.content };
+}
 
 /**
  * El binding no acepta `AbortSignal`, así que el límite se aplica desde fuera.
@@ -39,17 +71,30 @@ class WorkersAiModelProvider implements ModelProvider {
 
   async generate(request: ModelRequest): Promise<ModelReply> {
     let timer: ReturnType<typeof setTimeout> | undefined;
+    const tools = request.tools ?? [];
     try {
       const output = await Promise.race([
         this.binding.run(request.model, {
           messages: [
             { role: "system", content: request.instructions },
-            ...request.turns.map((turn) => ({
-              role: turn.role,
-              content: turn.content,
-            })),
+            ...request.turns
+              .map(toBindingMessage)
+              .filter((message): message is NonNullable<typeof message> =>
+                message !== null,
+              ),
           ],
           max_tokens: request.maxOutputTokens,
+          // El campo solo existe cuando el backend autorizó alguna
+          // herramienta: anunciar una lista vacía es invitar al modelo a
+          // preguntarse qué falta.
+          ...(tools.length === 0
+            ? {}
+            : {
+                tools: tools.map((tool) => ({
+                  type: "function" as const,
+                  function: tool,
+                })),
+              }),
         }),
         new Promise<never>((_resolve, reject) => {
           timer = setTimeout(
@@ -58,7 +103,7 @@ class WorkersAiModelProvider implements ModelProvider {
           );
         }),
       ]);
-      return parseModelReply(output);
+      return parseModelReply(output, { toolsOffered: tools.length > 0 });
     } catch (caught) {
       if (caught instanceof ModelProviderError) throw caught;
       // El error del proveedor no se propaga tal cual: puede citar el prompt o

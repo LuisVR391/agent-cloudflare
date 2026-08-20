@@ -38,7 +38,7 @@ function providerReturning(text: string): ModelProvider & {
     requests,
     async generate(request) {
       requests.push(request);
-      return { text };
+      return { kind: "text", text };
     },
   };
 }
@@ -323,11 +323,14 @@ describe.sequential("ejecución del agente en la conversación", () => {
       { organizationId, conversationId, triggerMessageId: messageId },
     );
 
-    const [{ instructions }] = provider.requests;
+    const [request] = provider.requests;
+    const { instructions } = request;
     // Las instrucciones publicadas mandan y van primero; el marco las envuelve.
     expect(instructions.startsWith("Atiende con calidez")).toBe(true);
-    // El catálogo de servicios tiene dueño en D1 y ninguna herramienta lo expone
-    // todavía, así que el marco impide afirmarlo en vez de invitar a inventarlo.
+    // Esta versión no declara ninguna herramienta, así que no se le anuncia
+    // ninguna y el marco conserva entera la prohibición: el catálogo de
+    // servicios tiene dueño en D1 y esta corrida no puede consultarlo.
+    expect(request.tools).toBeUndefined();
     expect(instructions).toContain("No afirmes servicios, precios");
     expect(instructions).toContain("una persona del equipo lo confirme");
     expect(instructions).toContain("4000 caracteres");

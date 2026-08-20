@@ -1,5 +1,9 @@
 import { z } from "zod";
 
+import {
+  agentToolCatalogEntries,
+  isAgentToolKey,
+} from "./agents/tool-catalog";
 import { error, resolveAuthorizationContext } from "./auth/http";
 import type { WorkerEnv } from "./auth/types";
 import {
@@ -33,11 +37,21 @@ const playbookSchema = z.string().trim().max(20_000);
 const modelSchema = z.string().trim().min(1).max(120);
 
 /**
- * Etiquetas declaradas sin catálogo. No autorizan nada: el corte que introduzca
- * el catálogo de herramientas es quien validará que existan y quien filtrará
- * por permisos antes de anunciarlas a un modelo.
+ * Forma de una lista de etiquetas declaradas. El alcance de conocimiento sigue
+ * sin catálogo —el suyo llega con la recuperación de conocimiento—, así que
+ * aquí solo se valida la forma.
  */
 const declarationSchema = z.array(z.string().trim().min(1).max(80)).max(50);
+
+/**
+ * Las herramientas sí tienen catálogo desde este corte: declarar una clave que
+ * el producto no implementa no deja constancia de nada, porque el handler vive
+ * en código. Se compara la clave tal como el catálogo la reconoce, que es la
+ * forma normalizada que el repositorio persiste.
+ */
+function unknownToolDeclaration(tools: string[] | undefined): boolean {
+  return (tools ?? []).some((candidate) => !isAgentToolKey(candidate));
+}
 
 /** El motivo de una publicación es obligatorio; el de una revisión, no. */
 const reasonSchema = z.string().trim().min(1).max(500);
@@ -137,7 +151,11 @@ export async function routeAgentApi(
   env: WorkerEnv,
 ): Promise<Response | null> {
   const url = new URL(request.url);
-  if (!url.pathname.startsWith("/api/agents")) return null;
+  // El catálogo de herramientas se sirve aquí porque se lee con el mismo
+  // permiso que un agente y se declara desde la misma pantalla, aunque no
+  // cuelgue de un agente concreto: es del producto, no de la organización.
+  const isToolCatalog = url.pathname === "/api/agent-tools";
+  if (!isToolCatalog && !url.pathname.startsWith("/api/agents")) return null;
 
   const correlationId =
     request.headers.get("x-correlation-id") ?? crypto.randomUUID();
@@ -211,6 +229,22 @@ export async function routeAgentApi(
       "El método solicitado no está permitido.",
       correlationId,
     );
+
+  const unknownTool = () =>
+    error(
+      400,
+      "AGENT_TOOL_UNKNOWN",
+      "Alguna herramienta declarada no existe en el catálogo.",
+      correlationId,
+    );
+
+  if (isToolCatalog) {
+    if (request.method !== "GET") return methodNotAllowed();
+    // El catálogo no es de nadie en particular: no hay recurso ajeno que
+    // ocultar y una lectura sin efecto no se audita, como el resto de las
+    // lecturas del repositorio.
+    return json({ tools: agentToolCatalogEntries() });
+  }
 
   if (suffix === "" || suffix === "/") {
     if (request.method === "GET") {
@@ -352,6 +386,10 @@ export async function routeAgentApi(
           correlationId,
         );
       }
+      // Se comprueba antes de escribir nada: una declaración desconocida no
+      // deja media versión creada. Derivar de otra revisión no pasa por aquí,
+      // porque copia lo que ya se declaró y no declara nada nuevo.
+      if (unknownToolDeclaration(parsed.data.tools)) return unknownTool();
       try {
         const agent = await repository.createVersion(organizationId, agentId, {
           expectedVersion: parsed.data.expectedVersion,
@@ -402,6 +440,7 @@ export async function routeAgentApi(
         correlationId,
       );
     }
+    if (unknownToolDeclaration(parsed.data.tools)) return unknownTool();
     try {
       const agent = await repository.updateVersion(
         organizationId,

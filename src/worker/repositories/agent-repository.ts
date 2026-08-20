@@ -888,17 +888,30 @@ export class AgentRepository {
         playbook: string | null;
       }>();
 
-    return row === null
-      ? null
-      : {
-          agentId: row.agent_id,
-          agentName: row.agent_name,
-          versionId: row.version_id,
-          versionNumber: row.version_number,
-          instructions: row.instructions,
-          model: row.model,
-          playbook: row.playbook,
-        };
+    if (row === null) return null;
+
+    // Las declaraciones viven en su tabla hija y se leen aparte: son un
+    // conjunto, y traerlas en la misma consulta multiplicaría la fila de la
+    // versión por cada clave declarada.
+    const { results } = await this.#db
+      .prepare(
+        `SELECT tool_key FROM agent_version_tools
+          WHERE organization_id = ? AND agent_version_id = ?
+          ORDER BY tool_key`,
+      )
+      .bind(scope, row.version_id)
+      .all<{ tool_key: string }>();
+
+    return {
+      agentId: row.agent_id,
+      agentName: row.agent_name,
+      versionId: row.version_id,
+      versionNumber: row.version_number,
+      instructions: row.instructions,
+      model: row.model,
+      playbook: row.playbook,
+      tools: results.map((tool) => tool.tool_key),
+    };
   }
 
   #versionBump(

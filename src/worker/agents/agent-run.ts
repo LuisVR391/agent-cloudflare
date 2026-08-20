@@ -2,14 +2,24 @@ import type { ConversationMessage } from "../domain/types";
 import type { OutboundQueueMessage } from "../integrations/zernio/contracts";
 import { AgentRepository } from "../repositories/agent-repository";
 import { AgentRunRepository } from "../repositories/agent-run-repository";
+import { AgentToolCallRepository } from "../repositories/agent-tool-call-repository";
 import { ConversationRepository } from "../repositories/conversation-repository";
 import {
   MODEL_REPLY_MAX_CHARACTERS,
   ModelProviderError,
+  parseModelToolName,
   type ModelFailureCode,
   type ModelProvider,
+  type ModelReply,
+  type ModelToolCall,
   type ModelTurn,
 } from "./model-provider";
+import {
+  findAgentTool,
+  toModelToolDeclaration,
+  type AgentToolContext,
+  type AgentToolDefinition,
+} from "./tool-catalog";
 
 /**
  * Ejecuta la versión publicada del agente dentro de una conversación y deja
@@ -30,6 +40,37 @@ export const AGENT_RUN_CONTEXT_MESSAGES = 20;
 export const AGENT_RUN_MAX_OUTPUT_TOKENS = 512;
 
 /**
+ * Rondas de herramientas por corrida. Dos permiten encadenar una consulta que
+ * depende de otra, y son hasta tres llamadas al modelo por mensaje: a la
+ * tercera petición, la conversación pasa al equipo en vez de seguir gastando.
+ */
+export const AGENT_RUN_MAX_TOOL_ROUNDS = 2;
+
+/**
+ * Techo duro de llamadas de la corrida entera. Sin él, una sola ronda con
+ * veinte llamadas costaría lo mismo que veinte rondas.
+ */
+export const AGENT_RUN_MAX_TOOL_CALLS = 4;
+
+/**
+ * Lo que el modelo recibe cuando un intento no prospera. Es estable y
+ * redactado: nunca un detalle interno, un identificador ni el mensaje de una
+ * excepción, que el modelo repetiría a la clienta.
+ */
+const TOOL_RESULT_REJECTED = JSON.stringify({ error: "no_permitido" });
+const TOOL_RESULT_FAILED = JSON.stringify({ error: "no_disponible" });
+
+/**
+ * Lo que queda en la traza cuando el nombre que el modelo dijo invocar no es un
+ * identificador. Es estable y no viene del modelo: `agent_tool_calls.tool_key`
+ * es evidencia de qué se intentó, no tiene cota de longitud en el esquema, y un
+ * texto elegido por el modelo dentro de esa columna contaminaría la evidencia y
+ * cualquier lectura posterior. Que el nombre no valide ya es el dato relevante;
+ * cuál era exactamente, no.
+ */
+const TOOL_KEY_INVALID = "__invalid_tool_name__";
+
+/**
  * Motivos propios de la corrida, además de los que declara el proveedor. Son
  * códigos estables: la traza, la auditoría y los logs conservan el código y
  * nunca el contenido que lo provocó.
@@ -38,7 +79,9 @@ export type AgentRunFailureCode =
   | ModelFailureCode
   | "AGENT_NOT_RUNNABLE"
   | "UNSUPPORTED_MESSAGE_CONTENT"
-  | "OUTBOUND_QUEUE_UNAVAILABLE";
+  | "OUTBOUND_QUEUE_UNAVAILABLE"
+  | "TOOL_ROUNDS_EXCEEDED"
+  | "TOOL_CALL_LIMIT_EXCEEDED";
 
 export type AgentRunOutcome =
   /** La conversación no responde sola, o el disparador ya tuvo su corrida. */
@@ -88,16 +131,19 @@ const contentMarkers: Record<string, string> = {
 };
 
 function toTurn(message: ConversationMessage): ModelTurn | null {
-  const role = message.direction === "incoming" ? "user" : "assistant";
   const text = message.text?.trim();
-  if (text) return { role, content: text };
+  if (message.direction === "incoming") {
+    return {
+      role: "user",
+      content:
+        text ||
+        contentMarkers[message.messageType] ||
+        contentMarkers.unsupported,
+    };
+  }
   // Un saliente sin texto no existe hoy y no describe nada que el modelo pueda
   // continuar; omitirlo es más honesto que inventarle contenido.
-  if (message.direction !== "incoming") return null;
-  return {
-    role,
-    content: contentMarkers[message.messageType] ?? contentMarkers.unsupported,
-  };
+  return text ? { role: "assistant", content: text } : null;
 }
 
 /**
@@ -105,26 +151,51 @@ function toTurn(message: ConversationMessage): ModelTurn | null {
  * modelo no puede modificarlo: organización, conversación y límites los fija
  * quien llama, no lo que el contacto escriba.
  *
- * La segunda regla acota lo que el agente puede afirmar del negocio. Hoy la
- * corrida solo lleva el hilo y las instrucciones publicadas: el catálogo de
- * servicios, sus precios y la agenda tienen dueño en D1 y ninguna herramienta
- * los expone todavía, así que preguntar por ellos invita a inventarlos. No es un
- * control de seguridad —un prompt nunca lo es— sino la respuesta honesta
- * mientras el catálogo llega por una herramienta autorizada en backend.
+ * La segunda regla acota lo que el agente puede afirmar del negocio, y se acota
+ * con lo que la corrida realmente puede consultar. Con herramientas anunciadas,
+ * el catálogo y la cita del contacto dejan de ser materia de invención y pasan
+ * a consultarse; lo que ninguna herramienta expone —horarios de atención,
+ * disponibilidad, promociones— conserva su prohibición. Sin herramientas, la
+ * regla queda entera. No es un control de seguridad —un prompt nunca lo es—
+ * sino la respuesta honesta a lo que el agente no puede saber.
  */
-function buildInstructions(version: {
-  instructions: string;
-  playbook: string | null;
-}): string {
+function buildInstructions(
+  version: { instructions: string; playbook: string | null },
+  options: { toolsOffered: boolean },
+): string {
   return [
     version.instructions,
     version.playbook ? `Playbook:\n${version.playbook}` : null,
-    `No afirmes servicios, precios, promociones ni horarios disponibles que no`
-      + ` estén escritos arriba: no puedes consultarlos. Si te los piden, dilo y`
-      + ` ofrece que una persona del equipo lo confirme.`,
+    options.toolsOffered
+      ? `Consulta con las herramientas disponibles lo que necesites antes de`
+        + ` responder, y responde con lo que devuelvan. No afirmes horarios de`
+        + ` atención, disponibilidad ni promociones: ninguna herramienta te los`
+        + ` da y no puedes consultarlos. Si te los piden, dilo y ofrece que una`
+        + ` persona del equipo lo confirme.`
+      : `No afirmes servicios, precios, promociones ni horarios disponibles que no`
+        + ` estén escritos arriba: no puedes consultarlos. Si te los piden, dilo y`
+        + ` ofrece que una persona del equipo lo confirme.`,
     `Responde con un solo mensaje de WhatsApp, en el idioma del contacto y con`
       + ` un máximo de ${MODEL_REPLY_MAX_CHARACTERS} caracteres.`,
   ].filter((part): part is string => part !== null).join("\n\n");
+}
+
+/**
+ * Qué declaró la versión publicada que no se le anunció al modelo, y por qué.
+ * No hay fila en `agent_tool_calls` porque no hubo intento del modelo: es la
+ * reconciliación entre declaraciones históricas y el catálogo vigente que
+ * ADR-0014 dejó pendiente para este corte.
+ */
+function logDeclarationIgnored(fields: {
+  reason: "UNKNOWN_TOOL" | "AUDIENCE_MISMATCH" | "SUBJECT_UNRESOLVED";
+  toolKey: string;
+  correlationId: string;
+  conversationId: string;
+  runId: string;
+}): void {
+  console.warn(
+    JSON.stringify({ event: "agent.tool.declaration_ignored", ...fields }),
+  );
 }
 
 function log(
@@ -283,19 +354,177 @@ export async function executeAgentRun(
     .map(toTurn)
     .filter((turn): turn is ModelTurn => turn !== null);
 
-  let reply: Awaited<ReturnType<ModelProvider["generate"]>>;
-  try {
-    reply = await deps.provider.generate({
-      model: version.model,
-      instructions: buildInstructions(version),
-      turns,
-      maxOutputTokens: AGENT_RUN_MAX_OUTPUT_TOKENS,
-    });
-  } catch (caught) {
-    const failureCode = caught instanceof ModelProviderError
-      ? caught.code
-      : "MODEL_UNAVAILABLE";
-    return unanswered("failed", failureCode);
+  // La secuencia de autorización, en el orden de la guía §14.2: la organización
+  // y la conversación salen del contexto de la corrida, el contacto se leyó en
+  // D1, y solo entonces se mira qué declaró la versión publicada. Una clave que
+  // el catálogo no reconoce no se anuncia y no deja fila: no hubo intento del
+  // modelo, solo una declaración que dejó de existir.
+  const offered: AgentToolDefinition[] = [];
+  for (const declared of version.tools) {
+    const ignored = (
+      reason: "UNKNOWN_TOOL" | "AUDIENCE_MISMATCH" | "SUBJECT_UNRESOLVED",
+    ) =>
+      logDeclarationIgnored({
+        reason,
+        toolKey: declared,
+        correlationId,
+        conversationId: input.conversationId,
+        runId,
+      });
+
+    const tool = findAgentTool(declared);
+    if (tool === undefined) {
+      ignored("UNKNOWN_TOOL");
+      continue;
+    }
+    if (tool.audience !== "contact") {
+      ignored("AUDIENCE_MISMATCH");
+      continue;
+    }
+    // Sin contacto demostrado no hay sujeto al que acotar la consulta, así que
+    // la herramienta no se anuncia: falla cerrada antes de existir. La columna
+    // es obligatoria, y por eso mismo la comprobación es barata.
+    if (!conversation.contactId) {
+      ignored("SUBJECT_UNRESOLVED");
+      continue;
+    }
+    offered.push(tool);
+  }
+
+  const declarations = offered.map(toModelToolDeclaration);
+  const toolContext: AgentToolContext = {
+    db: deps.db,
+    organizationId: input.organizationId,
+    conversationId: input.conversationId,
+    // El sujeto de la consulta es el contacto de esta conversación, leído en
+    // D1. Ningún argumento del modelo lo sustituye.
+    contactId: conversation.contactId,
+    agentId,
+    runId,
+    correlationId,
+  };
+  const toolCalls = new AgentToolCallRepository(deps.db);
+
+  /**
+   * Ejecuta un intento y devuelve lo que el modelo recibirá. Cada rama deja su
+   * fila y su entrada de auditoría antes de responder, incluidas las que no
+   * ejecutan nada: un rechazo también es una decisión que alguien tiene que
+   * poder revisar.
+   */
+  const settleToolCall = async (
+    call: ModelToolCall,
+    sequence: number,
+  ): Promise<string> => {
+    const record = (
+      result: "succeeded" | "rejected" | "failed",
+      failureCode: string | null,
+      toolKey: string,
+    ) =>
+      toolCalls.record({
+        organizationId: input.organizationId,
+        runId,
+        agentId,
+        sequence,
+        // El nombre puede venir del modelo. `parseModelReply` ya lo valida del
+        // lado del proveedor, pero el límite de confianza se aplica donde se
+        // escribe: un proveedor que construya `ModelReply` por su cuenta no
+        // pasa por esa validación, y esto es lo último antes de D1.
+        toolKey: parseModelToolName(toolKey) ?? TOOL_KEY_INVALID,
+        result,
+        failureCode,
+        correlationId,
+      });
+
+    // Lo que se acepta es el conjunto anunciado, no el catálogo: una
+    // herramienta que existe pero que esta versión no declaró tampoco se
+    // ejecuta.
+    const tool = offered.find((candidate) => candidate.key === call.name);
+    if (tool === undefined) {
+      await record("rejected", "TOOL_NOT_OFFERED", call.name);
+      return TOOL_RESULT_REJECTED;
+    }
+    // Ninguna herramienta del corte recibe argumentos, así que un proveedor que
+    // omita el campo —o que lo emita como `null`— no está proponiendo nada
+    // distinto de un objeto vacío, y la llamada es legítima. Lo que no se
+    // completa es un argumento ausente de una herramienta que sí lo pida: el
+    // schema estricto decide, no este operador.
+    const args = tool.argsSchema.safeParse(call.arguments ?? {});
+    if (!args.success) {
+      // No se degrada ni se completa con valores por omisión: unos argumentos
+      // que no validan —o una clave que la herramienta no declara— no describen
+      // la consulta que se iba a hacer.
+      await record("rejected", "TOOL_ARGUMENTS_INVALID", tool.key);
+      return TOOL_RESULT_REJECTED;
+    }
+    try {
+      const result = await tool.run(toolContext, args.data);
+      await record("succeeded", null, tool.key);
+      return JSON.stringify(result);
+    } catch {
+      // El detalle no viaja a ninguna parte: puede citar la consulta o la fila
+      // que la produjo, y el modelo lo repetiría a la clienta.
+      await record("failed", "TOOL_EXECUTION_FAILED", tool.key);
+      console.error(JSON.stringify({
+        event: "agent.tool",
+        result: "failed",
+        failureCode: "TOOL_EXECUTION_FAILED",
+        toolKey: tool.key,
+        correlationId,
+        conversationId: input.conversationId,
+        runId,
+      }));
+      return TOOL_RESULT_FAILED;
+    }
+  };
+
+  const instructions = buildInstructions(version, {
+    toolsOffered: offered.length > 0,
+  });
+  let rounds = 0;
+  let executed = 0;
+  let reply: ModelReply;
+  for (;;) {
+    try {
+      reply = await deps.provider.generate({
+        model: version.model,
+        instructions,
+        turns,
+        maxOutputTokens: AGENT_RUN_MAX_OUTPUT_TOKENS,
+        ...(declarations.length === 0 ? {} : { tools: declarations }),
+      });
+    } catch (caught) {
+      const failureCode = caught instanceof ModelProviderError
+        ? caught.code
+        : "MODEL_UNAVAILABLE";
+      return unanswered("failed", failureCode);
+    }
+    if (reply.kind === "text") break;
+
+    // Pedir herramientas cuando no se anunció ninguna no es una respuesta que
+    // el runtime pueda ejecutar, venga del proveedor que venga.
+    if (offered.length === 0) {
+      return unanswered("failed", "MODEL_OUTPUT_INVALID");
+    }
+    if (rounds >= AGENT_RUN_MAX_TOOL_ROUNDS) {
+      return unanswered("failed", "TOOL_ROUNDS_EXCEEDED");
+    }
+    if (executed + reply.calls.length > AGENT_RUN_MAX_TOOL_CALLS) {
+      // Se corta antes de ejecutar nada de esta ronda: la corrida ya no va a
+      // responder, y consultar por un resultado que nadie leerá es gasto.
+      return unanswered("failed", "TOOL_CALL_LIMIT_EXCEEDED");
+    }
+    rounds += 1;
+    turns.push({ role: "assistant", content: "", toolCalls: reply.calls });
+    for (const call of reply.calls) {
+      executed += 1;
+      const content = await settleToolCall(call, executed);
+      turns.push({
+        role: "tool",
+        name: call.name,
+        toolCallId: call.id,
+        content,
+      });
+    }
   }
 
   // La respuesta viaja por la salida existente, con su clave de idempotencia:
