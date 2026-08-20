@@ -1,6 +1,6 @@
 ---
 name: deliver-agent-cloudflare-change
-description: Implementa, corrige, refactoriza o publica cambios en Agent Cloudflare con alcance, seguridad, pruebas, documentación, ADRs y roadmap verificables. Úsalo para trabajo de código, configuración, migraciones, arquitectura, documentación técnica o entrega por issue/PR; no lo uses para preguntas informativas que no modifican el repositorio.
+description: Implementa, corrige, refactoriza o publica cambios en Agent Cloudflare con alcance, seguridad, pruebas, documentación, ADRs y roadmap verificables. Úsalo para trabajo de código, configuración, migraciones, arquitectura, documentación técnica o entrega por issue/PR, y para auditar, comitear y publicar el resultado; no lo uses para preguntas informativas que no modifican el repositorio, ni para planificar un corte antes de escribirlo, que es de plan-agent-cloudflare-change.
 ---
 
 # Entregar un cambio de Agent Cloudflare
@@ -8,6 +8,17 @@ description: Implementa, corrige, refactoriza o publica cambios en Agent Cloudfl
 Mantén la implementación y su evidencia alineadas con las fuentes de verdad del
 repositorio. Este skill organiza el trabajo; no sustituye las reglas ni duplica
 la arquitectura.
+
+Tres skills se reparten la entrega y no se solapan:
+
+| Skill | Qué resuelve |
+| --- | --- |
+| [`plan-agent-cloudflare-change`](../plan-agent-cloudflare-change/SKILL.md) | Investiga, clasifica las decisiones y escribe el SPEC con criterios verificables |
+| [`run-agent-cloudflare-cycle`](../run-agent-cloudflare-cycle/SKILL.md) | Reparte el SPEC, verifica de forma independiente y registra los findings |
+| Este skill | Audita el diff, declara el impacto, comitea y publica con trazabilidad |
+
+Un cambio pequeño puede usar solo este. Un corte con criterios, migración o
+decisiones de negocio empieza por el de planificación.
 
 ## 1. Cargar el contexto obligatorio
 
@@ -41,6 +52,11 @@ Si falta una decisión que cambiaría materialmente el resultado, pregúntala po
 el canal de consulta del agente antes de implementarla, y sigue con lo que no
 dependa de la respuesta. No inventes recursos, contratos ni backlog de fases
 futuras.
+
+Cuando el corte necesita criterios de aceptación, una migración o una decisión
+de negocio, esta delimitación se hace en
+[`plan-agent-cloudflare-change`](../plan-agent-cloudflare-change/SKILL.md) y
+queda escrita en el SPEC de la rama.
 
 ## 2 bis. Pedir autorizaciones y verificaciones sin detener el trabajo
 

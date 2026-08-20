@@ -6,7 +6,12 @@ inicio de la sesión.
 
 @AGENTS.md
 
-Para cambios del repositorio usa el skill `/deliver-agent-cloudflare-change`.
+Para cambios del repositorio hay tres skills que no se solapan:
+`/plan-agent-cloudflare-change` investiga y escribe el SPEC del corte,
+`/run-agent-cloudflare-cycle` lo reparte entre los subagentes y lo verifica, y
+`/deliver-agent-cloudflare-change` audita, comitea y publica. Un cambio pequeño
+puede usar solo el último.
+
 La [guía de continuidad de agentes](./.docs/operations/agent-continuity.md)
 describe los hooks locales, su alcance y cómo revisarlos con `/hooks`.
 

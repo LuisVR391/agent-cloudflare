@@ -1,0 +1,4 @@
+interface:
+  display_name: "Ejecutar ciclo de Agent Cloudflare"
+  short_description: "Ejecuta un SPEC con verificación aparte"
+  default_prompt: "Use $run-agent-cloudflare-cycle to implement an approved SPEC, verify it independently, and close with executed evidence."
