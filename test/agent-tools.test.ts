@@ -2,10 +2,11 @@ import { env, exports } from "cloudflare:workers";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { executeAgentRun } from "../src/worker/agents/agent-run";
-import type {
-  ModelProvider,
-  ModelReply,
-  ModelRequest,
+import {
+  MODEL_REPLY_MAX_CHARACTERS,
+  type ModelProvider,
+  type ModelReply,
+  type ModelRequest,
 } from "../src/worker/agents/model-provider";
 import { createModelProvider } from "../src/worker/agents/workers-ai-provider";
 import type { OutboundQueueMessage } from "../src/worker/integrations/zernio/contracts";
@@ -91,6 +92,153 @@ function bindingScripted(...outputs: unknown[]): {
       }
       return output;
     },
+  };
+}
+
+/**
+ * Las salidas crudas que `@cf/meta/llama-3.3-70b-instruct-fp8-fast` devolvió el
+ * 2026-08-20 en una corrida real con las dos herramientas anunciadas. Se copian
+ * verbatim porque la suite pasaba con formas inventadas mientras la corrida
+ * real fallaba: ninguna de las que se guionizaron coincidía con esta.
+ *
+ * Lo relevante es dónde llega la petición. El proveedor la deja unas veces en
+ * `tool_calls` y otras en `response`, ya deserializada, cuando el modelo la
+ * escribió como contenido; y en el segundo caso `tool_calls` llega vacío y
+ * `finish_reason` es `stop`, indistinguible de una respuesta de texto si solo
+ * se mira el nombre del campo.
+ */
+const WORKERS_AI_ENVELOPE = {
+  created: 1787209846,
+  ec_transfer_params: null,
+  id: "chatcmpl-ee221dda-2da0-4081-929e-1ee03ee17d85",
+  kv_transfer_params: null,
+  metrics: null,
+  model: "@cf/meta/llama-3.3-70b-json",
+  object: "chat.completion",
+  prompt_logprobs: null,
+  prompt_text: null,
+  prompt_token_ids: null,
+  service_tier: null,
+  usage: {
+    prompt_tokens: 507,
+    completion_tokens: 22,
+    total_tokens: 529,
+    prompt_tokens_details: { cached_tokens: 0 },
+    neurons: 18.026226043701172,
+  },
+};
+
+/** La forma que rompía la corrida: la petición viaja dentro de `response`. */
+const WORKERS_AI_TOOL_CALL_IN_RESPONSE = {
+  ...WORKERS_AI_ENVELOPE,
+  choices: [
+    {
+      finish_reason: "stop",
+      index: 0,
+      logprobs: null,
+      message: {
+        annotations: null,
+        audio: null,
+        content:
+          '{"type": "function", "function": {"name": "list_services", "parameters": {}}}',
+        function_call: null,
+        reasoning: null,
+        refusal: null,
+        role: "assistant",
+      },
+      routed_experts: null,
+      stop_reason: 128008,
+      token_ids: null,
+    },
+  ],
+  response: { function: { name: "list_services", parameters: {} }, type: "function" },
+  tool_calls: [],
+};
+
+/** La forma que el proveedor sí reconoce, en la misma corrida. */
+const WORKERS_AI_TOOL_CALL_IN_TOOL_CALLS = {
+  ...WORKERS_AI_ENVELOPE,
+  choices: [
+    {
+      finish_reason: "tool_calls",
+      index: 0,
+      logprobs: null,
+      message: {
+        annotations: null,
+        audio: null,
+        content: null,
+        function_call: null,
+        reasoning: null,
+        refusal: null,
+        role: "assistant",
+        tool_calls: [
+          {
+            function: { arguments: "{}", name: "list_services" },
+            id: "chatcmpl-tool-a516d2e1197b3125",
+            type: "function",
+          },
+        ],
+      },
+      routed_experts: null,
+      stop_reason: 128008,
+      token_ids: null,
+    },
+  ],
+  response: null,
+  tool_calls: [{ arguments: {}, name: "list_services" }],
+};
+
+/**
+ * La misma forma reconocida, con la función que se le pida. Sirve para el
+ * modelo que pide una herramienta que **no** se le anunció: el nombre pasa la
+ * validación del proveedor —es un identificador acotado— y quién decide el
+ * rechazo es el conjunto anunciado, ya dentro de la corrida.
+ */
+function workersAiToolCall(name: string) {
+  const [choice] = WORKERS_AI_TOOL_CALL_IN_TOOL_CALLS.choices;
+  return {
+    ...WORKERS_AI_TOOL_CALL_IN_TOOL_CALLS,
+    choices: [
+      {
+        ...choice,
+        message: {
+          ...choice.message,
+          tool_calls: choice.message.tool_calls.map((toolCall) => ({
+            ...toolCall,
+            function: { ...toolCall.function, name },
+          })),
+        },
+      },
+    ],
+    tool_calls: [{ arguments: {}, name }],
+  };
+}
+
+/** La respuesta de texto, que el proveedor solo da si no se anuncian tools. */
+function workersAiText(text: string) {
+  return {
+    ...WORKERS_AI_ENVELOPE,
+    choices: [
+      {
+        finish_reason: "stop",
+        index: 0,
+        logprobs: null,
+        message: {
+          annotations: null,
+          audio: null,
+          content: text,
+          function_call: null,
+          reasoning: null,
+          refusal: null,
+          role: "assistant",
+        },
+        routed_experts: null,
+        stop_reason: 128008,
+        token_ids: null,
+      },
+    ],
+    response: text,
+    tool_calls: [],
   };
 }
 
@@ -692,6 +840,201 @@ describe.sequential("herramientas autorizadas del agente", () => {
     ]);
   });
 
+  it("recorre la corrida con las tres salidas reales de Workers AI", async () => {
+    const { conversationId, messageId } = await automaticConversation({
+      external: "forma-real",
+      agent: servicesAgentId,
+      text: "¿Cuánto cuesta el balayage?",
+    });
+    const binding = bindingScripted(
+      WORKERS_AI_TOOL_CALL_IN_RESPONSE,
+      WORKERS_AI_TOOL_CALL_IN_TOOL_CALLS,
+      workersAiText(`El ${serviceName} cuesta 1850.00 MXN y dura 120 minutos.`),
+    );
+    const provider = createModelProvider({ AI: binding });
+
+    const outcome = await executeAgentRun(
+      { db: env.DB, provider, outbound: queueRecording() },
+      { organizationId, conversationId, triggerMessageId: messageId },
+    );
+
+    expect(outcome.result).toBe("succeeded");
+    // Las dos primeras llamadas anuncian la herramienta; la tercera ya no tiene
+    // ronda con la que ejecutar nada, y anunciarla solo pediría una salida que
+    // la corrida no podría honrar.
+    expect(binding.inputs[0].tools).toHaveLength(1);
+    expect(binding.inputs[1].tools).toHaveLength(1);
+    expect(binding.inputs[2].tools).toBeUndefined();
+    // El precio real del servicio llega al modelo por el turno `tool`.
+    const resultado = binding.inputs[2].messages.at(-1)!;
+    expect(resultado).toMatchObject({ role: "tool", name: "list_services" });
+    expect(JSON.parse(resultado.content)).toEqual({
+      services: [
+        { name: serviceName, durationMinutes: 120, price: "1850.00 MXN" },
+      ],
+    });
+
+    const rows = await toolCallRows(await runIdOf(messageId));
+    expect(
+      rows.results.map((row) => [row.sequence, row.tool_key, row.result]),
+    ).toEqual([
+      [1, "list_services", "succeeded"],
+      [2, "list_services", "succeeded"],
+    ]);
+    const salientes = await outgoingMessages(conversationId);
+    expect(salientes.results).toHaveLength(1);
+    expect(salientes.results[0].text_content).toContain("1850.00 MXN");
+  });
+
+  it("falla cerrado ante una salida real sin texto y sin petición", async () => {
+    const { conversationId, messageId } = await automaticConversation({
+      external: "forma-real-vacia",
+      agent: servicesAgentId,
+    });
+    // El sobre del proveedor, con la respuesta vacía y sin ninguna petición: no
+    // hay nada que ejecutar ni nada que enviar. Una respuesta de texto vacía no
+    // se rellena ni se convierte en otra cosa.
+    const binding = bindingScripted({
+      ...WORKERS_AI_ENVELOPE,
+      response: "",
+      tool_calls: [],
+    });
+    const provider = createModelProvider({ AI: binding });
+
+    const outcome = await executeAgentRun(
+      { db: env.DB, provider, outbound: queueRecording() },
+      { organizationId, conversationId, triggerMessageId: messageId },
+    );
+
+    expect(outcome).toMatchObject({
+      result: "unanswered",
+      status: "failed",
+      failureCode: "MODEL_OUTPUT_INVALID",
+      escalated: true,
+    });
+    expect((await toolCallRows(await runIdOf(messageId))).results)
+      .toHaveLength(0);
+    expect((await outgoingMessages(conversationId)).results).toHaveLength(0);
+  });
+
+  it("falla cerrado ante un contenido que no es texto ni petición", async () => {
+    const { conversationId, messageId } = await automaticConversation({
+      external: "forma-real-ajena",
+      agent: servicesAgentId,
+    });
+    // Un objeto en `response` solo se lee como petición si describe una: leer
+    // cualquier otro como respuesta lo acabaría enviando a la clienta.
+    const binding = bindingScripted({
+      ...WORKERS_AI_ENVELOPE,
+      response: { pensamiento: "no sé qué contestar" },
+      tool_calls: [],
+    });
+    const provider = createModelProvider({ AI: binding });
+
+    const outcome = await executeAgentRun(
+      { db: env.DB, provider, outbound: queueRecording() },
+      { organizationId, conversationId, triggerMessageId: messageId },
+    );
+
+    expect(outcome).toMatchObject({
+      result: "unanswered",
+      status: "failed",
+      failureCode: "MODEL_OUTPUT_INVALID",
+    });
+    expect((await outgoingMessages(conversationId)).results).toHaveLength(0);
+  });
+
+  it("no envía a la clienta la petición que el proveedor dejó sin abrir", async () => {
+    const { conversationId, messageId } = await automaticConversation({
+      external: "peticion-en-cadena",
+      agent: servicesAgentId,
+      text: "¿Cuánto cuesta el balayage?",
+    });
+    // El mismo contenido que el sobre medido trae en `choices[0].message
+    // .content`, pero con `response` sin deserializar. Leerlo como respuesta
+    // mandaría `{"type":"function",…}` a WhatsApp en vez de consultar.
+    const escrita = WORKERS_AI_TOOL_CALL_IN_RESPONSE.choices[0].message.content;
+    const binding = bindingScripted(
+      { ...WORKERS_AI_ENVELOPE, response: escrita, tool_calls: [] },
+      workersAiText(`El ${serviceName} cuesta 1850.00 MXN.`),
+    );
+    const provider = createModelProvider({ AI: binding });
+
+    const outcome = await executeAgentRun(
+      { db: env.DB, provider, outbound: queueRecording() },
+      { organizationId, conversationId, triggerMessageId: messageId },
+    );
+
+    // Lo primero es que la petición no acabe en WhatsApp: es el desenlace que
+    // el corte existe para impedir.
+    const salientes = await outgoingMessages(conversationId);
+    expect(salientes.results).toHaveLength(1);
+    expect(salientes.results[0].text_content).not.toContain("list_services");
+    expect(salientes.results[0].text_content).not.toContain("function");
+    // Y sigue el camino de la petición redactada, con los mismos límites y la
+    // misma traza: es el mismo hecho por otro envoltorio.
+    expect(outcome.result).toBe("succeeded");
+    expect(salientes.results[0].text_content).toContain("1850.00 MXN");
+    const rows = await toolCallRows(await runIdOf(messageId));
+    expect(rows.results.map((row) => [row.tool_key, row.result])).toEqual([
+      ["list_services", "succeeded"],
+    ]);
+  });
+
+  it("envía intacta una respuesta legítima que empieza por llave", async () => {
+    // La regla es estrecha a propósito: se rechaza lo que parsea **y** casa con
+    // la forma de una petición. Un texto que parece un objeto —o que incluso lo
+    // es— sigue siendo la respuesta del agente y viaja tal cual.
+    const casos = [
+      { external: "llave-json", text: '{"horario": "de 10 a 19"}' },
+      { external: "llave-suelta", text: "{Hola! Te espero el jueves}" },
+    ];
+    for (const caso of casos) {
+      const { conversationId, messageId } = await automaticConversation({
+        external: caso.external,
+        agent: bareAgentId,
+      });
+      const binding = bindingScripted(workersAiText(caso.text));
+      const provider = createModelProvider({ AI: binding });
+
+      const outcome = await executeAgentRun(
+        { db: env.DB, provider, outbound: queueRecording() },
+        { organizationId, conversationId, triggerMessageId: messageId },
+      );
+
+      expect(outcome.result).toBe("succeeded");
+      const salientes = await outgoingMessages(conversationId);
+      expect(salientes.results).toHaveLength(1);
+      expect(salientes.results[0].text_content).toBe(caso.text);
+    }
+  });
+
+  it("falla cerrado ante una respuesta más larga de lo que el canal acepta", async () => {
+    const { conversationId, messageId } = await automaticConversation({
+      external: "forma-real-larga",
+      agent: bareAgentId,
+    });
+    const binding = bindingScripted({
+      ...WORKERS_AI_ENVELOPE,
+      response: "a".repeat(MODEL_REPLY_MAX_CHARACTERS + 1),
+      tool_calls: [],
+    });
+    const provider = createModelProvider({ AI: binding });
+
+    const outcome = await executeAgentRun(
+      { db: env.DB, provider, outbound: queueRecording() },
+      { organizationId, conversationId, triggerMessageId: messageId },
+    );
+
+    // No se recorta: un mensaje truncado hacia una clienta es peor que ninguno.
+    expect(outcome).toMatchObject({
+      result: "unanswered",
+      status: "failed",
+      failureCode: "MODEL_OUTPUT_INVALID",
+    });
+    expect((await outgoingMessages(conversationId)).results).toHaveLength(0);
+  });
+
   it("falla cerrado si el proveedor devuelve llamadas sin herramientas anunciadas", async () => {
     const { conversationId, messageId } = await automaticConversation({
       external: "sin-anunciar-proveedor",
@@ -1032,26 +1375,49 @@ describe.sequential("herramientas autorizadas del agente", () => {
       external: "rondas",
       agent: servicesAgentId,
     });
-    const provider = providerScripted(
-      callTo("list_services"),
-      callTo("list_services"),
-      callTo("list_services"),
+    // El proveedor real y las salidas crudas del modelo, no un `ModelReply` ya
+    // construido: la tercera llamada va sin herramientas, así que atraviesa
+    // `parseModelReply` con `toolsOffered: false` y es ahí donde se decide el
+    // código. Guionizar la respuesta ya normalizada saltaba esa validación
+    // entera y afirmaba un desenlace que el proveedor real no produce.
+    const binding = bindingScripted(
+      WORKERS_AI_TOOL_CALL_IN_TOOL_CALLS,
+      WORKERS_AI_TOOL_CALL_IN_RESPONSE,
+      // Sin herramientas anunciadas, este modelo vuelve a escribir la función
+      // dentro del texto: es la avidez que motivó la última corrección.
+      WORKERS_AI_TOOL_CALL_IN_RESPONSE,
     );
+    const provider = createModelProvider({ AI: binding });
 
     const outcome = await executeAgentRun(
       { db: env.DB, provider, outbound: queueRecording() },
       { organizationId, conversationId, triggerMessageId: messageId },
     );
 
+    // Agotar el presupuesto de rondas y devolver basura son dos causas
+    // distintas, y la traza tiene que distinguirlas: la corrida cierra con el
+    // código del presupuesto y no con el de la salida inválida.
     expect(outcome).toMatchObject({
       result: "unanswered",
       status: "failed",
       failureCode: "TOOL_ROUNDS_EXCEEDED",
       escalated: true,
     });
-    // Tres llamadas al modelo y dos rondas ejecutadas: la tercera no se ejecuta.
-    expect(provider.requests).toHaveLength(3);
-    const rows = await toolCallRows(await runIdOf(messageId));
+    const runId = await runIdOf(messageId);
+    const run = await env.DB.prepare(
+      `SELECT status, failure_code FROM agent_runs WHERE id = ?`,
+    ).bind(runId).first<{ status: string; failure_code: string }>();
+    expect(run).toMatchObject({
+      status: "failed",
+      failure_code: "TOOL_ROUNDS_EXCEEDED",
+    });
+    // Tres llamadas al modelo y dos rondas ejecutadas: la tercera no se
+    // ejecuta, y esa tercera llamada no anuncia ninguna herramienta.
+    expect(binding.inputs).toHaveLength(3);
+    expect(binding.inputs[0].tools).toHaveLength(1);
+    expect(binding.inputs[1].tools).toHaveLength(1);
+    expect(binding.inputs[2].tools).toBeUndefined();
+    const rows = await toolCallRows(runId);
     expect(rows.results.map((row) => row.sequence)).toEqual([1, 2]);
     expect((await outgoingMessages(conversationId)).results).toHaveLength(0);
 
@@ -1071,6 +1437,113 @@ describe.sequential("herramientas autorizadas del agente", () => {
       previous_attention_mode: "automatic",
       next_attention_mode: "human",
     });
+  });
+
+  it("acota el marco del prompt a lo que cada llamada anuncia de verdad", async () => {
+    const { conversationId, messageId } = await automaticConversation({
+      external: "marco-por-llamada",
+      agent: servicesAgentId,
+      text: "¿Cuánto cuesta el balayage?",
+    });
+    const binding = bindingScripted(
+      WORKERS_AI_TOOL_CALL_IN_TOOL_CALLS,
+      WORKERS_AI_TOOL_CALL_IN_TOOL_CALLS,
+      workersAiText(`El ${serviceName} cuesta 1850.00 MXN.`),
+    );
+    const provider = createModelProvider({ AI: binding });
+
+    const outcome = await executeAgentRun(
+      { db: env.DB, provider, outbound: queueRecording() },
+      { organizationId, conversationId, triggerMessageId: messageId },
+    );
+
+    expect(outcome.result).toBe("succeeded");
+    const marco = (index: number) => {
+      const [system] = binding.inputs[index].messages;
+      expect(system.role).toBe("system");
+      return system.content;
+    };
+    // Mientras quede ronda, el marco invita a consultar.
+    expect(marco(0)).toContain("Consulta con las herramientas");
+    expect(marco(1)).toContain("Consulta con las herramientas");
+    // La tercera no lleva herramientas, así que tampoco invita a usarlas: el
+    // marco no puede empujar al modelo a pedir lo que ya no existe.
+    expect(binding.inputs[2].tools).toBeUndefined();
+    expect(marco(2)).not.toContain("Consulta con las herramientas");
+    // Pero esa misma llamada trae el precio que la herramienta devolvió, así
+    // que el marco no puede prohibir afirmarlo: sería darle el dato y la orden
+    // de no usarlo en el mismo request. Pide responder con lo consultado.
+    const resultado = binding.inputs[2].messages.at(-1)!;
+    expect(resultado).toMatchObject({ role: "tool", name: "list_services" });
+    expect(resultado.content).toContain("1850.00 MXN");
+    expect(marco(2)).not.toContain("No afirmes servicios, precios");
+    expect(marco(2)).toContain("lo que las herramientas ya te devolvieron");
+    // Lo que ninguna herramienta expone conserva su prohibición en las tres
+    // llamadas: ninguna ronda podía consultarlo (ADR-0017 §8).
+    for (const index of [0, 1, 2]) {
+      expect(marco(index)).toContain(
+        "No afirmes horarios de atención, disponibilidad ni promociones",
+      );
+    }
+    expect((await outgoingMessages(conversationId)).results).toHaveLength(1);
+  });
+
+  it("conserva la prohibición cuando las dos rondas se fueron en rechazos", async () => {
+    const { conversationId, messageId } = await automaticConversation({
+      external: "marco-sin-datos",
+      agent: servicesAgentId,
+      text: "¿Cuánto cuesta el balayage?",
+    });
+    // El agente declara `list_services` y el modelo insiste con otra: existe en
+    // el catálogo, pero esta versión no la declaró, así que no se le anunció y
+    // no se ejecuta. Las dos rondas se gastan sin consultar nada.
+    const binding = bindingScripted(
+      workersAiToolCall("get_own_appointment"),
+      workersAiToolCall("get_own_appointment"),
+      workersAiText("Déjame confirmarlo con una persona del equipo."),
+    );
+    const provider = createModelProvider({ AI: binding });
+
+    const outcome = await executeAgentRun(
+      { db: env.DB, provider, outbound: queueRecording() },
+      { organizationId, conversationId, triggerMessageId: messageId },
+    );
+
+    expect(outcome.result).toBe("succeeded");
+    const rows = await toolCallRows(await runIdOf(messageId));
+    expect(rows.results.map((row) => [row.result, row.failure_code])).toEqual([
+      ["rejected", "TOOL_NOT_OFFERED"],
+      ["rejected", "TOOL_NOT_OFFERED"],
+    ]);
+
+    // Lo que el hilo lleva a la tercera llamada no es un dato del negocio: son
+    // dos errores redactados. No hay nada con lo que responder.
+    expect(binding.inputs).toHaveLength(3);
+    expect(binding.inputs[2].tools).toBeUndefined();
+    const resultados = binding.inputs[2].messages.filter(
+      (message) => message.role === "tool",
+    );
+    expect(resultados).toHaveLength(2);
+    for (const resultado of resultados) {
+      expect(JSON.parse(resultado.content)).toEqual({ error: "no_permitido" });
+    }
+
+    const marco = (index: number) => {
+      const [system] = binding.inputs[index].messages;
+      expect(system.role).toBe("system");
+      return system.content;
+    };
+    // El marco de esa tercera llamada es el de siempre, entero: gastar el
+    // presupuesto no es haber consultado, y levantar aquí la prohibición sobre
+    // precios dejaría al agente inventándolos justo en la corrida que no
+    // obtuvo ni un dato.
+    expect(marco(2)).toContain("No afirmes servicios, precios");
+    expect(marco(2)).not.toContain("lo que las herramientas ya te devolvieron");
+    expect(marco(2)).not.toContain("Consulta con las herramientas");
+    // Mientras quedaba ronda sí se invitaba a consultar: lo que cambia es el
+    // desenlace de esta corrida, no la regla de las llamadas anteriores.
+    expect(marco(0)).toContain("Consulta con las herramientas");
+    expect(marco(1)).toContain("Consulta con las herramientas");
   });
 
   it("devuelve la conversación al equipo al pasarse del límite de llamadas", async () => {

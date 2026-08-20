@@ -147,6 +147,39 @@ function toTurn(message: ConversationMessage): ModelTurn | null {
 }
 
 /**
+ * Lo que ninguna herramienta del catálogo expone, y que por tanto el agente
+ * sigue sin poder afirmar. Es la parte del marco que sobrevive a que queden
+ * rondas o no: horarios de atención, disponibilidad y promociones no tienen
+ * dueño en ningún esquema entregado, así que no hay ronda que pueda
+ * consultarlos (ADR-0017 §8).
+ */
+const UNCONSULTABLE_RULE =
+  `No afirmes horarios de atención, disponibilidad ni promociones: ninguna`
+  + ` herramienta te los da y no puedes consultarlos. Si te los piden, dilo y`
+  + ` ofrece que una persona del equipo lo confirme.`;
+
+/**
+ * En qué estado de herramientas llega la corrida a **esta** llamada. Son tres y
+ * no dos, y confundir los dos últimos es lo que hacía que el modelo recibiera
+ * el precio consultado y la orden de no afirmarlo en el mismo request:
+ *
+ * - `none`: esta corrida no consultó nada y ya no va a consultarlo. O no tenía
+ *   ninguna herramienta autorizada, o las que tenía no devolvieron ni un
+ *   resultado. En ambos casos el modelo está donde ha estado siempre —sin
+ *   ningún dato del negocio—, y el marco conserva la prohibición entera.
+ * - `offered`: esta llamada anuncia herramientas y queda ronda para ejecutarlas.
+ * - `spent`: alguna herramienta ya devolvió resultado y no quedan rondas. Los
+ *   resultados están en el hilo, así que prohibir afirmarlos sería pedirle que
+ *   ignore lo que el propio backend le acaba de dar.
+ *
+ * El tercero lo elige haber **obtenido dato**, no haber gastado el presupuesto.
+ * Un rechazo y un fallo dejan en el hilo un error redactado, que no es materia
+ * con la que responder: elegir `spent` por haber gastado las rondas levantaría
+ * la prohibición sobre precios justo en la corrida que no consultó nada.
+ */
+type ToolFraming = "none" | "offered" | "spent";
+
+/**
  * El marco que el backend impone alrededor de las instrucciones publicadas. El
  * modelo no puede modificarlo: organización, conversación y límites los fija
  * quien llama, no lo que el contacto escriba.
@@ -154,27 +187,34 @@ function toTurn(message: ConversationMessage): ModelTurn | null {
  * La segunda regla acota lo que el agente puede afirmar del negocio, y se acota
  * con lo que la corrida realmente puede consultar. Con herramientas anunciadas,
  * el catálogo y la cita del contacto dejan de ser materia de invención y pasan
- * a consultarse; lo que ninguna herramienta expone —horarios de atención,
- * disponibilidad, promociones— conserva su prohibición. Sin herramientas, la
- * regla queda entera. No es un control de seguridad —un prompt nunca lo es—
- * sino la respuesta honesta a lo que el agente no puede saber.
+ * a consultarse; lo que ninguna herramienta expone conserva su prohibición. Sin
+ * herramientas autorizadas, la regla queda entera. No es un control de
+ * seguridad —un prompt nunca lo es— sino la respuesta honesta a lo que el
+ * agente no puede saber.
+ *
+ * Se construye **por llamada** y no una vez por corrida, porque lo que la
+ * corrida puede consultar cambia dentro de ella: la llamada que ya no anuncia
+ * ninguna herramienta tampoco puede invitar a usarlas, y la que ya recibió los
+ * resultados tiene que responder con ellos (ADR-0017 §8).
  */
 function buildInstructions(
   version: { instructions: string; playbook: string | null },
-  options: { toolsOffered: boolean },
+  options: { framing: ToolFraming },
 ): string {
+  const businessRule: Record<ToolFraming, string> = {
+    offered: `Consulta con las herramientas disponibles lo que necesites antes`
+      + ` de responder, y responde con lo que devuelvan. ${UNCONSULTABLE_RULE}`,
+    spent: `Responde ahora con lo que las herramientas ya te devolvieron en`
+      + ` esta conversación: no queda ninguna consulta pendiente y no vas a`
+      + ` recibir más resultados. ${UNCONSULTABLE_RULE}`,
+    none: `No afirmes servicios, precios, promociones ni horarios disponibles que no`
+      + ` estén escritos arriba: no puedes consultarlos. Si te los piden, dilo y`
+      + ` ofrece que una persona del equipo lo confirme.`,
+  };
   return [
     version.instructions,
     version.playbook ? `Playbook:\n${version.playbook}` : null,
-    options.toolsOffered
-      ? `Consulta con las herramientas disponibles lo que necesites antes de`
-        + ` responder, y responde con lo que devuelvan. No afirmes horarios de`
-        + ` atención, disponibilidad ni promociones: ninguna herramienta te los`
-        + ` da y no puedes consultarlos. Si te los piden, dilo y ofrece que una`
-        + ` persona del equipo lo confirme.`
-      : `No afirmes servicios, precios, promociones ni horarios disponibles que no`
-        + ` estén escritos arriba: no puedes consultarlos. Si te los piden, dilo y`
-        + ` ofrece que una persona del equipo lo confirme.`,
+    businessRule[options.framing],
     `Responde con un solo mensaje de WhatsApp, en el idioma del contacto y con`
       + ` un máximo de ${MODEL_REPLY_MAX_CHARACTERS} caracteres.`,
   ].filter((part): part is string => part !== null).join("\n\n");
@@ -410,11 +450,16 @@ export async function executeAgentRun(
    * fila y su entrada de auditoría antes de responder, incluidas las que no
    * ejecutan nada: un rechazo también es una decisión que alguien tiene que
    * poder revisar.
+   *
+   * `produced` distingue el contenido que trae datos del CRM del que solo trae
+   * un error redactado. Lo necesita el marco de la última llamada, que no puede
+   * invitar a responder «con lo que las herramientas devolvieron» cuando
+   * ninguna devolvió nada.
    */
   const settleToolCall = async (
     call: ModelToolCall,
     sequence: number,
-  ): Promise<string> => {
+  ): Promise<{ content: string; produced: boolean }> => {
     const record = (
       result: "succeeded" | "rejected" | "failed",
       failureCode: string | null,
@@ -441,7 +486,7 @@ export async function executeAgentRun(
     const tool = offered.find((candidate) => candidate.key === call.name);
     if (tool === undefined) {
       await record("rejected", "TOOL_NOT_OFFERED", call.name);
-      return TOOL_RESULT_REJECTED;
+      return { content: TOOL_RESULT_REJECTED, produced: false };
     }
     // Ninguna herramienta del corte recibe argumentos, así que un proveedor que
     // omita el campo —o que lo emita como `null`— no está proponiendo nada
@@ -454,12 +499,12 @@ export async function executeAgentRun(
       // que no validan —o una clave que la herramienta no declara— no describen
       // la consulta que se iba a hacer.
       await record("rejected", "TOOL_ARGUMENTS_INVALID", tool.key);
-      return TOOL_RESULT_REJECTED;
+      return { content: TOOL_RESULT_REJECTED, produced: false };
     }
     try {
       const result = await tool.run(toolContext, args.data);
       await record("succeeded", null, tool.key);
-      return JSON.stringify(result);
+      return { content: JSON.stringify(result), produced: true };
     } catch {
       // El detalle no viaja a ninguna parte: puede citar la consulta o la fila
       // que la produjo, y el modelo lo repetiría a la clienta.
@@ -473,26 +518,69 @@ export async function executeAgentRun(
         conversationId: input.conversationId,
         runId,
       }));
-      return TOOL_RESULT_FAILED;
+      return { content: TOOL_RESULT_FAILED, produced: false };
     }
   };
 
-  const instructions = buildInstructions(version, {
-    toolsOffered: offered.length > 0,
-  });
   let rounds = 0;
   let executed = 0;
+  /**
+   * Si alguna llamada de **esta** corrida devolvió datos del CRM. No lo dice
+   * haber ejecutado ni haber gastado las rondas: un rechazo y un fallo también
+   * empujan un turno `tool` al hilo, pero lo que llevan es un error redactado.
+   */
+  let produced = false;
   let reply: ModelReply;
   for (;;) {
+    // Las herramientas se anuncian mientras quede una ronda para ejecutarlas.
+    // Gastada la última, anunciarlas solo invita a una petición que la corrida
+    // ya no puede honrar, y la conversación acabaría en el equipo sin haber
+    // respondido nada. Es la misma regla de todo el corte —no se anuncia lo que
+    // no se puede autorizar— aplicada un paso antes: la llamada que tiene que
+    // responder se hace sin herramientas.
+    const roundsSpent = rounds >= AGENT_RUN_MAX_TOOL_ROUNDS;
+    const announced = roundsSpent ? [] : declarations;
     try {
       reply = await deps.provider.generate({
         model: version.model,
-        instructions,
+        // El marco se construye con lo que **esta** llamada anuncia de verdad:
+        // pedirle que consulte con las herramientas disponibles en la llamada
+        // que ya no lleva ninguna es empujarlo a pedir lo que no existe, y esa
+        // petición cuesta la respuesta entera. Y la corrida que ya obtuvo el
+        // dato lo tiene en el hilo: prohibirle afirmarlo sería darle el dato y
+        // la orden de no usarlo en el mismo request.
+        instructions: buildInstructions(version, {
+          framing: announced.length > 0
+            ? "offered"
+            // Sin ronda que gastar, lo que decide es si alguna herramienta
+            // devolvió algo. Una corrida cuyas llamadas se fueron todas en
+            // rechazos o fallos no consultó nada —el hilo solo trae errores
+            // redactados—, así que conserva el marco entero igual que la que
+            // nunca tuvo herramientas autorizadas.
+            : produced
+              ? "spent"
+              : "none",
+        }),
         turns,
         maxOutputTokens: AGENT_RUN_MAX_OUTPUT_TOKENS,
-        ...(declarations.length === 0 ? {} : { tools: declarations }),
+        ...(announced.length === 0 ? {} : { tools: announced }),
       });
     } catch (caught) {
+      // Pedir una herramienta en la llamada que fue sin ellas *porque la
+      // corrida gastó sus rondas* no es una salida inválida: es la tercera
+      // petición de ADR-0017 §7. El desenlace no cambia —falla cerrado, escala
+      // y deja traza—, pero el código sí: quien lea la traza tiene que poder
+      // distinguir un modelo que devolvió basura de uno que agotó su
+      // presupuesto. Que la corrida no tuviera ninguna herramienta autorizada
+      // sigue siendo salida inválida, y por eso se exige `offered`.
+      if (
+        caught instanceof ModelProviderError &&
+        caught.reason === "TOOL_CALL_NOT_OFFERED" &&
+        roundsSpent &&
+        offered.length > 0
+      ) {
+        return unanswered("failed", "TOOL_ROUNDS_EXCEEDED");
+      }
       const failureCode = caught instanceof ModelProviderError
         ? caught.code
         : "MODEL_UNAVAILABLE";
@@ -500,12 +588,15 @@ export async function executeAgentRun(
     }
     if (reply.kind === "text") break;
 
-    // Pedir herramientas cuando no se anunció ninguna no es una respuesta que
-    // el runtime pueda ejecutar, venga del proveedor que venga.
+    // Una corrida sin ninguna herramienta autorizada no tiene nada que
+    // ejecutar, venga la petición del proveedor que venga: es salida inválida y
+    // no la tercera petición de una corrida que sí las tenía.
     if (offered.length === 0) {
       return unanswered("failed", "MODEL_OUTPUT_INVALID");
     }
-    if (rounds >= AGENT_RUN_MAX_TOOL_ROUNDS) {
+    // La misma condición que dejó esta llamada sin herramientas, alcanzable
+    // por un proveedor que construya la respuesta sin validar la salida.
+    if (roundsSpent) {
       return unanswered("failed", "TOOL_ROUNDS_EXCEEDED");
     }
     if (executed + reply.calls.length > AGENT_RUN_MAX_TOOL_CALLS) {
@@ -517,12 +608,13 @@ export async function executeAgentRun(
     turns.push({ role: "assistant", content: "", toolCalls: reply.calls });
     for (const call of reply.calls) {
       executed += 1;
-      const content = await settleToolCall(call, executed);
+      const settled = await settleToolCall(call, executed);
+      produced ||= settled.produced;
       turns.push({
         role: "tool",
         name: call.name,
         toolCallId: call.id,
-        content,
+        content: settled.content,
       });
     }
   }
