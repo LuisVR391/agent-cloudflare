@@ -1,5 +1,11 @@
 import { execFileSync } from "node:child_process";
-import { readFileSync, mkdirSync, writeFileSync, existsSync } from "node:fs";
+import {
+  readFileSync,
+  readdirSync,
+  mkdirSync,
+  writeFileSync,
+  existsSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -298,12 +304,162 @@ function markOnce(input, kind, runtime = {}) {
   }
 }
 
+// El plan activo vive fuera de git, en `.plans/<slug>/SPEC.md`. Su frontmatter
+// declara la rama que lo implementa; la sesión solo recupera el que corresponde
+// a la rama actual y sigue vigente. Un frontmatter con marcadores `<...>` es una
+// plantilla sin rellenar y no cuenta como plan.
+function readFrontmatter(source) {
+  const match = source.match(/^---\n([\s\S]*?)\n---/);
+  if (!match) return null;
+  const fields = {};
+  for (const line of match[1].split("\n")) {
+    const pair = line.match(/^([A-Za-z_-]+):\s*(.*)$/);
+    if (!pair) continue;
+    const value = pair[2].trim().replace(/^["']|["']$/g, "");
+    if (!value || /^<.*>$/.test(value)) continue;
+    fields[pair[1]] = value;
+  }
+  return fields;
+}
+
+function activePlan(cwd, policy, gitRunner = runGit) {
+  const settings = policy.planArtifacts;
+  if (!settings) return null;
+  const branch = gitRunner(["rev-parse", "--abbrev-ref", "HEAD"], cwd);
+  if (!branch) return null;
+  const root = join(cwd, settings.directory);
+  let entries = [];
+  try {
+    entries = readdirSync(root, { withFileTypes: true });
+  } catch {
+    return null;
+  }
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const specPath = join(root, entry.name, settings.specFileName);
+    let fields;
+    try {
+      fields = readFrontmatter(readFileSync(specPath, "utf8"));
+    } catch {
+      continue;
+    }
+    if (!fields) continue;
+    const estado = (fields.estado || "activo").toLowerCase();
+    if (estado !== "activo") continue;
+    const matchesBranch =
+      fields.rama === branch ||
+      (fields.slug && branch.includes(fields.slug)) ||
+      entry.name === branch ||
+      branch.includes(entry.name);
+    if (!matchesBranch) continue;
+    return {
+      feature: fields.feature || entry.name,
+      path: `${settings.directory}/${entry.name}/${settings.specFileName}`,
+      issue: fields.issue || null,
+    };
+  }
+  return null;
+}
+
+// El rol de solo lectura evalúa una lista de comandos permitidos, no una de
+// prohibidos: cualquier binario que no esté declarado se rechaza. Es la única
+// forma de garantizar que un agente de verificación no modifique lo que juzga.
+function readOnlyCommandViolation(command, policy) {
+  const role = policy.readOnlyRole;
+  if (!role) return null;
+  const text = String(command || "").trim();
+  if (!text) return null;
+
+  for (const pattern of role.blockedShellPatterns || []) {
+    if (new RegExp(pattern).test(text)) {
+      return "usa redirección, sustitución de comandos o escritura de archivos";
+    }
+  }
+  for (const pattern of role.blockedArgumentPatterns || []) {
+    if (new RegExp(pattern).test(text)) {
+      return "incluye un argumento que escribe en disco";
+    }
+  }
+
+  for (const segment of text.split(/(?:&&|\|\||[;|])/)) {
+    const tokens = segment.trim().split(/\s+/).filter(Boolean);
+    // Las asignaciones previas al binario no lo convierten en otro comando.
+    while (tokens.length > 0 && /^[A-Za-z_][A-Za-z0-9_]*=/.test(tokens[0])) {
+      tokens.shift();
+    }
+    if (tokens.length === 0) continue;
+    const base = tokens[0].split("/").pop();
+    if (!(role.allowedCommands || []).includes(base)) {
+      return `ejecuta \`${base}\`, que no está en la lista de lectura`;
+    }
+    if (base === "git") {
+      const subcommand = tokens.find(
+        (token, index) => index > 0 && !token.startsWith("-"),
+      );
+      if (!(role.allowedGitSubcommands || []).includes(subcommand)) {
+        return `ejecuta \`git ${subcommand || ""}\`, que no es un subcomando de lectura`;
+      }
+    }
+    if (base === "npm") {
+      const script = tokens[1] === "run" ? tokens[2] : null;
+      if (!script || !(role.allowedNpmScripts || []).includes(script)) {
+        return "ejecuta un script de npm fuera de los permitidos para verificar";
+      }
+    }
+  }
+  return null;
+}
+
+// El prompt se compara sin acentos ni mayúsculas: quien escribe deprisa no
+// escribe «planificación» con tilde, y el recordatorio dejaría de aparecer justo
+// cuando más sirve.
+function normalizeIntent(value) {
+  return String(value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+// Recordatorio, nunca bloqueo: el prompt sigue su camino y el agente decide.
+// Un corte que ya tiene plan se continúa por el ciclo; uno que no lo tiene se
+// planifica antes de escribir código.
+function skillReminder(input, policy, runtime = {}) {
+  const routing = policy.skillRouting;
+  if (!routing) return null;
+  const prompt = normalizeIntent(input.prompt);
+  if (!prompt) return null;
+  const wantsPlanning = matchesAny(prompt, routing.planningIntentPatterns);
+  const wantsImplementation = matchesAny(
+    prompt,
+    routing.implementationIntentPatterns,
+  );
+  if (!wantsPlanning && !wantsImplementation) return null;
+
+  const prefix = (runtime.skillCommand || "/")[0];
+  const plan = activePlan(
+    input.cwd || repositoryRoot,
+    policy,
+    runtime.runGit || runGit,
+  );
+  if (plan) {
+    return `Esta rama ya tiene un plan aprobado en ${plan.path}. Continúa por ${prefix}${routing.cycleSkill} en vez de volver a planificar; el SPEC es el contrato del corte.`;
+  }
+  if (wantsPlanning) {
+    return `Usa ${prefix}${routing.planningSkill} para investigar, clasificar las decisiones y escribir el SPEC antes de tocar código.`;
+  }
+  return `Este corte no tiene plan. Si no es un cambio trivial, pasa antes por ${prefix}${routing.planningSkill}: sin criterios de aceptación no hay forma de verificar que terminó.`;
+}
+
 function handleSessionStart(input, policy, runtime = {}) {
   const sourceList = policy.sourcesOfTruth.join(", ");
   const skill = runtime.skillCommand || "deliver-agent-cloudflare-change";
+  const plan = activePlan(input.cwd || repositoryRoot, policy, runtime.runGit || runGit);
+  const planLine = plan
+    ? ` Esta rama tiene un plan activo: ${plan.feature} en ${plan.path}${plan.issue ? ` (issue ${plan.issue})` : ""}; léelo antes de continuar.`
+    : "";
   return addContext(
     "SessionStart",
-    `Repositorio Agent Cloudflare: lee ${sourceList}. Confirma fase, dependencias, seguridad, pruebas y efecto en Documentación/ADR/Roadmap antes de entregar. Usa ${skill} para cambios del repositorio.`,
+    `Repositorio Agent Cloudflare: lee ${sourceList}. Confirma fase, dependencias, seguridad, pruebas y efecto en Documentación/ADR/Roadmap antes de entregar. Usa ${skill} para cambios del repositorio.${planLine}`,
   );
 }
 
@@ -314,7 +470,7 @@ function handleSubagentStart(input, policy) {
   );
 }
 
-function handleUserPromptSubmit(input, policy) {
+function handleUserPromptSubmit(input, policy, runtime = {}) {
   const prompt = String(input.prompt || "");
   if (matchesAny(prompt, policy.highConfidenceSecretPatterns)) {
     return {
@@ -323,7 +479,8 @@ function handleUserPromptSubmit(input, policy) {
         "El prompt parece contener un secreto de alta confianza. Retíralo, rótalo si fue real y vuelve a enviar una versión redactada.",
     };
   }
-  return null;
+  const reminder = skillReminder(input, policy, runtime);
+  return reminder ? addContext("UserPromptSubmit", reminder) : null;
 }
 
 function handlePreToolUse(input, policy, runtime = {}) {
@@ -331,6 +488,22 @@ function handlePreToolUse(input, policy, runtime = {}) {
   const toolName = input.tool_name || "";
   const command = String(input.tool_input?.command || "");
   const gitRunner = runtime.runGit || runGit;
+
+  // Un agente declarado de solo lectura no escribe por ninguna vía: ni con las
+  // herramientas de edición ni con un comando que redirija, borre o mueva.
+  if (runtime.role === "readOnly") {
+    if (isFileTool(toolName)) {
+      return denyPreToolUse(
+        "Bloqueado: este agente verifica y no modifica archivos. Reporta el hallazgo en vez de corregirlo.",
+      );
+    }
+    const violation = readOnlyCommandViolation(command, policy);
+    if (violation) {
+      return denyPreToolUse(
+        `Bloqueado: este agente verifica y no modifica el repositorio; el comando ${violation}. Usa una lectura equivalente y reporta el hallazgo.`,
+      );
+    }
+  }
 
   if (isFileTool(toolName)) {
     const migration = migrationViolationFromOperations(
@@ -469,7 +642,7 @@ export function handleHook(input, policy = loadPolicy(), runtime = {}) {
     case "SubagentStart":
       return handleSubagentStart(input, policy);
     case "UserPromptSubmit":
-      return handleUserPromptSubmit(input, policy);
+      return handleUserPromptSubmit(input, policy, runtime);
     case "PreToolUse":
       return handlePreToolUse(input, policy, runtime);
     case "PostToolUse":

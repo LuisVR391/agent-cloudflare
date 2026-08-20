@@ -152,6 +152,13 @@ descubrimiento, verificación y límites.
 9. Actualiza la fila del roadmap si el PR completa, bloquea o cambia un
    entregable, enlazando issue y PR como evidencia.
 
+Un corte con criterios de aceptación, migración o decisiones de negocio se
+planifica antes de escribirse, y su plan vive en `.plans/<slug>/SPEC.md`, fuera
+del control de versiones. La [guía de continuidad](./.docs/operations/agent-continuity.md)
+describe los skills que organizan ese trabajo y los roles que lo ejecutan; la
+decisión está en [ADR-0016](./.docs/decisions/ADR-0016-multi-agent-delivery-cycle.md).
+Quien implementa un criterio no verifica su propio cumplimiento.
+
 Los commits deben ser coherentes por responsabilidad. Un PR debe explicar
 alcance, impacto, validación, riesgos y cualquier operación externa pendiente.
 Además, debe declarar explícitamente el impacto en `Documentación`, `ADR`,

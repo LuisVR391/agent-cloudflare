@@ -66,6 +66,100 @@
     "environmentVariable": "AGENT_PUSH_CONFIRMED",
     "value": "1"
   },
+  "planArtifacts": {
+    "directory": ".plans",
+    "specFileName": "SPEC.md"
+  },
+  "skillRouting": {
+    "planningSkill": "plan-agent-cloudflare-change",
+    "cycleSkill": "run-agent-cloudflare-cycle",
+    "planningIntentPatterns": [
+      "\\bplan(ea|ifica)\\w*\\b",
+      "\\bplan de (implementacion|trabajo|entrega)\\b",
+      "\\bdise(n|ñ)a(r|mos)? (la|una|el) (feature|funcionalidad|pantalla|api)\\b",
+      "\\bcriterios de aceptacion\\b",
+      "\\bspec\\b"
+    ],
+    "implementationIntentPatterns": [
+      "\\bimplementa(r|mos|remos)?\\b",
+      "\\bcodifica(r|mos)?\\b",
+      "\\bconstruye(mos)?\\b",
+      "\\bdesarrolla(r|mos)?\\b",
+      "\\bretoma(r|mos)?\\b",
+      "\\barranca(r|mos)? (el|la|con)\\b",
+      "\\bcontinua(r|mos)? (el|la|con)\\b",
+      "\\bresuelve el issue\\b",
+      "\\bcorrige\\b"
+    ]
+  },
+  "readOnlyRole": {
+    "allowedCommands": [
+      "basename",
+      "cat",
+      "column",
+      "comm",
+      "cut",
+      "diff",
+      "dirname",
+      "echo",
+      "find",
+      "git",
+      "grep",
+      "head",
+      "jq",
+      "ls",
+      "nl",
+      "npm",
+      "printf",
+      "pwd",
+      "rg",
+      "sed",
+      "sort",
+      "stat",
+      "tail",
+      "tr",
+      "uniq",
+      "wc"
+    ],
+    "allowedGitSubcommands": [
+      "blame",
+      "branch",
+      "cat-file",
+      "describe",
+      "diff",
+      "log",
+      "ls-files",
+      "merge-base",
+      "rev-parse",
+      "shortlog",
+      "show",
+      "status"
+    ],
+    "allowedNpmScripts": [
+      "check:agents",
+      "db:migrations:list",
+      "test",
+      "test:client",
+      "test:worker"
+    ],
+    "blockedArgumentPatterns": [
+      "(^|\\s)-i(\\s|$)",
+      "--in-place",
+      "(^|\\s)-delete(\\s|$)",
+      "(^|\\s)-exec(dir)?(\\s|$)",
+      "(^|\\s)-ok(dir)?(\\s|$)",
+      "(^|\\s)-fprint(f)?(\\s|$)",
+      "--write(\\s|=|$)",
+      "--fix(\\s|=|$)"
+    ],
+    "blockedShellPatterns": [
+      ">",
+      "<<",
+      "\\$\\(",
+      "`",
+      "(^|[;&|]\\s*|\\s)tee(\\s|$)"
+    ]
+  },
   "blockedCommandPatterns": [
     {
       "id": "git-reset-hard",

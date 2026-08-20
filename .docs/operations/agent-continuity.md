@@ -15,7 +15,9 @@ una sola vez. La decisión está registrada en
 
 | Componente | Responsabilidad |
 | --- | --- |
-| [Skill de entrega](../../.agents/skills/deliver-agent-cloudflare-change/SKILL.md) | Organiza inspección, alcance, implementación, documentación, validación y publicación. |
+| [Skill de planificación](../../.agents/skills/plan-agent-cloudflare-change/SKILL.md) | Investiga el estado real, clasifica cada decisión y produce el SPEC con criterios verificables. |
+| [Skill del ciclo](../../.agents/skills/run-agent-cloudflare-cycle/SKILL.md) | Reparte el SPEC, verifica de forma independiente, registra findings y declara el cierre. |
+| [Skill de entrega](../../.agents/skills/deliver-agent-cloudflare-change/SKILL.md) | Audita el diff, declara el impacto, comitea y publica con trazabilidad. |
 | [Política mecánica](../../.agents/guard/policy.json) | Declara fuentes de verdad, rutas, secretos, comandos bloqueados y mapa documental. |
 | [Núcleo del guardrail](../../.agents/guard/project-guard.mjs) | Evalúa cada evento sin registrar el prompt, payload o secreto recibido. |
 | [Validador](../../.agents/guard/validate-agent-config.mjs) | Comprueba estructura, referencias, configuración de ambas integraciones y cuerpo del PR en CI. |
@@ -24,6 +26,8 @@ una sola vez. La decisión está registrada en
 | [Ajustes de Claude Code](../../.claude/settings.json) y [su adaptador](../../.claude/hooks/project-guard.mjs) | Registran los eventos de Claude Code, sus permisos denegados y la identidad del agente. |
 | [Skill de shadcn](../../.agents/skills/shadcn/SKILL.md) | Aporta el contexto real del proyecto, las convenciones del CLI y las reglas de composición de la interfaz. |
 | [Servidor MCP para Claude Code](../../.mcp.json) y [para Codex](../../.codex/config.toml) | Declaran el servidor de shadcn en cada agente para consultar e instalar desde los registros. |
+| [Subagentes de Claude Code](../../.claude/agents/) | Declaran los roles del ciclo de entrega: tres implementadores por dominio y dos agentes sin escritura. |
+| [Adaptador de solo lectura](../../.claude/hooks/readonly-guard.mjs) | Aplica el rol de lectura del núcleo en los turnos del revisor, registrado en su propia definición. |
 | [Lockfile de skills](../../skills-lock.json) | Fija el origen y el hash de cada skill externa para que su versión sea reproducible. |
 
 Los adaptadores no contienen reglas. Solo declaran cómo se identifica el agente
@@ -33,18 +37,25 @@ y cómo se invoca el skill; toda decisión pertenece al núcleo compartido.
 
 ### Codex
 
-Codex descubre automáticamente el skill desde `.agents/skills` al trabajar
-dentro del repositorio. Puede invocarse explícitamente con:
+Codex descubre automáticamente los skills desde `.agents/skills` al trabajar
+dentro del repositorio. Se invocan explícitamente con:
 
 ```text
+$plan-agent-cloudflare-change
+$run-agent-cloudflare-cycle
 $deliver-agent-cloudflare-change
 ```
+
+Los tres están disponibles en ambos agentes, pero el del ciclo asume
+subagentes: en Codex describe el método —criterios, findings, severidad y
+cierre— sin la verificación independiente, porque no hay a quién delegarla.
 
 Los hooks locales solo se cargan en un proyecto confiable y sus comandos
 requieren revisión humana. Después de actualizar la rama:
 
 1. Inicia o reinicia Codex desde cualquier directorio dentro del repositorio.
 2. Ejecuta `/skills` y confirma que aparecen
+   `plan-agent-cloudflare-change`, `run-agent-cloudflare-cycle`,
    `deliver-agent-cloudflare-change` y `shadcn`.
 3. Ejecuta `/hooks`.
 4. Revisa el origen `.codex/hooks.json`, el comando exacto y los eventos.
@@ -58,10 +69,12 @@ en los hooks requerirá una revisión nueva. No se debe usar
 ### Claude Code
 
 Claude Code carga [`CLAUDE.md`](../../CLAUDE.md), que importa `AGENTS.md` con
-`@AGENTS.md`. El skill se descubre desde `.claude/skills`, que es un symlink al
-directorio único en `.agents/skills`. Se invoca con:
+`@AGENTS.md`. Los skills se descubren desde `.claude/skills`, que son symlinks al
+directorio único en `.agents/skills`. Se invocan con:
 
 ```text
+/plan-agent-cloudflare-change
+/run-agent-cloudflare-cycle
 /deliver-agent-cloudflare-change
 ```
 
@@ -72,6 +85,7 @@ de actualizar la rama:
 1. Inicia o reinicia Claude Code dentro del repositorio y acepta la confianza
    del proyecto solo si revisaste el contenido de `.claude/` y `.mcp.json`.
 2. Ejecuta `/skills` y confirma que aparecen
+   `plan-agent-cloudflare-change`, `run-agent-cloudflare-cycle`,
    `deliver-agent-cloudflare-change` y `shadcn`.
 3. Ejecuta `/hooks` y revisa el origen `Project Settings`, el comando exacto y
    los eventos registrados.
@@ -162,6 +176,60 @@ registros privados, así que ningún token entra en este flujo. Si algún día s
 configura un registro privado, su token pertenece a `.env.local` y nunca al
 repositorio.
 
+## Ciclo de entrega con subagentes
+
+Esta capa la consume **solo Claude Code**. Codex conserva el skill de entrega y
+la ruta lineal, que bastan para cumplir `AGENTS.md`. La asimetría es deliberada
+y está registrada en
+[ADR-0016](../decisions/ADR-0016-multi-agent-delivery-cycle.md): replicar cada
+rol en dos formatos sin generador común produciría la deriva que ADR-0005 evitó
+para la política.
+
+El método se escribe en dos skills y los roles lo ejecutan.
+`plan-agent-cloudflare-change` produce `.plans/<slug>/SPEC.md` con criterios de
+aceptación binarios; `run-agent-cloudflare-cycle` los reparte, verifica y
+cierra; y `deliver-agent-cloudflare-change` publica. Un cambio pequeño puede
+usar solo el último.
+
+Los roles viven en `.claude/agents/`:
+
+| Subagente | Dominio | Restricción |
+| --- | --- | --- |
+| `worker-backend` | `src/worker/` y sus pruebas en `test/` | No toca `migrations/` ni `src/client/` |
+| `client-ui` | `src/client/` y sus pruebas en `test/client/` | No toca `src/worker/`; compone con las primitivas del registro |
+| `d1-schema` | Migración nueva en `migrations/` y catálogo de permisos | Nunca edita una migración existente ni consulta una base remota |
+| `revisor` | Verificación en una pasada de criterios y calidad | Sin herramientas de escritura y con hook de solo lectura |
+| `corredor` | Comandos largos del ciclo | Sin herramientas de escritura; devuelve un marcador, no el volcado |
+
+Dos reglas sostienen el diseño. **Quien implementa no verifica**: el revisor no
+recibe `Edit` ni `Write`, y su definición registra
+`.claude/hooks/readonly-guard.mjs` en `PreToolUse`, de modo que la restricción
+se aplica en sus turnos y no en los del resto. **El contexto no absorbe
+volcados**: el corredor ejecuta las suites y devuelve una línea.
+
+El rol de solo lectura evalúa una **lista de comandos permitidos**, declarada en
+`readOnlyRole` de la política. Rechaza cualquier binario que no esté en ella, los
+argumentos que escriben —`-i`, `-delete`, `-exec`, `--write`, `--fix`— y las
+formas de shell que evaden el análisis: redirección, heredoc, sustitución de
+comandos y `tee`. Un comando de inspección legítimo que falte se agrega a la
+política, no se rodea.
+
+Ningún subagente ejecuta un efecto remoto. El push, el despliegue, la migración
+remota y la fusión pertenecen al turno principal, que es el único con canal para
+pedir la autorización.
+
+### El plan de la rama
+
+El plan vive fuera de git, en `.plans/<slug>/SPEC.md`. `SessionStart` lo recupera
+cuando el frontmatter declara `estado: activo` y su `rama` o su `slug`
+corresponden a la rama actual, y añade una línea con la feature y su ruta. Un
+frontmatter con marcadores `<...>` sin rellenar es una plantilla y no cuenta como
+plan.
+
+Se mantiene fuera del control de versiones a propósito: es el artefacto de la
+rama que lo produce. Lo permanente vive en el issue, en el cuerpo del PR y en
+`.docs/`.
+
 ## Comportamiento por evento
 
 Ambas integraciones registran los mismos seis eventos y comparten las mismas
@@ -173,13 +241,16 @@ formas, incluidas las rutas absolutas que exige Claude Code.
 
 `SessionStart` y `SubagentStart` agregan contexto breve con las fuentes de
 verdad y las restricciones críticas. No copian documentos completos en el
-prompt.
+prompt. `SessionStart` añade además el plan activo de la rama, si existe.
 
 ### Prompt del usuario
 
 `UserPromptSubmit` bloquea patrones de secreto de alta confianza, como llaves
 privadas y tokens con formatos inequívocos. El mensaje de rechazo nunca repite
-el valor detectado. Esta revisión es una defensa adicional, no un escáner
+el valor detectado. Cuando el prompt no contiene secretos pero sí intención de
+planificar o de implementar, añade un recordatorio del skill que corresponde:
+el del ciclo si la rama ya tiene plan activo, el de planificación si no lo
+tiene. Es contexto, no bloqueo, y la comparación ignora acentos y mayúsculas. Esta revisión es una defensa adicional, no un escáner
 exhaustivo; un secreto expuesto debe rotarse.
 
 ### Antes de usar herramientas
@@ -352,7 +423,10 @@ los symlinks de `.claude/skills` y el `SKILL.md` de cada skill, el origen y el
 hash de las skills externas en `skills-lock.json`, la paridad del servidor MCP
 entre `.mcp.json` y `.codex/config.toml`, el nombre exacto de `CLAUDE.md`, los
 archivos referenciados, los eventos registrados por cada agente, las reglas
-denegadas, la sintaxis Node.js y los escenarios simulados de `scenarios.mjs`.
+denegadas, la definición de los cinco subagentes —incluida la ausencia de
+herramientas de escritura en el revisor y el corredor, y el hook de solo
+lectura del revisor—, la sintaxis Node.js y los escenarios simulados de
+`scenarios.mjs`.
 En un evento `pull_request`,
 también exige contenido real bajo las secciones `Documentación`, `ADR`,
 `Roadmap` y `Validación`.
