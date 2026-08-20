@@ -60,10 +60,32 @@ dos: atender una conversación no es configurar quién la atiende. El detalle es
 en el [módulo de agentes y versiones](../modules/agents-and-versions.md) y en
 [ADR-0014](../decisions/ADR-0014-configurable-agents-and-published-versions.md).
 
-**Ejecutar** un agente sigue sin existir. Publicar una versión no cambia el
-comportamiento de ninguna conversación, y las herramientas que una versión
-declara no autorizan nada: no hay catálogo que las valide ni ruta que las
-ejecute.
+**Publicar** una versión sigue sin cambiar el comportamiento de ninguna
+conversación: lo que la pone a responder es asignarle un agente y ponerla en modo
+`automatic` desde el inbox. Pero **ejecutar** un agente ya existe, y desde el
+corte de herramientas esa ejecución puede consultar datos del CRM.
+
+### Cómo se autoriza una herramienta
+
+Una corrida disparada por un mensaje entrante **no tiene actor humano**: no hay
+sesión, ni membresía, ni rol que cargar. La unidad de autorización es la
+**versión publicada**, que es inmutable y conserva autor, motivo e historial. Una
+herramienta se anuncia al modelo solo si coinciden cuatro controles en backend:
+
+1. La versión publicada la declaró.
+2. Existe en el catálogo cerrado del producto, que vive en código.
+3. Su audiencia es la conversación con el contacto.
+4. Sus datos se acotan a la organización de la corrida y al contacto de esa
+   conversación, ambos leídos en D1 y nunca tomados de un argumento del modelo.
+
+Lo que no sobrevive a los cuatro no llega al modelo, y lo que no se anunció no se
+ejecuta aunque el modelo lo pida. Cada intento —ejecutado, rechazado o fallido—
+deja su fila en `agent_tool_calls` y su entrada en `audit_logs` con actor
+`system`. Declarar una herramienta sigue exigiendo `agents.manage` y consultar el
+catálogo, `agents.read`: **el corte no introduce ningún permiso**, porque ninguna
+persona ejerce esa capacidad. El detalle está en el
+[módulo de herramientas y su autorización](../modules/tools-and-permissions.md) y
+en [ADR-0017](../decisions/ADR-0017-agent-tool-contract.md).
 
 ### Crecimiento del catálogo de permisos
 

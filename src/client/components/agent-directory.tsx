@@ -13,6 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Empty,
   EmptyDescription,
@@ -20,7 +21,14 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
+import {
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldLabel,
+  FieldLegend,
+  FieldSet,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
   Sheet,
@@ -35,6 +43,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   createAgent,
   createAgentVersion,
+  fetchAgentTools,
   getAgent,
   listAgents,
   replaceAgentVersion,
@@ -42,21 +51,33 @@ import {
   updateAgent,
   type AgentDetail,
   type AgentSummary,
+  type AgentToolDefinition,
   type AgentVersion,
 } from "@/lib/api";
 
-const emptyVersionDraft = {
+type VersionDraft = {
+  instructions: string;
+  model: string;
+  playbook: string;
+  /** Las claves marcadas, no un texto: el catálogo es cerrado y se elige de él. */
+  tools: string[];
+  knowledgeScopes: string;
+  changeReason: string;
+};
+
+const emptyVersionDraft: VersionDraft = {
   instructions: "",
   model: "",
   playbook: "",
-  tools: "",
+  tools: [],
   knowledgeScopes: "",
   changeReason: "",
 };
 
-type VersionDraft = typeof emptyVersionDraft;
-
-/** Las declaraciones se escriben separadas por comas y el backend las deduplica. */
+/**
+ * El alcance de conocimiento sigue escribiéndose separado por comas: su catálogo
+ * no existe todavía y el backend lo deduplica.
+ */
 function parseList(value: string): string[] {
   return value
     .split(",")
@@ -69,7 +90,7 @@ function toDraft(version: AgentVersion): VersionDraft {
     instructions: version.instructions,
     model: version.model,
     playbook: version.playbook ?? "",
-    tools: version.tools.join(", "),
+    tools: version.tools,
     knowledgeScopes: version.knowledgeScopes.join(", "),
     changeReason: version.changeReason ?? "",
   };
@@ -118,6 +139,9 @@ export function AgentDirectory() {
   const [draft, setDraft] = useState<VersionDraft>(emptyVersionDraft);
   const [editingVersionId, setEditingVersionId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // `null` mientras no se sabe qué herramientas existen: ni cargadas ni fallidas.
+  const [toolCatalog, setToolCatalog] = useState<AgentToolDefinition[] | null>(null);
+  const [toolCatalogError, setToolCatalogError] = useState<string | null>(null);
 
   // Quien gestiona ve también los archivados, para poder reactivarlos.
   const scope = canManage ? "all" : "active";
@@ -140,6 +164,23 @@ export function AgentDirectory() {
       }
     })();
   }, [canRead, scope]);
+
+  // El catálogo es del producto, no de la organización, pero consultarlo exige
+  // `agents.read`: sin ese permiso la pantalla ya no pide nada al servidor.
+  useEffect(() => {
+    if (!canRead) return;
+    void (async () => {
+      try {
+        setToolCatalog(await fetchAgentTools());
+      } catch (caught) {
+        setToolCatalogError(
+          caught instanceof Error
+            ? caught.message
+            : "No fue posible cargar las herramientas.",
+        );
+      }
+    })();
+  }, [canRead]);
 
   /**
    * Toda acción recarga la lista y el detalle abierto: la versión del agente
@@ -185,12 +226,15 @@ export function AgentDirectory() {
 
   async function submitVersion(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selected) return;
+    if (!selected || toolCatalog === null) return;
+    // Solo viaja lo que el catálogo vigente reconoce: una clave declarada por una
+    // versión antigua se sigue leyendo, pero no se vuelve a declarar.
+    const offered = new Set(toolCatalog.map((tool) => tool.key));
     const content = {
       instructions: draft.instructions,
       model: draft.model,
       playbook: draft.playbook.trim() || null,
-      tools: parseList(draft.tools),
+      tools: draft.tools.filter((key) => offered.has(key)),
       knowledgeScopes: parseList(draft.knowledgeScopes),
       changeReason: draft.changeReason.trim() || null,
     };
@@ -250,9 +294,10 @@ export function AgentDirectory() {
           <h1 className="text-2xl font-semibold tracking-tight">Agentes</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Cómo responde {panel.activeOrganization.organizationName}, en versiones
-            que se publican y se revierten. Todavía ninguna conversación se
-            atiende sola: publicar deja la configuración lista, no la pone a
-            responder.
+            que se publican y se revierten. Publicar no cambia ninguna
+            conversación en curso: quién atiende cada una se decide en
+            Conversaciones, y ahí un agente asignado responde con la versión
+            publicada y con las herramientas que esa versión declara.
           </p>
         </header>
 
@@ -414,6 +459,8 @@ export function AgentDirectory() {
         onReasonChange={setReason}
         onSubmitVersion={submitVersion}
         reason={reason}
+        toolCatalog={toolCatalog}
+        toolCatalogError={toolCatalogError}
       />
     </div>
   );
@@ -433,6 +480,8 @@ function AgentSheet({
   onReasonChange,
   onSubmitVersion,
   reason,
+  toolCatalog,
+  toolCatalogError,
 }: {
   agent: AgentDetail | null;
   busy: boolean;
@@ -447,10 +496,29 @@ function AgentSheet({
   onReasonChange: (reason: string) => void;
   onSubmitVersion: (event: FormEvent<HTMLFormElement>) => void;
   reason: string;
+  toolCatalog: AgentToolDefinition[] | null;
+  toolCatalogError: string | null;
 }) {
   const [tab, setTab] = useState("versions");
 
   if (agent === null) return null;
+
+  const toolLabels = new Map(
+    (toolCatalog ?? []).map((tool) => [tool.key, tool.label] as const),
+  );
+
+  /** Marcar y desmarcar reconstruye el conjunto en el orden del catálogo. */
+  function toggleTool(key: string, checked: boolean) {
+    const next = new Set(draft.tools);
+    if (checked) next.add(key);
+    else next.delete(key);
+    onDraftChange({
+      ...draft,
+      tools: (toolCatalog ?? [])
+        .filter((tool) => next.has(tool.key))
+        .map((tool) => tool.key),
+    });
+  }
 
   return (
     <Sheet onOpenChange={(next) => (next ? undefined : onClose())} open>
@@ -531,6 +599,23 @@ function AgentSheet({
                       {version.changeReason ?? "Sin motivo declarado"} ·{" "}
                       {version.createdByName ?? "Autor desconocido"}
                     </p>
+                    {version.tools.length === 0 ? null : (
+                      <div className="flex flex-wrap gap-1">
+                        {/*
+                          Una versión publicada es inmutable: si el catálogo dejó
+                          de ofrecer una clave, su declaración se sigue leyendo
+                          tal cual, aunque ya no pueda volver a marcarse.
+                        */}
+                        {version.tools.map((key) => (
+                          <Badge
+                            key={key}
+                            variant={toolLabels.has(key) ? "secondary" : "outline"}
+                          >
+                            {toolLabels.get(key) ?? `${key} · fuera del catálogo`}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
                     {canManage ? (
                       <div className="flex flex-wrap gap-2">
                         {version.status === "published" ? null : (
@@ -608,22 +693,52 @@ function AgentSheet({
                       value={draft.playbook}
                     />
                   </Field>
-                  <Field>
-                    <FieldLabel htmlFor="version-tools">
+                  <FieldSet>
+                    <FieldLegend variant="label">
                       Herramientas declaradas
-                    </FieldLabel>
-                    <Input
-                      id="version-tools"
-                      onChange={(event) =>
-                        onDraftChange({ ...draft, tools: event.target.value })
-                      }
-                      value={draft.tools}
-                    />
+                    </FieldLegend>
                     <FieldDescription>
-                      Separadas por comas. Se declaran para dejar constancia; no
-                      habilitan nada todavía.
+                      Lo que esta versión puede consultar al responder. El backend
+                      vuelve a comprobar cada marca antes de anunciarla al modelo.
                     </FieldDescription>
-                  </Field>
+                    {toolCatalogError !== null ? (
+                      <FieldDescription>
+                        {toolCatalogError} Sin el catálogo no se puede declarar
+                        qué consulta esta versión.
+                      </FieldDescription>
+                    ) : toolCatalog === null ? (
+                      <div className="flex flex-col gap-2">
+                        <Skeleton className="h-4 w-2/3" />
+                        <Skeleton className="h-4 w-1/2" />
+                      </div>
+                    ) : toolCatalog.length === 0 ? (
+                      <FieldDescription>
+                        Todavía no hay herramientas disponibles: esta versión
+                        responderá solo con lo que digan sus instrucciones.
+                      </FieldDescription>
+                    ) : (
+                      toolCatalog.map((tool) => (
+                        <Field key={tool.key} orientation="horizontal">
+                          <Checkbox
+                            checked={draft.tools.includes(tool.key)}
+                            id={`version-tool-${tool.key}`}
+                            onCheckedChange={(checked) =>
+                              toggleTool(tool.key, checked === true)
+                            }
+                          />
+                          <FieldContent>
+                            <FieldLabel
+                              className="font-normal"
+                              htmlFor={`version-tool-${tool.key}`}
+                            >
+                              {tool.label}
+                            </FieldLabel>
+                            <FieldDescription>{tool.description}</FieldDescription>
+                          </FieldContent>
+                        </Field>
+                      ))
+                    )}
+                  </FieldSet>
                   <Field>
                     <FieldLabel htmlFor="version-knowledge">
                       Alcance de conocimiento
@@ -652,7 +767,11 @@ function AgentSheet({
                     />
                   </Field>
                   <div>
-                    <Button disabled={busy} type="submit">
+                    {/*
+                      Guardar reemplaza el contenido entero, así que sin catálogo
+                      no se guarda: vaciaría la declaración sin decirlo.
+                    */}
+                    <Button disabled={busy || toolCatalog === null} type="submit">
                       {editingVersionId ? "Guardar el borrador" : "Crear versión"}
                     </Button>
                   </div>

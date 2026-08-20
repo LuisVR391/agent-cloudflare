@@ -1153,6 +1153,32 @@ export type AgentVersionContent = {
   changeReason?: string | null;
 };
 
+/**
+ * Una herramienta del catálogo cerrado del producto. Ninguna empresa añade
+ * herramientas: el handler vive en código, así que el catálogo se consulta y no
+ * se edita.
+ */
+export type AgentToolDefinition = {
+  key: string;
+  label: string;
+  description: string;
+};
+
+/**
+ * Qué puede declarar una versión. Exige `agents.read`, igual que leer un agente:
+ * el panel pinta lo que el backend ya autorizó y vuelve a comprobar al guardar.
+ */
+export async function fetchAgentTools() {
+  const response = await fetch("/api/agent-tools", { credentials: "same-origin" });
+  if (!response.ok) {
+    throw new Error(
+      await parseError(response, "No fue posible cargar las herramientas."),
+    );
+  }
+  const body = (await response.json()) as { tools: AgentToolDefinition[] };
+  return body.tools;
+}
+
 export async function listAgents(status: "active" | "archived" | "all" = "active") {
   const response = await fetch(`/api/agents?status=${status}`, {
     credentials: "same-origin",

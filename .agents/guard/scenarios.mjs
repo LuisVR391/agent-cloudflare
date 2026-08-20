@@ -620,9 +620,17 @@ test("SessionStart recupera el plan activo de la rama", () => {
 });
 
 test("UserPromptSubmit recuerda el skill según la intención", () => {
+  // Un workspace vacío, como en los escenarios vecinos: este caso describe qué
+  // recuerda el hook cuando la rama NO tiene plan, y leer la raíz real lo hacía
+  // depender de si existe un `.plans/` en el disco de quien corre las pruebas.
+  // Con un corte en marcha, el hook encontraba ese SPEC y devolvía el
+  // recordatorio del ciclo, que es justo lo que comprueba el escenario
+  // siguiente. El caso con plan tiene su propio workspace; este necesita el suyo.
+  const workspace = mkdtempSync(join(tmpdir(), "agent-cloudflare-intent-"));
+
   function prompt(text, runtime = {}) {
     return handleHook(
-      { hook_event_name: "UserPromptSubmit", prompt: text, cwd: repositoryRoot },
+      { hook_event_name: "UserPromptSubmit", prompt: text, cwd: workspace },
       policy,
       { skillCommand: "/deliver-agent-cloudflare-change", ...runtime },
     );
@@ -658,6 +666,8 @@ test("UserPromptSubmit recuerda el skill según la intención", () => {
     codex.hookSpecificOutput.additionalContext,
     /\$plan-agent-cloudflare-change/,
   );
+
+  rmSync(workspace, { recursive: true, force: true });
 });
 
 test("con plan activo el recordatorio apunta al ciclo", () => {

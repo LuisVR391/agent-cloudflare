@@ -931,4 +931,11 @@ export type RunnableAgentVersion = {
   instructions: string;
   model: string;
   playbook: string | null;
+  /**
+   * Lo que la versión publicada declaró que puede consultar. Es una
+   * declaración, no una autorización: la corrida la intersecta con el catálogo
+   * cerrado del producto y filtra por audiencia antes de anunciar nada, así que
+   * una clave que dejó de existir se conserva aquí y se ignora al ejecutar.
+   */
+  tools: string[];
 };

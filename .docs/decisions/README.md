@@ -68,3 +68,4 @@ histórica como si siempre hubiera sido distinta.
 | [ADR-0014](./ADR-0014-configurable-agents-and-published-versions.md) | Aceptado | Agente configurable y versión publicable inmutable |
 | [ADR-0015](./ADR-0015-model-provider-and-agent-runs.md) | Aceptado | Capa común de proveedor y traza de la corrida del agente |
 | [ADR-0016](./ADR-0016-multi-agent-delivery-cycle.md) | Aceptado | Ciclo de entrega multi-agente con verificación independiente |
+| [ADR-0017](./ADR-0017-agent-tool-contract.md) | Aceptado | Contrato de herramienta y autorización por catálogo cerrado |

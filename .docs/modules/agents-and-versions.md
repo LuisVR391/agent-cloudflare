@@ -116,19 +116,33 @@ no tendrían.
 No confundir `agents.version` —contador de escrituras— con
 `agent_versions.version_number` —ordinal de la revisión—.
 
-## Herramientas y conocimiento: declaraciones sin catálogo
+## Herramientas: declaración validada contra el catálogo
 
-Una revisión declara qué herramientas y qué alcance de conocimiento usará, pero
-**esas declaraciones no autorizan nada**. No existe todavía catálogo de
-herramientas ni índice de conocimiento, y nada se ejecuta. El backend valida su
-forma, las normaliza y las deduplica; validar que existan y filtrarlas por
-permisos antes de anunciarlas a un modelo corresponde a los cortes que
-introduzcan esas capacidades.
+Una revisión declara qué herramientas usará, y desde el corte de herramientas
+([#56](https://github.com/LuisVR391/agent-cloudflare/issues/56)) esa declaración
+**se valida contra el catálogo cerrado del producto**: una clave que el producto
+no implementa responde `400 AGENT_TOOL_UNKNOWN` y no escribe ninguna fila. El
+panel ofrece el catálogo para marcarlo en lugar de escribirlo.
 
-Van en tablas hijas y no en una columna JSON: el esquema no tiene ninguna, un
-arreglo JSON no impide un elemento repetido, y «qué versiones declaran esta
-herramienta» —la consulta que necesitará quien las autorice— sería un recorrido
-de tabla.
+La declaración sigue **sin autorizar por sí sola**: es una de las cuatro
+condiciones que la corrida comprueba antes de anunciar nada al modelo, junto con
+la pertenencia al catálogo vigente, la audiencia y el acotamiento a la
+organización y al contacto. Una versión ya publicada que declare una clave
+desconocida no se rompe: en ejecución no se anuncia y queda registro. El detalle
+está en el [módulo de herramientas y su autorización](./tools-and-permissions.md)
+y en [ADR-0017](../decisions/ADR-0017-agent-tool-contract.md).
+
+## Conocimiento: declaración sin catálogo
+
+El alcance de conocimiento sigue siendo una etiqueta sin catálogo ni índice, y
+nada lo consume. El backend valida su forma, la normaliza y la deduplica;
+validar que exista y filtrarla por permisos corresponde al corte que introduzca
+esa capacidad ([#57](https://github.com/LuisVR391/agent-cloudflare/issues/57)).
+
+Ambas van en tablas hijas y no en una columna JSON: el esquema no tiene ninguna,
+un arreglo JSON no impide un elemento repetido, y «qué versiones declaran esta
+herramienta» —la consulta que necesita quien las autoriza— sería un recorrido de
+tabla.
 
 ## El modelo previsto
 
@@ -171,6 +185,12 @@ Códigos propios del módulo:
 | `AGENT_VERSION_CONFLICT` | El `expectedVersion` no es el vigente |
 | `AGENT_VERSION_NOT_EDITABLE` | La revisión ya se publicó y su contenido está congelado |
 | `AGENT_PUBLICATION_UNCHANGED` | La publicación pedida deja al agente como estaba |
+| `AGENT_TOOL_UNKNOWN` | La revisión declara una herramienta que no existe en el catálogo |
+
+`GET /api/agent-tools` sirve el catálogo de herramientas con `agents.read`. No
+cuelga de un agente concreto porque es del producto y no de la organización,
+pero se lee con el mismo permiso y se declara desde la misma pantalla; lo
+describe el [módulo de herramientas y su autorización](./tools-and-permissions.md).
 
 El prefijo `/api/agents` no colisiona con `/agents/`, que sirve el SDK para el
 runtime durable: `src/worker/index.ts` resuelve `/api/` antes.
@@ -241,9 +261,13 @@ agentVersion ← agent_versions.version_number
 
 ## Fuera de alcance
 
-Recuperar conocimiento, ejecutar herramientas, enrutar entre agentes y recordar
-al contacto son cortes posteriores de la fase. Comparar dos versiones con evidencia, evaluarlas antes de
-publicar y proponer cambios son Fase 5.
+Recuperar conocimiento, enrutar entre agentes y recordar al contacto son cortes
+posteriores de la fase. Ejecutar herramientas ya existe, pero fuera de este
+módulo: aquí solo se declara cuáles usa una revisión, y quién autoriza cada
+intento lo describe el
+[módulo de herramientas y su autorización](./tools-and-permissions.md). Comparar
+dos versiones con evidencia, evaluarlas antes de publicar y proponer cambios son
+Fase 5.
 
 Tampoco entra borrar un borrador: el ciclo del corte es crear, publicar,
 desactivar y volver atrás, y un borrador equivocado se corrige editándolo.
