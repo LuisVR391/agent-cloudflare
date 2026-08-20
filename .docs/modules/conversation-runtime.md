@@ -64,14 +64,21 @@ Hoy son dos, ambas de solo lectura: el catálogo de servicios activos y la próx
 cita del propio contacto. Cada intento —ejecutado, rechazado o fallido— deja
 traza en `agent_tool_calls` y en la auditoría, y la corrida admite hasta dos
 rondas de herramientas y cuatro llamadas en total antes de devolver la
-conversación al equipo. El detalle está en el
-[módulo de herramientas y su autorización](./tools-and-permissions.md) y en
+conversación al equipo.
+
+Ese conjunto se anuncia **mientras quede una ronda para ejecutarlo**: la llamada
+que ya no podría honrar una petición se hace sin herramientas, y es la que
+responde. No es un ahorro: el modelo comprobado contra el proveedor real pide una
+función siempre que se le anuncien, también ante un «gracias», de modo que
+anunciarlas hasta el final dejaría la corrida sin respuesta. El detalle está en
+el [módulo de herramientas y su autorización](./tools-and-permissions.md) y en
 [ADR-0017](../decisions/ADR-0017-agent-tool-contract.md).
 
 ```text
 mensaje entrante -> buffer -> corrida -> herramientas anunciadas
   -> el modelo responde texto            -> salida existente
   -> el modelo pide herramientas         -> ejecutar, trazar y volver a llamar
+  -> gastada la última ronda             -> llamar sin herramientas, y responder
 ```
 
 ## Qué puede afirmar
@@ -85,9 +92,49 @@ Esa segunda regla **se acota con lo que la corrida realmente puede consultar**.
 Con herramientas anunciadas, los servicios, sus precios y la cita del contacto
 dejan de ser materia de invención y pasan a consultarse; lo que **ninguna**
 herramienta expone —horarios de atención, disponibilidad y promociones— conserva
-su prohibición. Sin herramientas anunciadas, la regla queda entera: no afirmar
+su prohibición. Lo que levanta la prohibición sobre servicios y precios es
+**haber obtenido el dato**, no haber intentado obtenerlo: sin herramientas
+**autorizadas** la corrida no va a consultar nada en ningún momento, y la
+corrida que sí las tenía pero cuyas llamadas quedaron todas rechazadas o
+fallidas tampoco consultó nada. En ambos casos la regla queda entera: no afirmar
 servicios, precios, promociones ni horarios que no estén escritos en las
 instrucciones.
+
+El marco **se construye por llamada y no una vez por corrida**, porque lo que la
+corrida puede consultar cambia dentro de ella. Los estados son **tres**, no dos:
+
+| En qué punto llega la corrida a esta llamada | Qué le pide el marco |
+| --- | --- |
+| Sin ningún dato obtenido: ninguna herramienta autorizada, o todas sus llamadas rechazadas o fallidas | No afirmar servicios, precios, promociones ni horarios que no estén escritos en las instrucciones |
+| Con herramientas anunciadas y una ronda por gastar | Consultar lo que necesite antes de responder, y responder con lo que devuelvan |
+| Con alguna herramienta que ya devolvió dato y las rondas agotadas | Responder ahora con lo que devolvieron: no queda consulta pendiente ni van a llegar más resultados |
+
+Los dos últimos son los que se confundían, y confundirlos costaba la respuesta
+por dos caminos distintos. La llamada que responde va sin herramientas, así que
+invitarla a «consultar con las herramientas disponibles» empujaba al modelo a
+pedir una que nadie iba a ejecutar. Y esa misma llamada **ya consultó**:
+prohibirle afirmar el precio la ponía a contradecir el dato que llevaba en el
+mismo request, porque el resultado de la herramienta viaja en su propio hilo de
+turnos. El marco le pedía ignorar lo que el backend le acababa de dar.
+
+El tercer estado lo elige **haber obtenido dato, y no haber gastado las
+rondas**. Un rechazo y un fallo también empujan un turno al hilo, pero lo que
+llevan es un error redactado —`{"error":"no_permitido"}` o
+`{"error":"no_disponible"}`—, que no es materia con la que responder: invitar
+ahí a responder «con lo que las herramientas devolvieron» levantaría la
+prohibición sobre precios justo en la corrida que no consultó nada, que es
+invitar a inventarlos. El dato se acumula **por corrida y no por ronda**: si una
+ronda obtuvo resultado y la otra no, el resultado sigue en el hilo y el marco
+sigue siendo el tercero.
+
+Lo que sobrevive a los tres estados es lo que **ninguna herramienta expone**:
+horarios de atención, disponibilidad y promociones no tienen dueño en ningún
+esquema entregado, así que no hay ronda que pueda consultarlos y su prohibición
+no se levanta nunca. Eso es lo que
+[ADR-0017](../decisions/ADR-0017-agent-tool-contract.md) fija en su regla 8, que
+se lee **a nivel de corrida**: «sin herramientas anunciadas» describe la corrida
+que no llegó a consultar nada —porque nunca anunció ninguna, o porque ninguna
+devolvió resultado—, no la última llamada de una corrida que sí obtuvo el dato.
 
 No es un control de seguridad —un prompt nunca lo es, según las reglas
 compartidas— sino la respuesta honesta a lo que el agente no puede saber. Que

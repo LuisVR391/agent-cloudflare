@@ -54,6 +54,10 @@ lista con herramientas deshabilitadas ni se le explica al modelo qué le falta:
 sencillamente no existe para esa corrida. Y sin ninguna superviviente, el campo
 `tools` no viaja en la petición.
 
+Ese conjunto se resuelve una sola vez, pero **no viaja en todas las llamadas de
+la corrida**: solo mientras quede una ronda para ejecutarlo. El motivo, medido
+contra el proveedor real, está en «Límites de la corrida».
+
 Una declaración descartada **no deja fila** en `agent_tool_calls`: no hubo
 intento del modelo, solo una clave que el catálogo vigente ya no reconoce o que
 no puede acotarse a esta conversación. Queda en
@@ -137,7 +141,7 @@ identificador ya es el dato relevante; cuál era exactamente, no.
 | `TOOL_NOT_OFFERED` | `agent_tool_calls.failure_code` | El modelo pidió una herramienta que no se le anunció en esta corrida |
 | `TOOL_ARGUMENTS_INVALID` | `agent_tool_calls.failure_code` | Los argumentos no cumplen el schema estricto, incluida una clave sobrante o un texto que no parsea |
 | `TOOL_EXECUTION_FAILED` | `agent_tool_calls.failure_code` | La herramienta estaba autorizada y su ejecución lanzó |
-| `TOOL_ROUNDS_EXCEEDED` | `agent_runs.failure_code` | El modelo pidió herramientas en una tercera ronda |
+| `TOOL_ROUNDS_EXCEEDED` | `agent_runs.failure_code` | La corrida gastó sus dos rondas y el modelo volvió a pedir herramientas en la llamada final, que ya no las anunciaba |
 | `TOOL_CALL_LIMIT_EXCEEDED` | `agent_runs.failure_code` | La corrida superaría las cuatro llamadas en total |
 | `AGENT_TOOL_UNKNOWN` | Respuesta `400` de la API de agentes | Un borrador declara una clave que no existe en el catálogo |
 
@@ -169,14 +173,83 @@ se hace con ese código y esa correlación, no con el mensaje de la excepción.
 ## Límites de la corrida
 
 - **Dos rondas** de herramientas por corrida, para encadenar una consulta que
-  depende de otra. A la tercera petición, `TOOL_ROUNDS_EXCEEDED`.
+  depende de otra. A la tercera petición, `TOOL_ROUNDS_EXCEEDED`, aunque esa
+  petición llegue por el único camino que le queda al modelo: una llamada que ya
+  no anuncia herramientas.
 - **Cuatro llamadas** en total, además de las rondas: una sola ronda con veinte
   llamadas cuesta lo mismo que veinte rondas. El corte ocurre **antes de ejecutar
   nada** de la ronda que lo excede, porque consultar por un resultado que nadie
   leerá es gasto.
+- **La última llamada va sin herramientas.** El conjunto autorizado se resuelve
+  una sola vez, pero solo se anuncia mientras quede una ronda para ejecutarlo:
+  agotada la segunda, la llamada que tiene que responder se hace sin `tools`, y
+  **su marco de prompt tampoco invita a usarlas**, porque se construye por
+  llamada con lo que esa llamada anuncia de verdad. Lo que el marco le pide en
+  su lugar depende de **si alguna herramienta devolvió dato**: si lo hizo,
+  responder con lo que ya devolvieron, que viaja en el hilo de esa misma
+  petición; si todas las llamadas quedaron rechazadas o fallidas, esa corrida no
+  consultó nada y conserva entera la prohibición sobre servicios y precios
+  ([runtime de conversación](./conversation-runtime.md)).
 
-En el peor caso, un mensaje con herramientas cuesta tres llamadas al modelo.
-Medir ese gasto es [#61](https://github.com/LuisVR391/agent-cloudflare/issues/61).
+Un mensaje con herramientas cuesta hasta tres llamadas al modelo. Con el modelo
+comprobado contra el proveedor real, ese peor caso es el caso corriente, por lo
+que explica el apartado siguiente. Medir ese gasto es
+[#61](https://github.com/LuisVR391/agent-cloudflare/issues/61).
+
+### Por qué la última llamada no puede llevar herramientas
+
+No es una optimización: **sin esto el agente no responde nunca**. El modelo lo
+elige cada versión y `agent_versions.model` es opaco, pero el que se comprobó
+contra el proveedor real —`@cf/meta/llama-3.3-70b-instruct-fp8-fast`— se comporta
+así: mientras `tools` viaje en la petición **emite una llamada a función
+siempre**, también ante un «hola» o un «gracias» que no necesitan consultar nada,
+y `tool_choice` no lo cambia.
+
+Si la última llamada llevara herramientas, la corrida no alcanzaría texto jamás:
+la primera petición pide función, la segunda vuelve a pedirla, y la tercera cae
+en `TOOL_ROUNDS_EXCEEDED`. La conversación volvería al equipo sin haber
+respondido nada **incluso cuando el contacto solo dijo «gracias»**. Retirar
+`tools` de la llamada final es lo que deja al modelo sin nada que pedir y le
+obliga a responder con texto.
+
+Es la misma regla del resto del corte —no se anuncia lo que no se puede
+autorizar— aplicada un paso antes: anunciar una herramienta que la corrida ya no
+podría ejecutar es invitar a una petición imposible de honrar.
+
+**Lo que cuesta.** Como el modelo vuelve a pedir la herramienta mientras se le
+anuncie, una pregunta que se resolvería con una consulta gasta **dos consultas de
+la misma herramienta**: la de la primera ronda y la de la segunda, que repite en
+vez de responder. El techo de cuatro llamadas es lo que acota ese gasto. Medirlo
+es [#61](https://github.com/LuisVR391/agent-cloudflare/issues/61).
+
+Es comportamiento **de este proveedor y este modelo**, no del contrato: otro
+modelo que responda texto en cuanto tiene el dato agota menos rondas, y la regla
+—anunciar solo mientras quede ronda para ejecutar— lo cubre igual.
+
+### Cómo se distingue esa tercera petición de una salida inválida
+
+Retirar `tools` de la última llamada tiene una consecuencia sobre el
+diagnóstico: cuando el modelo insiste ahí, el proveedor solo ve una petición de
+herramienta en una llamada que no anunció ninguna, que es su definición de salida
+inválida. Sin más contexto, la corrida cerraría con `MODEL_OUTPUT_INVALID` y la
+traza diría que el modelo devolvió basura cuando lo que hizo fue agotar su
+presupuesto de rondas.
+
+**El proveedor dice qué vio; la corrida decide por qué ocurrió.** El error del
+proveedor lleva `reason: "TOOL_CALL_NOT_OFFERED"` junto a su código, y la corrida
+—que es la única que sabe si esa llamada iba desnuda por presupuesto o porque no
+había ninguna herramienta autorizada— lo traduce:
+
+| Qué pasó en esa llamada | Código de la corrida |
+| --- | --- |
+| La corrida tenía herramientas autorizadas y gastó sus dos rondas | `TOOL_ROUNDS_EXCEEDED` |
+| La corrida no tenía ninguna herramienta autorizada | `MODEL_OUTPUT_INVALID` |
+| La salida no describía ni texto ni una petición bien formada | `MODEL_OUTPUT_INVALID` |
+
+El desenlace de negocio es el mismo en los tres —la corrida falla cerrado, la
+conversación vuelve al equipo y queda su traza (ADR-0015, regla 6)—, pero el
+código es lo que alguien lee después. Cómo viaja ese motivo lo describe el
+[módulo de proveedores de modelo](./model-providers.md).
 
 ## Superficie HTTP y panel
 
@@ -226,7 +299,8 @@ número suelto.
   traza impiden duplicar un reintento.
 - **No expone horarios de atención ni disponibilidad.** No existen en ningún
   esquema del producto; el marco del prompt conserva su prohibición sobre ellos y
-  sobre las promociones.
+  sobre las promociones, y la conserva **en los tres estados** de la corrida,
+  porque ninguna ronda podría consultarlos.
 - **No recupera conocimiento** no estructurado
   ([#57](https://github.com/LuisVR391/agent-cloudflare/issues/57)).
 - **No pide confirmación humana** antes de nada
