@@ -179,6 +179,7 @@ adaptados a su conocimiento.
 con cortes de agentes y versiones [#54](https://github.com/LuisVR391/agent-cloudflare/issues/54),
 ejecución en la conversación [#55](https://github.com/LuisVR391/agent-cloudflare/issues/55),
 herramientas autorizadas [#56](https://github.com/LuisVR391/agent-cloudflare/issues/56),
+separación interna de la ejecución y la publicación [#72](https://github.com/LuisVR391/agent-cloudflare/issues/72),
 conocimiento y recuperación aislada [#57](https://github.com/LuisVR391/agent-cloudflare/issues/57),
 routing entre agentes [#58](https://github.com/LuisVR391/agent-cloudflare/issues/58),
 memoria autorizada del contacto [#59](https://github.com/LuisVR391/agent-cloudflare/issues/59),
@@ -190,6 +191,7 @@ presupuesto, costos y failover [#61](https://github.com/LuisVR391/agent-cloudfla
 | Agentes configurables y sus versiones | Completado | Fase 2 | [Issue #54](https://github.com/LuisVR391/agent-cloudflare/issues/54), los cortes [PR #63](https://github.com/LuisVR391/agent-cloudflare/pull/63) y el del panel, [ADR-0014](../decisions/ADR-0014-configurable-agents-and-published-versions.md) y el [módulo de agentes y versiones](../modules/agents-and-versions.md) |
 | Ejecución del agente en la conversación | Completado | Agentes de #54 | [Issue #55](https://github.com/LuisVR391/agent-cloudflare/issues/55), [PR #66](https://github.com/LuisVR391/agent-cloudflare/pull/66), [ADR-0015](../decisions/ADR-0015-model-provider-and-agent-runs.md), el [módulo de proveedores de modelo](../modules/model-providers.md) y el [runtime de conversación](../modules/conversation-runtime.md) |
 | Herramientas con autorización en backend | Completado | Ejecución de #55 | [Issue #56](https://github.com/LuisVR391/agent-cloudflare/issues/56), [PR #71](https://github.com/LuisVR391/agent-cloudflare/pull/71), [ADR-0017](../decisions/ADR-0017-agent-tool-contract.md) y el [módulo de herramientas y su autorización](../modules/tools-and-permissions.md) |
+| Separación interna de la ejecución y la publicación del CRM | En progreso | Ejecución de #55 y herramientas de #56 | [Issue #72](https://github.com/LuisVR391/agent-cloudflare/issues/72) y [ADR-0018](../decisions/ADR-0018-agent-execution-and-crm-publication.md) |
 | Conocimiento empresarial y recuperación aislada | Planificado | Ejecución de #55 | [Issue #57](https://github.com/LuisVR391/agent-cloudflare/issues/57) |
 | Routing entre agentes | Planificado | Ejecución de #55 | [Issue #58](https://github.com/LuisVR391/agent-cloudflare/issues/58) |
 | Memoria autorizada del contacto | Planificado | Ejecución de #55 | [Issue #59](https://github.com/LuisVR391/agent-cloudflare/issues/59) |

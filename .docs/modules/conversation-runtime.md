@@ -16,7 +16,7 @@ organización enviada por el frontend.
 - Mantener lista pendiente, cursor procesado, debounce y modo de atención.
 - Agrupar actividad usando `communication_channels.buffer_seconds`, con valor
   inicial de ocho segundos.
-- Ejecutar la versión publicada del agente cuando el buffer vence.
+- Solicitar al arnés la ejecución de la versión publicada cuando vence el buffer.
 - Difundir eventos mínimos a conexiones del inbox.
 
 D1 conserva contactos, conversación, mensajes, estados e historial. El estado
@@ -30,14 +30,15 @@ decide si hay corrida es **D1 y no la proyección del runtime**: un Durable Obje
 recreado empieza con su estado inicial, y confiar en él dejaría muda una
 conversación que sí responde.
 
-Se ejecuta solo si la conversación está abierta, en modo `automatic` y con un
-agente asignado que siga activo y con versión publicada. Si falta cualquiera de
-esas condiciones, el cursor avanza igual y no ocurre nada más.
+El CRM solicita ejecución para un entrante de una conversación abierta, en
+modo `automatic` y con agente asignado. El arnés busca su versión publicada.
+Si el agente dejó de estar disponible, queda evidencia en auditoría y el CRM
+puede devolver la atención al equipo.
 
 ```text
-mensaje entrante -> buffer -> corrida -> respuesta -> salida existente
+mensaje entrante -> buffer -> arnés y traza en `agent_runs`
                                   |
-                                  +-> traza en `agent_runs`
+                                  +-> candidata -> CRM -> salida existente
 ```
 
 ## Qué recibe el modelo
@@ -150,30 +151,40 @@ que mirar la imagen o escuchar el audio.
 
 ## Cuando no hay respuesta
 
-Toda corrida que no responde —proveedor caído, salida inválida, agente sin
-versión publicada, mensaje sin texto, o herramientas pedidas más allá de los
-límites de la corrida— deja traza con su código y **devuelve la conversación a
-`human`**, con su entrada en `conversation_status_history` como actor `system` y
-su registro en la auditoría. El silencio prolongado sin que nadie se entere no es
-una opción.
+Un fallo del proveedor, una salida inválida, un agente sin versión publicada
+o un límite de herramientas agotado deja un código en la corrida o en la
+auditoría. El CRM devuelve al equipo una conversación que conserva la misma
+atención automática y registra el cambio como actor `system`. Si alguien
+cambió el modo, el estado o la asignación mientras el modelo respondía, el CRM
+respeta esa decisión. Una candidata descartada por ese motivo deja
+`ATTENTION_CHANGED` y no crea un mensaje saliente.
 
 Reactivar al agente vuelve a ser una decisión humana explícita.
 
 ## Un mensaje nuevo durante una corrida
 
-El runtime marca la corrida en vuelo: un flush que la encuentra viva vuelve a
-programarse en dos segundos en lugar de disparar otra. Esa bandera reduce la
-ventana, pero **la garantía dura es el índice único** de `agent_runs` por mensaje
-disparador: un Durable Object recreado no recuerda la bandera, y el motor sí
-rechaza la segunda corrida.
+El runtime marca la corrida en vuelo. Si vence el buffer mientras hay una
+corrida activa, vuelve a programarlo. Un nuevo mensaje por sí solo conserva
+la candidata pendiente y queda disponible para el próximo vencimiento.
+D1 garantiza una sola corrida por organización y mensaje disparador mediante
+un índice único. El historial de atención identifica cambios de control,
+incluso si luego se restauró el modo previo.
 
-## La salida es la de siempre
+## Publicación y recuperación
 
-La respuesta se crea como mensaje saliente con remitente `system` y el
-identificador del agente, y viaja por `OUTBOUND_MESSAGES` con sus estados de
-entrega de Fase 1. La clave de idempotencia deriva del identificador de la
-corrida, así que un reintento no produce un segundo envío. No hay camino
-paralelo.
+Al preparar una candidata, el arnés devuelve el resultado al CRM. El CRM
+comprueba que la atención siga vigente al guardar el saliente y su entrega,
+mantiene al agente como remitente `system` y usa la identidad de la corrida
+para la clave de idempotencia. El saliente viaja por `OUTBOUND_MESSAGES`.
+La corrida queda en `succeeded` cuando la cola acepta el trabajo. Los estados
+de entrega y lectura pertenecen al mensaje.
+
+Un fallo de encolado deja el vínculo al saliente y
+`OUTBOUND_QUEUE_UNAVAILABLE`. Si una interrupción deja la corrida abierta,
+repetir el disparador conserva esa corrida. El
+[procedimiento de recuperación](../operations/environments.md#corridas-automáticas-interrumpidas)
+describe cómo investigar su salida. La decisión está en
+[ADR-0018](../decisions/ADR-0018-agent-execution-and-crm-publication.md).
 
 ## Modos
 

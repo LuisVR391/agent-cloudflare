@@ -1,7 +1,7 @@
 import { Agent } from "agents";
 
-import { executeAgentRun } from "./agents/agent-run";
 import { createModelProvider } from "./agents/workers-ai-provider";
+import { coordinateAutomaticReply } from "./conversation-automatic-reply";
 
 /**
  * Modos que el runtime opera hoy. `supervised` sigue reservado por el contrato
@@ -19,12 +19,6 @@ export type CustomerSupportState = {
   attentionMode: RuntimeAttentionMode;
   pendingMessageIds: string[];
   lastProcessedMessageId: string | null;
-  /**
-   * Una corrida en curso. Es lo que impide que un mensaje que llega mientras el
-   * modelo responde dispare una segunda corrida; la garantía dura sigue siendo
-   * el índice único de `agent_runs` por mensaje disparador.
-   */
-  agentRunInFlight: boolean;
 };
 
 /** Cuánto espera un flush que encontró una corrida en curso. */
@@ -34,6 +28,10 @@ export class CustomerSupportAgent extends Agent<
   Env,
   CustomerSupportState
 > {
+  // Una invocación no sobrevive al reinicio de la instancia. D1 conserva
+  // la reserva por disparador y la proyección durable conserva su buffer.
+  #agentRunInFlight = false;
+
   initialState: CustomerSupportState = {
     status: "ready",
     channel: "whatsapp",
@@ -44,7 +42,6 @@ export class CustomerSupportAgent extends Agent<
     attentionMode: "human",
     pendingMessageIds: [],
     lastProcessedMessageId: null,
-    agentRunInFlight: false,
   };
 
   async acceptInboundMessage(input: {
@@ -92,7 +89,7 @@ export class CustomerSupportAgent extends Agent<
    */
   async flushPendingMessages(): Promise<void> {
     const triggerMessageId = this.state.pendingMessageIds.at(-1) ?? null;
-    if (this.state.agentRunInFlight) {
+    if (this.#agentRunInFlight) {
       await this.schedule(AGENT_RUN_RETRY_SECONDS, "flushPendingMessages");
       return;
     }
@@ -105,9 +102,9 @@ export class CustomerSupportAgent extends Agent<
     });
     if (!triggerMessageId || !organizationId || !conversationId) return;
 
-    this.setState({ ...this.state, agentRunInFlight: true });
+    this.#agentRunInFlight = true;
     try {
-      const outcome = await executeAgentRun(
+      const outcome = await coordinateAutomaticReply(
         {
           db: this.env.DB,
           provider: createModelProvider(this.env),
@@ -119,7 +116,7 @@ export class CustomerSupportAgent extends Agent<
         await this.updateAttentionMode("human");
       }
     } finally {
-      this.setState({ ...this.state, agentRunInFlight: false });
+      this.#agentRunInFlight = false;
       if (this.state.pendingMessageIds.length > 0) {
         await this.schedule(0, "flushPendingMessages");
       }

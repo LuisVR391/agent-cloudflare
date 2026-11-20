@@ -1,7 +1,6 @@
 import { env, exports } from "cloudflare:workers";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
-import { executeAgentRun } from "../src/worker/agents/agent-run";
 import {
   MODEL_REPLY_MAX_CHARACTERS,
   type ModelProvider,
@@ -9,6 +8,7 @@ import {
   type ModelRequest,
 } from "../src/worker/agents/model-provider";
 import { createModelProvider } from "../src/worker/agents/workers-ai-provider";
+import { coordinateAutomaticReply } from "../src/worker/conversation-automatic-reply";
 import type { OutboundQueueMessage } from "../src/worker/integrations/zernio/contracts";
 import { AgentRunRepository } from "../src/worker/repositories/agent-run-repository";
 import { ConversationRepository } from "../src/worker/repositories/conversation-repository";
@@ -541,7 +541,7 @@ describe.sequential("herramientas autorizadas del agente", () => {
     });
     const provider = providerScripted({ kind: "text", text: "Con gusto." });
 
-    const outcome = await executeAgentRun(
+    const outcome = await coordinateAutomaticReply(
       { db: env.DB, provider, outbound: queueRecording() },
       { organizationId, conversationId, triggerMessageId: messageId },
     );
@@ -568,7 +568,7 @@ describe.sequential("herramientas autorizadas del agente", () => {
     });
     const provider = providerScripted({ kind: "text", text: "Lo consulto." });
 
-    await executeAgentRun(
+    await coordinateAutomaticReply(
       { db: env.DB, provider, outbound: queueRecording() },
       { organizationId, conversationId, triggerMessageId: messageId },
     );
@@ -586,7 +586,7 @@ describe.sequential("herramientas autorizadas del agente", () => {
     });
     const provider = providerScripted({ kind: "text", text: "Enseguida." });
 
-    const outcome = await executeAgentRun(
+    const outcome = await coordinateAutomaticReply(
       { db: env.DB, provider, outbound: queueRecording() },
       { organizationId, conversationId, triggerMessageId: messageId },
     );
@@ -613,7 +613,7 @@ describe.sequential("herramientas autorizadas del agente", () => {
     );
     const outbound = queueRecording();
 
-    const outcome = await executeAgentRun(
+    const outcome = await coordinateAutomaticReply(
       { db: env.DB, provider, outbound },
       { organizationId, conversationId, triggerMessageId: messageId },
     );
@@ -680,7 +680,7 @@ describe.sequential("herramientas autorizadas del agente", () => {
       { kind: "text", text: "Lo confirmo con el equipo." },
     );
 
-    const outcome = await executeAgentRun(
+    const outcome = await coordinateAutomaticReply(
       { db: env.DB, provider, outbound: queueRecording() },
       { organizationId, conversationId, triggerMessageId: messageId },
     );
@@ -711,7 +711,7 @@ describe.sequential("herramientas autorizadas del agente", () => {
       { kind: "text", text: "Ahora te digo." },
     );
 
-    await executeAgentRun(
+    await coordinateAutomaticReply(
       { db: env.DB, provider, outbound: queueRecording() },
       { organizationId, conversationId, triggerMessageId: messageId },
     );
@@ -741,7 +741,7 @@ describe.sequential("herramientas autorizadas del agente", () => {
     );
     const provider = createModelProvider({ AI: binding });
 
-    const outcome = await executeAgentRun(
+    const outcome = await coordinateAutomaticReply(
       { db: env.DB, provider, outbound: queueRecording() },
       { organizationId, conversationId, triggerMessageId: messageId },
     );
@@ -813,7 +813,7 @@ describe.sequential("herramientas autorizadas del agente", () => {
     );
     const provider = createModelProvider({ AI: binding });
 
-    const outcome = await executeAgentRun(
+    const outcome = await coordinateAutomaticReply(
       { db: env.DB, provider, outbound: queueRecording() },
       { organizationId, conversationId, triggerMessageId: messageId },
     );
@@ -853,7 +853,7 @@ describe.sequential("herramientas autorizadas del agente", () => {
     );
     const provider = createModelProvider({ AI: binding });
 
-    const outcome = await executeAgentRun(
+    const outcome = await coordinateAutomaticReply(
       { db: env.DB, provider, outbound: queueRecording() },
       { organizationId, conversationId, triggerMessageId: messageId },
     );
@@ -901,7 +901,7 @@ describe.sequential("herramientas autorizadas del agente", () => {
     });
     const provider = createModelProvider({ AI: binding });
 
-    const outcome = await executeAgentRun(
+    const outcome = await coordinateAutomaticReply(
       { db: env.DB, provider, outbound: queueRecording() },
       { organizationId, conversationId, triggerMessageId: messageId },
     );
@@ -931,7 +931,7 @@ describe.sequential("herramientas autorizadas del agente", () => {
     });
     const provider = createModelProvider({ AI: binding });
 
-    const outcome = await executeAgentRun(
+    const outcome = await coordinateAutomaticReply(
       { db: env.DB, provider, outbound: queueRecording() },
       { organizationId, conversationId, triggerMessageId: messageId },
     );
@@ -960,7 +960,7 @@ describe.sequential("herramientas autorizadas del agente", () => {
     );
     const provider = createModelProvider({ AI: binding });
 
-    const outcome = await executeAgentRun(
+    const outcome = await coordinateAutomaticReply(
       { db: env.DB, provider, outbound: queueRecording() },
       { organizationId, conversationId, triggerMessageId: messageId },
     );
@@ -997,7 +997,7 @@ describe.sequential("herramientas autorizadas del agente", () => {
       const binding = bindingScripted(workersAiText(caso.text));
       const provider = createModelProvider({ AI: binding });
 
-      const outcome = await executeAgentRun(
+      const outcome = await coordinateAutomaticReply(
         { db: env.DB, provider, outbound: queueRecording() },
         { organizationId, conversationId, triggerMessageId: messageId },
       );
@@ -1021,7 +1021,7 @@ describe.sequential("herramientas autorizadas del agente", () => {
     });
     const provider = createModelProvider({ AI: binding });
 
-    const outcome = await executeAgentRun(
+    const outcome = await coordinateAutomaticReply(
       { db: env.DB, provider, outbound: queueRecording() },
       { organizationId, conversationId, triggerMessageId: messageId },
     );
@@ -1048,7 +1048,7 @@ describe.sequential("herramientas autorizadas del agente", () => {
     });
     const provider = createModelProvider({ AI: binding });
 
-    const outcome = await executeAgentRun(
+    const outcome = await coordinateAutomaticReply(
       { db: env.DB, provider, outbound: queueRecording() },
       { organizationId, conversationId, triggerMessageId: messageId },
     );
@@ -1075,7 +1075,7 @@ describe.sequential("herramientas autorizadas del agente", () => {
     // corrida no ejecuta nada que no haya anunciado ella misma.
     const provider = providerScripted(callTo("list_services"));
 
-    const outcome = await executeAgentRun(
+    const outcome = await coordinateAutomaticReply(
       { db: env.DB, provider, outbound: queueRecording() },
       { organizationId, conversationId, triggerMessageId: messageId },
     );
@@ -1108,7 +1108,7 @@ describe.sequential("herramientas autorizadas del agente", () => {
       { kind: "text", text: "Lo confirmo con el equipo." },
     );
 
-    const outcome = await executeAgentRun(
+    const outcome = await coordinateAutomaticReply(
       { db: env.DB, provider, outbound: queueRecording() },
       { organizationId, conversationId, triggerMessageId: messageId },
     );
@@ -1142,7 +1142,7 @@ describe.sequential("herramientas autorizadas del agente", () => {
       { kind: "text", text: "Deja que lo confirme el equipo." },
     );
 
-    const outcome = await executeAgentRun(
+    const outcome = await coordinateAutomaticReply(
       { db: env.DB, provider, outbound: queueRecording() },
       { organizationId, conversationId, triggerMessageId: messageId },
     );
@@ -1221,7 +1221,7 @@ describe.sequential("herramientas autorizadas del agente", () => {
       },
       { kind: "text", text: "Te esperamos." },
     );
-    await executeAgentRun(
+    await coordinateAutomaticReply(
       { db: env.DB, provider, outbound: queueRecording() },
       {
         organizationId,
@@ -1280,7 +1280,7 @@ describe.sequential("herramientas autorizadas del agente", () => {
       { kind: "text", text: "Eso ofrecemos." },
     );
 
-    await executeAgentRun(
+    await coordinateAutomaticReply(
       { db: env.DB, provider, outbound: queueRecording() },
       { organizationId, conversationId, triggerMessageId: messageId },
     );
@@ -1316,7 +1316,7 @@ describe.sequential("herramientas autorizadas del agente", () => {
       { kind: "text", text: "Con gusto." },
     );
 
-    await executeAgentRun(
+    await coordinateAutomaticReply(
       { db: env.DB, provider, outbound: queueRecording() },
       { organizationId, conversationId, triggerMessageId: messageId },
     );
@@ -1351,7 +1351,7 @@ describe.sequential("herramientas autorizadas del agente", () => {
       callTo("list_services"),
       { kind: "text", text: "Todavía no tengo el catálogo cargado." },
     );
-    const outcome = await executeAgentRun(
+    const outcome = await coordinateAutomaticReply(
       { db: env.DB, provider, outbound: queueRecording() },
       { organizationId, conversationId, triggerMessageId: messageId },
     );
@@ -1389,7 +1389,7 @@ describe.sequential("herramientas autorizadas del agente", () => {
     );
     const provider = createModelProvider({ AI: binding });
 
-    const outcome = await executeAgentRun(
+    const outcome = await coordinateAutomaticReply(
       { db: env.DB, provider, outbound: queueRecording() },
       { organizationId, conversationId, triggerMessageId: messageId },
     );
@@ -1452,7 +1452,7 @@ describe.sequential("herramientas autorizadas del agente", () => {
     );
     const provider = createModelProvider({ AI: binding });
 
-    const outcome = await executeAgentRun(
+    const outcome = await coordinateAutomaticReply(
       { db: env.DB, provider, outbound: queueRecording() },
       { organizationId, conversationId, triggerMessageId: messageId },
     );
@@ -1504,7 +1504,7 @@ describe.sequential("herramientas autorizadas del agente", () => {
     );
     const provider = createModelProvider({ AI: binding });
 
-    const outcome = await executeAgentRun(
+    const outcome = await coordinateAutomaticReply(
       { db: env.DB, provider, outbound: queueRecording() },
       { organizationId, conversationId, triggerMessageId: messageId },
     );
@@ -1560,7 +1560,7 @@ describe.sequential("herramientas autorizadas del agente", () => {
       })),
     });
 
-    const outcome = await executeAgentRun(
+    const outcome = await coordinateAutomaticReply(
       { db: env.DB, provider, outbound: queueRecording() },
       { organizationId, conversationId, triggerMessageId: messageId },
     );
@@ -1592,9 +1592,9 @@ describe.sequential("herramientas autorizadas del agente", () => {
     const outbound = queueRecording();
 
     const outcomes = await Promise.all([
-      executeAgentRun({ db: env.DB, provider, outbound },
+      coordinateAutomaticReply({ db: env.DB, provider, outbound },
         { organizationId, conversationId, triggerMessageId: messageId }),
-      executeAgentRun({ db: env.DB, provider, outbound },
+      coordinateAutomaticReply({ db: env.DB, provider, outbound },
         { organizationId, conversationId, triggerMessageId: messageId }),
     ]);
 

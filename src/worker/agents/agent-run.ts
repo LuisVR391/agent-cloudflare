@@ -1,12 +1,11 @@
 import type { ConversationMessage } from "../domain/types";
-import type { OutboundQueueMessage } from "../integrations/zernio/contracts";
 import { AgentRepository } from "../repositories/agent-repository";
 import { AgentRunRepository } from "../repositories/agent-run-repository";
 import { AgentToolCallRepository } from "../repositories/agent-tool-call-repository";
-import { ConversationRepository } from "../repositories/conversation-repository";
 import {
   MODEL_REPLY_MAX_CHARACTERS,
   ModelProviderError,
+  parseModelReplyText,
   parseModelToolName,
   type ModelFailureCode,
   type ModelProvider,
@@ -20,14 +19,6 @@ import {
   type AgentToolContext,
   type AgentToolDefinition,
 } from "./tool-catalog";
-
-/**
- * Ejecuta la versión publicada del agente dentro de una conversación y deja
- * traza de lo ocurrido (ADR-0015).
- *
- * Vive fuera del Durable Object para poder ejercitarse con un proveedor y una
- * cola de prueba: el runtime aporta serialización y bindings, no reglas.
- */
 
 /**
  * Cuánto historial entra al contexto. Acotado a propósito: el modelo no
@@ -80,40 +71,39 @@ export type AgentRunFailureCode =
   | "AGENT_NOT_RUNNABLE"
   | "UNSUPPORTED_MESSAGE_CONTENT"
   | "OUTBOUND_QUEUE_UNAVAILABLE"
+  | "ATTENTION_CHANGED"
   | "TOOL_ROUNDS_EXCEEDED"
   | "TOOL_CALL_LIMIT_EXCEEDED";
 
-export type AgentRunOutcome =
-  /** La conversación no responde sola, o el disparador ya tuvo su corrida. */
-  | { result: "not_applicable"; reason: "NOT_AUTOMATIC" | "DUPLICATE_TRIGGER" }
-  | { result: "succeeded"; runId: string; responseMessageId: string }
+export type AgentRunContext = {
+  organizationId: string;
+  conversationId: string;
+  triggerMessageId: string;
+  agentId: string;
+  contactId: string;
+  correlationId: string;
+  triggerText: string | null;
+};
+
+type MessageContext = Pick<ConversationMessage, "direction" | "messageType" | "text">;
+
+type AgentRunExecution =
+  | { result: "not_applicable"; reason: "DUPLICATE_TRIGGER" }
+  | { result: "candidate"; runId: string; agentVersionId: string; text: string }
   | {
       result: "unanswered";
       status: "failed" | "skipped";
       runId: string | null;
       failureCode: AgentRunFailureCode;
-      escalated: boolean;
     };
 
-/**
- * La cola de salida, declarada por lo único que la corrida usa de ella. El
- * binding completo cumple esta forma, y una cola de prueba no necesita
- * implementar el resto para ejercitar la corrida.
- */
-export type OutboundDispatcher = {
-  send(
-    message: OutboundQueueMessage,
-    options?: { contentType?: "json" },
-  ): Promise<unknown>;
-};
-
-export type AgentRunDependencies = {
-  db: D1Database;
-  /** Nulo cuando el entorno no declara inferencia; se registra y se escala. */
-  provider: ModelProvider | null;
-  /** La salida ya existente de Fase 1. No se abre un camino paralelo. */
-  outbound: OutboundDispatcher | null;
-};
+type AgentRunFinish =
+  | { status: "succeeded"; responseMessageId: string }
+  | {
+      status: "failed" | "skipped";
+      failureCode: AgentRunFailureCode;
+      responseMessageId?: string;
+    };
 
 /**
  * Un mensaje sin texto entra al contexto como marcador de lo que el contacto
@@ -130,7 +120,7 @@ const contentMarkers: Record<string, string> = {
   unsupported: "[el contacto envió un contenido no soportado]",
 };
 
-function toTurn(message: ConversationMessage): ModelTurn | null {
+function toTurn(message: MessageContext): ModelTurn | null {
   const text = message.text?.trim();
   if (message.direction === "incoming") {
     return {
@@ -259,57 +249,48 @@ function log(
   console.error(payload);
 }
 
+/** La corrida automática termina después de conocer la decisión del CRM. */
+export async function finishAgentRun(
+  db: D1Database,
+  input: Pick<AgentRunContext, "organizationId" | "conversationId" | "correlationId">,
+  runId: string,
+  outcome: AgentRunFinish,
+): Promise<void> {
+  await new AgentRunRepository(db).finish({
+    organizationId: input.organizationId,
+    runId,
+    finishedAt: new Date().toISOString(),
+    ...outcome,
+  });
+  log(outcome.status === "succeeded" ? "succeeded" : "unanswered", {
+    correlationId: input.correlationId,
+    conversationId: input.conversationId,
+    runId,
+    failureCode: outcome.status === "succeeded" ? undefined : outcome.failureCode,
+  });
+}
+
+/** Ejecuta la versión publicada sobre el contexto autorizado que le da el CRM. */
 export async function executeAgentRun(
-  deps: AgentRunDependencies,
-  input: {
-    organizationId: string;
-    conversationId: string;
-    triggerMessageId: string;
+  deps: {
+    db: D1Database;
+    provider: ModelProvider | null;
+    loadHistory: () => Promise<readonly MessageContext[]>;
   },
-): Promise<AgentRunOutcome> {
-  const conversations = new ConversationRepository(deps.db);
+  input: AgentRunContext,
+): Promise<AgentRunExecution> {
   const runs = new AgentRunRepository(deps.db);
-
-  // La decisión de responder se lee de D1, no de la proyección del runtime: la
-  // fuente de verdad del modo y del agente asignado es la conversación.
-  const conversation = await conversations.find(
-    input.organizationId,
-    input.conversationId,
-  );
-  const trigger = await conversations.findMessage(
-    input.organizationId,
-    input.conversationId,
-    input.triggerMessageId,
-  );
-  if (
-    !conversation ||
-    !trigger ||
-    conversation.status !== "open" ||
-    conversation.attentionMode !== "automatic" ||
-    !conversation.agent
-  ) {
-    return { result: "not_applicable", reason: "NOT_AUTOMATIC" };
-  }
-
-  const agentId = conversation.agent.id;
-  const correlationId = trigger.correlationId;
-
-  const escalate = async (): Promise<boolean> =>
-    conversations.escalateToHuman({
-      organizationId: input.organizationId,
-      conversationId: input.conversationId,
-      correlationId,
-    });
-
+  const { agentId, contactId, correlationId } = input;
   const version = await new AgentRepository(deps.db).findRunnableVersion(
     input.organizationId,
     agentId,
   );
   if (!version) {
-    // Sin versión publicada no hay traza posible —una corrida sin versión no
-    // explicaría con qué configuración se respondió—, así que el rastro queda
-    // en la auditoría y la conversación vuelve al equipo.
-    const escalated = await escalate();
+    // Una repetición conserva el resultado original aunque la versión ya no
+    // esté publicada. Cuando nunca hubo versión, queda solo la auditoría.
+    if (await runs.findByTriggerMessage(input.organizationId, input.triggerMessageId)) {
+      return { result: "not_applicable", reason: "DUPLICATE_TRIGGER" };
+    }
     await runs.recordAudit({
       organizationId: input.organizationId,
       agentId,
@@ -328,7 +309,6 @@ export async function executeAgentRun(
       status: "skipped",
       runId: null,
       failureCode: "AGENT_NOT_RUNNABLE",
-      escalated,
     };
   }
 
@@ -348,49 +328,20 @@ export async function executeAgentRun(
   const unanswered = async (
     status: "failed" | "skipped",
     failureCode: AgentRunFailureCode,
-    responseMessageId?: string,
-  ): Promise<AgentRunOutcome> => {
-    await runs.close({
-      organizationId: input.organizationId,
-      runId,
-      status,
-      failureCode,
-      finishedAt: new Date().toISOString(),
-      responseMessageId,
-    });
-    const escalated = await escalate();
-    await runs.recordAudit({
-      organizationId: input.organizationId,
-      agentId,
-      runId,
-      result: "failed",
-      correlationId,
-    });
-    log("unanswered", {
-      correlationId,
-      conversationId: input.conversationId,
-      runId,
-      failureCode,
-    });
-    return { result: "unanswered", status, runId, failureCode, escalated };
+  ): Promise<AgentRunExecution> => {
+    await finishAgentRun(deps.db, input, runId, { status, failureCode });
+    return { result: "unanswered", status, runId, failureCode };
   };
 
-  // Un mensaje sin texto no se contesta a ciegas: alguien del equipo tiene que
-  // mirar la imagen o escuchar el audio. Es la regla que el corte fija para lo
-  // que no es texto, y por eso no llega a invocar al modelo.
-  if (!trigger.text?.trim()) {
+  // Un mensaje sin texto pasa al equipo para que revise el medio.
+  if (!input.triggerText?.trim()) {
     return unanswered("skipped", "UNSUPPORTED_MESSAGE_CONTENT");
   }
   if (!deps.provider) {
     return unanswered("failed", "MODEL_UNAVAILABLE");
   }
 
-  const history = await conversations.listMessages(
-    input.organizationId,
-    input.conversationId,
-    { limit: AGENT_RUN_CONTEXT_MESSAGES },
-  );
-  const turns = history.messages
+  const turns = (await deps.loadHistory())
     .map(toTurn)
     .filter((turn): turn is ModelTurn => turn !== null);
 
@@ -424,7 +375,7 @@ export async function executeAgentRun(
     // Sin contacto demostrado no hay sujeto al que acotar la consulta, así que
     // la herramienta no se anuncia: falla cerrada antes de existir. La columna
     // es obligatoria, y por eso mismo la comprobación es barata.
-    if (!conversation.contactId) {
+    if (!contactId) {
       ignored("SUBJECT_UNRESOLVED");
       continue;
     }
@@ -438,7 +389,7 @@ export async function executeAgentRun(
     conversationId: input.conversationId,
     // El sujeto de la consulta es el contacto de esta conversación, leído en
     // D1. Ningún argumento del modelo lo sustituye.
-    contactId: conversation.contactId,
+    contactId,
     agentId,
     runId,
     correlationId,
@@ -619,61 +570,9 @@ export async function executeAgentRun(
     }
   }
 
-  // La respuesta viaja por la salida existente, con su clave de idempotencia:
-  // el identificador de la corrida es estable, así que un reintento no produce
-  // un segundo envío.
-  const outgoing = await conversations.createOutgoing({
-    organizationId: input.organizationId,
-    conversationId: input.conversationId,
-    actorId: agentId,
-    senderType: "system",
-    clientRequestId: runId,
-    text: reply.text,
-    correlationId,
-  });
-
-  try {
-    if (!deps.outbound) throw new Error("OUTBOUND_QUEUE_MISSING");
-    await deps.outbound.send({
-      kind: "sendTextMessage",
-      organizationId: input.organizationId,
-      conversationId: input.conversationId,
-      messageId: outgoing.messageId,
-      correlationId: outgoing.correlationId,
-    }, { contentType: "json" });
-  } catch {
-    await conversations.markEnqueueFailed(
-      input.organizationId,
-      outgoing.messageId,
-    );
-    return unanswered(
-      "failed",
-      "OUTBOUND_QUEUE_UNAVAILABLE",
-      outgoing.messageId,
-    );
+  const text = parseModelReplyText(reply.text);
+  if (text === null) {
+    return unanswered("failed", "MODEL_OUTPUT_INVALID");
   }
-
-  await runs.complete({
-    organizationId: input.organizationId,
-    runId,
-    responseMessageId: outgoing.messageId,
-    finishedAt: new Date().toISOString(),
-  });
-  await runs.recordAudit({
-    organizationId: input.organizationId,
-    agentId,
-    runId,
-    result: "allowed",
-    correlationId,
-  });
-  log("succeeded", {
-    correlationId,
-    conversationId: input.conversationId,
-    runId,
-  });
-  return {
-    result: "succeeded",
-    runId,
-    responseMessageId: outgoing.messageId,
-  };
+  return { result: "candidate", runId, agentVersionId: version.versionId, text };
 }

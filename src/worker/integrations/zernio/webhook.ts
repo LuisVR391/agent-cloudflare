@@ -240,7 +240,7 @@ export async function handleZernioWebhook(
         channel.organizationId,
         channel.id,
         accountId,
-        correlationId,
+        receipt.event.correlationId,
       ),
       { contentType: "json" },
     );
@@ -255,7 +255,7 @@ export async function handleZernioWebhook(
       503,
       "QUEUE_UNAVAILABLE",
       "No se pudo aceptar el evento.",
-      correlationId,
+      receipt.event.correlationId,
     );
   }
 

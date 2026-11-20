@@ -102,53 +102,38 @@ export class AgentRunRepository {
     return inserted?.id ?? null;
   }
 
-  /** Cierra la traza con el mensaje que la corrida produjo. */
-  async complete(input: {
+  /** Cierra una corrida una sola vez y deja la auditoría en el mismo lote. */
+  async finish(input: {
     organizationId: string;
     runId: string;
-    responseMessageId: string;
     finishedAt: string;
-  }): Promise<void> {
+  } & (
+    | { status: "succeeded"; responseMessageId: string }
+    | {
+        status: "failed" | "skipped";
+        failureCode: string;
+        responseMessageId?: string;
+      }
+  )): Promise<void> {
     const scope = requireOrganizationScope(
-      input.organizationId,
-      "AgentRunRepository.complete",
+      input.organizationId, "AgentRunRepository.finish",
     );
-    await this.db.prepare(`UPDATE agent_runs
-      SET status = 'succeeded', response_message_id = ?, finished_at = ?
-      WHERE organization_id = ? AND id = ? AND status = 'running'`)
-      .bind(input.responseMessageId, input.finishedAt, scope, input.runId)
-      .run();
-  }
-
-  /**
-   * Cierra la traza sin respuesta. `failed` es lo que salió mal; `skipped` es lo
-   * que no llegó a invocar al modelo porque no había nada que responder. Ambos
-   * conservan un código estable, nunca el cuerpo del proveedor.
-   */
-  async close(input: {
-    organizationId: string;
-    runId: string;
-    status: Extract<AgentRunStatus, "failed" | "skipped">;
-    failureCode: string;
-    finishedAt: string;
-    /**
-     * El mensaje que llegó a existir aunque la corrida no lo entregara. Sin él,
-     * un fallo al encolar dejaría en el hilo un mensaje que ninguna traza
-     * explica.
-     */
-    responseMessageId?: string | null;
-  }): Promise<void> {
-    const scope = requireOrganizationScope(
-      input.organizationId,
-      "AgentRunRepository.close",
-    );
-    await this.db.prepare(`UPDATE agent_runs
-      SET status = ?, failure_code = ?, finished_at = ?,
-        response_message_id = COALESCE(?, response_message_id)
-      WHERE organization_id = ? AND id = ? AND status = 'running'`)
-      .bind(input.status, input.failureCode, input.finishedAt,
-        input.responseMessageId ?? null, scope, input.runId)
-      .run();
+    const failureCode = input.status === "succeeded" ? null : input.failureCode;
+    const result = input.status === "succeeded" ? "allowed" : "failed";
+    await this.db.batch([
+      this.db.prepare(`INSERT INTO audit_logs
+        (id, organization_id, actor_type, actor_id, action, resource_type,
+         resource_id, result, correlation_id, occurred_at)
+        SELECT ?, organization_id, 'system', agent_id, 'conversation.agent.run',
+          'agent_run', id, ?, correlation_id, ?
+        FROM agent_runs WHERE organization_id = ? AND id = ? AND status = 'running'`)
+        .bind(crypto.randomUUID(), result, input.finishedAt, scope, input.runId),
+      this.db.prepare(`UPDATE agent_runs
+        SET status = ?, failure_code = ?, finished_at = ?, response_message_id = ?
+        WHERE organization_id = ? AND id = ? AND status = 'running'`)
+        .bind(input.status, failureCode, input.finishedAt, input.responseMessageId ?? null,
+          scope, input.runId),
+    ]);
   }
 
   /**
