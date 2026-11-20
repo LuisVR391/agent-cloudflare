@@ -272,6 +272,26 @@ describe("POST /webhooks/zernio", () => {
       .bind(payload.id)
       .first<{ status: string; failure_code: string }>();
     expect(row).toEqual({ status: "failed", failure_code: "QUEUE_UNAVAILABLE" });
+    const error = await response.json<{ error: { correlationId: string } }>();
+    queue.fail = false;
+    const retry = await handleZernioWebhook(signedRequest(payload), {
+      DB: env.DB,
+      INBOUND_MESSAGES: queue,
+      ZERNIO_WEBHOOK_SECRET: secret,
+    });
+    expect(retry.status).toBe(200);
+    expect(queue.messages).toHaveLength(1);
+
+    await processInboundQueueMessage(env, queue.messages[0]);
+    const receiptCorrelation = await env.DB.prepare(
+      "SELECT correlation_id FROM inbound_webhook_events WHERE organization_id = ? AND external_event_id = ?",
+    ).bind(organizationId, payload.id).first<string>("correlation_id");
+    const messageCorrelation = await env.DB.prepare(
+      "SELECT correlation_id FROM messages WHERE organization_id = ? AND external_message_id = ?",
+    ).bind(organizationId, payload.message.id).first<string>("correlation_id");
+    expect(receiptCorrelation).toBe(error.error.correlationId);
+    expect(queue.messages[0].correlationId).toBe(receiptCorrelation);
+    expect(messageCorrelation).toBe(receiptCorrelation);
   });
 });
 

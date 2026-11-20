@@ -147,6 +147,9 @@ proveedor.
 
 ## Referencias
 
+- [ADR-0018](./ADR-0018-agent-execution-and-crm-publication.md) extiende esta
+  decisión con el límite entre la ejecución y la publicación automática.
+
 - [Guía de arquitectura y producto](../guia-arquitectura-producto.md), §10 y §20
 - [Contratos transversales](../architecture/contracts.md)
 - [Propiedad y ciclo de vida de los datos](../architecture/data-ownership.md)

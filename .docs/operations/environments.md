@@ -193,3 +193,23 @@ D1, objetos R2, secretos ni cambios de recursos. Las migraciones son aditivas:
 si la versión anterior no es compatible, usa una corrección hacia adelante.
 Restaurar D1 mediante Time Travel, rotar secretos o retirar rutas son acciones
 de incidente separadas, auditables y con autorización explícita.
+
+### Corridas automáticas interrumpidas
+
+1. Busca el `correlationId` del mensaje entrante en los logs redactados del
+   Worker de staging. En la vista de lectura de D1 identifica la organización,
+   `agent_runs.id`, `trigger_message_id`, el estado y, si existe,
+   `response_message_id`. Consulta solo identificadores y estados.
+2. Busca el saliente de esa organización por `response_message_id` o por el
+   `client_request_id` derivado del `runId`. Revisa su estado, la fila
+   `outbound_message_deliveries` y la clave existente. Una corrida `running`
+   puede tener un saliente guardado aunque todavía no tenga vínculo final.
+3. Sin saliente, el equipo puede tomar control y decidir la respuesta desde el
+   inbox. Con saliente, compara estado, logs y DLQ. Si la entrega es incierta o el trabajo sigue en vuelo,
+   concilia con el canal antes de decidir cualquier reintento manual. Conserva
+   la misma identidad y evita publicar otro mensaje para despejar la duda.
+4. Registra el último estado comprobado y la decisión operativa. Repetir el
+   disparador original no vuelve a ejecutar el modelo ni reencola el saliente.
+
+El rollback restaura el código del Worker. Los estados de D1 y los trabajos
+aceptados por Queue conservan sus efectos.

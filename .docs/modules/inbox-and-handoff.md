@@ -56,8 +56,13 @@ conversación existente cambia sola; todas siguen en `human` y sin agente.
 `supervised` sigue rechazado. Está en el contrato aceptado desde Fase 1, pero
 nada prepara todavía un borrador que aprobar.
 
-Lo que ocurre después —cuándo corre el agente, qué contexto recibe y qué pasa si
-falla— lo describe el [runtime de conversación](./conversation-runtime.md).
+Si alguien toma control, pausa, resuelve o cambia la asignación antes de que
+el CRM guarde la respuesta automática, el CRM descarta la candidata pendiente.
+Una actualización que conserva la misma configuración deja continuar la
+corrida. Los salientes ya guardados se concilian con el canal.
+
+El [runtime de conversación](./conversation-runtime.md) describe cuándo corre
+el agente, qué contexto recibe y cómo se devuelve la atención al equipo.
 
 Leer una conversación en el inbox no produce efectos hacia el canal: el producto
 no emite acuses de lectura. La razón y la condición bajo la que volvería a tener

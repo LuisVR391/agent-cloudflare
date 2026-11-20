@@ -206,6 +206,12 @@ const replyTextSchema = z
   .min(1)
   .max(MODEL_REPLY_MAX_CHARACTERS);
 
+/** Valida el texto también para proveedores que ya devuelven ModelReply. */
+export function parseModelReplyText(candidate: unknown): string | null {
+  const parsed = replyTextSchema.safeParse(candidate);
+  return parsed.success ? parsed.data : null;
+}
+
 /**
  * La petición de herramienta que el modelo redactó como contenido, una o
  * varias. Es la misma forma de siempre: lo único distinto es por dónde llegó.
@@ -332,9 +338,9 @@ export function parseModelReply(
     return { kind: "toolCalls", calls };
   }
 
-  const text = replyTextSchema.safeParse(response);
-  if (!text.success) {
+  const text = parseModelReplyText(response);
+  if (text === null) {
     throw new ModelProviderError("MODEL_OUTPUT_INVALID");
   }
-  return { kind: "text", text: text.data };
+  return { kind: "text", text };
 }
