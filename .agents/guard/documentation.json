@@ -1,0 +1,101 @@
+[
+  {
+    "paths": "^src/worker/(?:integrations/zernio/|repositories/(?:communication-channel|inbound-webhook-event|message-status-reconciliation)-repository\\.ts$)",
+    "documents": [
+      ".docs/modules/zernio-whatsapp-channel.md",
+      ".docs/operations/zernio-whatsapp-setup.md",
+      ".docs/architecture/message-lifecycle.md"
+    ]
+  },
+  {
+    "paths": "^src/worker/(?:agents/tool-catalog\\.ts|repositories/agent-tool-call-repository\\.ts)$",
+    "documents": [
+      ".docs/modules/tools-and-permissions.md",
+      ".docs/architecture/security-model.md"
+    ]
+  },
+  {
+    "paths": "^src/worker/(?:agents/|repositories/agent-run-repository\\.ts$|conversation-automatic-reply\\.ts$)",
+    "documents": [
+      ".docs/modules/model-providers.md",
+      ".docs/modules/conversation-runtime.md",
+      ".docs/modules/tools-and-permissions.md"
+    ]
+  },
+  {
+    "paths": "^src/(?:worker/(?:agent-api|repositories/agent-repository)\\.ts|client/components/agent-directory\\.tsx)$",
+    "documents": [
+      ".docs/modules/agents-and-versions.md",
+      ".docs/modules/tools-and-permissions.md"
+    ]
+  },
+  {
+    "paths": "^src/worker/(?:auth/|repositories/auth/|(?:repositories/)?(?:organization|team)-(?:api|repository)\\.ts$)|^src/client/components/(?:login-form|invitation-acceptance|team-directory)\\.tsx$",
+    "documents": [
+      ".docs/operations/authentication.md",
+      ".docs/modules/teams-and-permissions.md",
+      ".docs/architecture/security-model.md"
+    ]
+  },
+  {
+    "paths": "^src/worker/(?:customer-support-agent|conversation-api|repositories/conversation-repository)\\.ts$|^src/client/(?:components/(?:conversation-[^/]+|dev-inbound-button|ui/(?:attachment|bubble|message|message-scroller))\\.tsx|lib/conversation-pagination\\.ts)$",
+    "documents": [
+      ".docs/modules/inbox-and-handoff.md",
+      ".docs/modules/conversation-runtime.md",
+      ".docs/architecture/message-lifecycle.md"
+    ]
+  },
+  {
+    "paths": "^src/worker/(?:repositories/)?(?:contact|note)-(?:api|repository)\\.ts$|^src/client/components/(?:contact-[^/]+)\\.tsx$",
+    "documents": [
+      ".docs/modules/contacts-and-conversations.md"
+    ]
+  },
+  {
+    "paths": "^src/worker/(?:repositories/)?(?:opportunity|pipeline|service)-(?:api|repository)\\.ts$|^src/client/components/(?:pipeline-board|opportunity-sheet|service-catalog)\\.tsx$",
+    "documents": [
+      ".docs/modules/pipelines.md",
+      ".docs/modules/appointments-and-tasks.md"
+    ]
+  },
+  {
+    "paths": "^src/worker/(?:repositories/)?(?:task|appointment)-(?:api|repository)\\.ts$|^src/worker/domain/(?:appointment-status|time-zone)\\.ts$|^src/client/(?:components/(?:task-list|appointment-agenda)\\.tsx|lib/agenda-time\\.ts)$",
+    "documents": [
+      ".docs/modules/appointments-and-tasks.md"
+    ]
+  },
+  {
+    "paths": "^src/worker/(?:metrics-api|repositories/metrics-repository)\\.ts$|^src/client/components/panel-overview\\.tsx$",
+    "documents": [
+      ".docs/modules/initial-metrics.md"
+    ]
+  },
+  {
+    "paths": "^migrations/.+\\.sql$",
+    "documents": [
+      ".docs/architecture/domain-model.md",
+      ".docs/architecture/data-ownership.md",
+      ".docs/operations/local-database.md",
+      "migrations/README.md"
+    ]
+  },
+  {
+    "paths": "^(?:wrangler\\.jsonc|vite\\.config\\.ts|scripts/(?:deploy-staging|validate-staging-build)\\.mjs)$",
+    "documents": [
+      ".docs/operations/environments.md"
+    ]
+  },
+  {
+    "paths": "^src/",
+    "documents": [
+      ".docs/architecture/overview.md",
+      ".docs/architecture/contracts.md"
+    ]
+  },
+  {
+    "paths": "^\\.(?:agents|claude|codex|github|githooks)/|^\\.(?:mcp\\.json|gitignore)$|^(?:package(?:-lock)?\\.json|AGENTS\\.md|CLAUDE\\.md|skills-lock\\.json)$|^scripts/",
+    "documents": [
+      ".docs/operations/entrega.md"
+    ]
+  }
+]

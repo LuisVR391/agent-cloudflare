@@ -1,0 +1,4 @@
+interface:
+  display_name: "Pendientes de Agent Cloudflare"
+  short_description: "Conciliar tarjetas de Notion con GitHub"
+  default_prompt: "Usa $pendientes-agent-cloudflare para actualizar el seguimiento de esta tarea."

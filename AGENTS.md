@@ -3,9 +3,9 @@
 Estas instrucciones aplican a todo el repositorio y son la fuente única de
 reglas para desarrolladores y agentes de codificación. Los archivos de
 integración de herramientas deben remitir aquí en vez de copiar estas reglas.
-La [guía de continuidad de agentes](./.docs/operations/agent-continuity.md)
-explica el skill y los hooks repo-locales que ayudan a Codex y Claude Code a
-aplicar estas reglas sin sustituirlas.
+Usa [Pendientes — Agent Cloudflare](https://app.notion.com/p/41fdb9dbd4118185a0a6fead768cd9b4)
+para pendientes, acuerdos de alcance y dependencias. El [flujo de entrega](./.docs/operations/entrega.md)
+describe la coordinación con GitHub y las comprobaciones de publicación.
 
 ## Antes de modificar
 
@@ -132,9 +132,6 @@ componente.
   una sola copia canónica, declaración en ambos agentes y registro en
   `skills-lock.json`.
 
-La [guía de continuidad](./.docs/operations/agent-continuity.md) explica su
-descubrimiento, verificación y límites.
-
 ## Flujo de trabajo
 
 1. Confirma el objetivo, fase, dependencias, alcance y fuera de alcance.
@@ -152,12 +149,20 @@ descubrimiento, verificación y límites.
 9. Actualiza la fila del roadmap si el PR completa, bloquea o cambia un
    entregable, enlazando issue y PR como evidencia.
 
-Un corte con criterios de aceptación, migración o decisiones de negocio se
-planifica antes de escribirse, y su plan vive en `.plans/<slug>/SPEC.md`, fuera
-del control de versiones. La [guía de continuidad](./.docs/operations/agent-continuity.md)
-describe los skills que organizan ese trabajo y los roles que lo ejecutan; la
-decisión está en [ADR-0016](./.docs/decisions/ADR-0016-multi-agent-delivery-cycle.md).
-Quien implementa un criterio no verifica su propio cumplimiento.
+Registra en Notion los pendientes que indique el usuario. Cuando empiece el
+trabajo autorizado, enlaza la tarjeta y el issue y usa `En curso`. Después de
+fusionar y completar la verificación, comprueba el cierre del issue y concilia
+la tarjeta y las relacionadas que sigan abiertas. Conserva las tarjetas `Listo`.
+
+Los skills de [entrega](./.agents/skills/deliver-agent-cloudflare-change/SKILL.md)
+y [pendientes](./.agents/skills/pendientes-agent-cloudflare/SKILL.md) cubren las
+operaciones de este repositorio. El equipo elige el formato y la profundidad
+del plan según el cambio.
+
+Incluye la documentación técnica afectada en los commits salientes. El
+hook `pre-push` y el CI verifican ese requisito. Revisa el diff y confirma
+las pruebas del SHA candidato antes del merge y también antes de desplegar a
+Cloudflare.
 
 Los commits deben ser coherentes por responsabilidad. Un PR debe explicar
 alcance, impacto, validación, riesgos y cualquier operación externa pendiente.
@@ -193,9 +198,8 @@ TOKEN=$(gh auth token) && curl -sS -X PATCH \
 
 El cuerpo del PR sigue `.github/pull_request_template.md`: los encabezados
 `## Documentación`, `## ADR`, `## Roadmap` y `## Validación` deben existir, en
-ese orden y con contenido, porque `npm run check` los valida en cada PR. Un
-`rerun` del workflow reutiliza el evento original, así que corregir el cuerpo
-después no basta: hace falta un commit nuevo para que el CI lo lea.
+ese orden y con contenido. CI revisa la descripción y el diff del PR. Al
+corregir la descripción se genera una ejecución con el contenido actualizado.
 
 Los agentes pueden crear commits locales atómicos como parte de un cambio
 solicitado, pero nunca ejecutan `git push` sin confirmación explícita del
@@ -265,8 +269,9 @@ humanas separadas.
 ## Documentación y ADRs
 
 - La guía rectora conserva la visión; el roadmap conserva el estado aceptado.
-- Los documentos especializados enlazan la guía y los ADRs en vez de duplicar
-  explicaciones extensas.
+- Los documentos especializados describen el comportamiento vigente. Organiza los
+  módulos por responsabilidad y enlaza las funciones o procedimientos que
+  necesiten su propia explicación.
 - Las funciones, rutas, schemas y bindings se documentan cuando existen, no
   como interfaces supuestamente disponibles.
 - Sigue `.docs/decisions/README.md` para crear, aceptar, sustituir o rechazar

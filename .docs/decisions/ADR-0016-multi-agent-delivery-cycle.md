@@ -1,6 +1,6 @@
 # ADR-0016: Ciclo de entrega multi-agente con verificación independiente
 
-**Estado:** Aceptado
+**Estado:** Sustituido al entrar en vigor [ADR-0019](./ADR-0019-delivery-workflow.md).
 
 **Fecha:** 2026-08-19
 

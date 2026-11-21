@@ -20,31 +20,6 @@
     ]
   },
   "hooks": {
-    "SessionStart": [
-      {
-        "matcher": "startup|resume|clear|compact|fork",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PROJECT_DIR}/.claude/hooks/project-guard.mjs"],
-            "statusMessage": "Cargando reglas de Agent Cloudflare"
-          }
-        ]
-      }
-    ],
-    "SubagentStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PROJECT_DIR}/.claude/hooks/project-guard.mjs"],
-            "statusMessage": "Cargando reglas para el subagente"
-          }
-        ]
-      }
-    ],
     "UserPromptSubmit": [
       {
         "hooks": [
@@ -73,25 +48,13 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "^(Edit|Write)$",
+        "matcher": "^(Bash|Edit|Write)$",
         "hooks": [
           {
             "type": "command",
             "command": "node",
             "args": ["${CLAUDE_PROJECT_DIR}/.claude/hooks/project-guard.mjs"],
-            "statusMessage": "Revisando impacto documental"
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node",
-            "args": ["${CLAUDE_PROJECT_DIR}/.claude/hooks/project-guard.mjs"],
-            "timeout": 10
+            "statusMessage": "Revisando documentación y seguimiento de entregas"
           }
         ]
       }
