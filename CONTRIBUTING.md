@@ -10,12 +10,12 @@ flujo local; `AGENTS.md` mantiene los principios y restricciones transversales.
 2. Instala dependencias con `npm ci`.
 3. Genera bindings con `npm run cf-typegen`.
 4. Inicia el entorno con `npm run dev`.
-5. Antes de enviar cambios, ejecuta `npm run check`.
+5. Instala el hook Git con `npm run hooks:install`.
+6. Antes de enviar cambios, actualiza la documentación afectada y ejecuta
+   `npm run check` y `git diff --check`.
 
-Si trabajas con Codex o Claude Code, revisa la
-[guía de continuidad de agentes](./.docs/operations/agent-continuity.md).
-El skill se descubre desde el repositorio, pero los hooks requieren revisión y
-confianza explícita mediante `/hooks` cada vez que cambie su definición.
+El [flujo de entrega](./.docs/operations/entrega.md) cubre Notion, revisión y
+pruebas antes de fusionar o desplegar, y configuración de Codex y Claude Code.
 
 ## Convenciones
 

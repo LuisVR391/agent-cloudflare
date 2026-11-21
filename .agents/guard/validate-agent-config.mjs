@@ -27,29 +27,25 @@ function requireFile(path) {
   if (!existsSync(join(root, path))) fail(`${path}: archivo requerido ausente`);
 }
 
-const skillDirectory = ".agents/skills/deliver-agent-cloudflare-change";
-const skillPath = `${skillDirectory}/SKILL.md`;
-const metadataPath = `${skillDirectory}/agents/openai.yaml`;
 const policyPath = ".agents/guard/policy.json";
 const corePath = ".agents/guard/project-guard.mjs";
 const scenariosPath = ".agents/guard/scenarios.mjs";
 const codexAdapterPath = ".codex/hooks/project-guard.mjs";
 const claudeAdapterPath = ".claude/hooks/project-guard.mjs";
-const claudeReadOnlyAdapterPath = ".claude/hooks/readonly-guard.mjs";
 const codexHooksPath = ".codex/hooks.json";
 const claudeSettingsPath = ".claude/settings.json";
 const codexConfigPath = ".codex/config.toml";
 const claudeMcpPath = ".mcp.json";
 const skillsLockPath = "skills-lock.json";
-const continuityGuide = ".docs/operations/agent-continuity.md";
+const deliveryGuide = ".docs/operations/entrega.md";
+const documentationMapPath = ".agents/guard/documentation.json";
 
 // Skills propias del repositorio y skills traídas de un origen externo. Ambas
 // viven una sola vez en `.agents/skills`; la segunda lista además debe quedar
 // fijada en el lockfile para que la versión sea reproducible.
 const ownSkills = [
   "deliver-agent-cloudflare-change",
-  "plan-agent-cloudflare-change",
-  "run-agent-cloudflare-cycle",
+  "pendientes-agent-cloudflare",
 ];
 const vendoredSkills = ["shadcn"];
 
@@ -58,20 +54,18 @@ const vendoredSkills = ["shadcn"];
 const sharedMcpServers = ["shadcn"];
 
 for (const path of [
-  skillPath,
-  metadataPath,
   policyPath,
   corePath,
   scenariosPath,
   codexAdapterPath,
   claudeAdapterPath,
-  claudeReadOnlyAdapterPath,
   codexHooksPath,
   claudeSettingsPath,
   codexConfigPath,
   claudeMcpPath,
   skillsLockPath,
-  continuityGuide,
+  deliveryGuide,
+  documentationMapPath,
   "CLAUDE.md",
 ]) {
   requireFile(path);
@@ -144,7 +138,7 @@ for (const name of ownSkills) {
       }
       const description =
         frontmatter[1].match(/^description:\s*(.+)$/m)?.[1] || "";
-      if (description.length < 80 || !/Úsalo|Usalo/.test(description)) {
+      if (description.length < 80 || !/[ÚU]sal[ao]/.test(description)) {
         fail(`${currentSkillPath}: description debe explicar alcance y disparadores`);
       }
     }
@@ -206,19 +200,27 @@ for (const key of ["implementationPrefixes", "deliverablePrefixes"]) {
   }
 }
 
-for (const mapping of policy.documentationMap || []) {
-  for (const document of mapping.documents || []) requireFile(document);
+const documentationMap = readJson(documentationMapPath);
+if (!Array.isArray(documentationMap) || documentationMap.length === 0) {
+  fail(`${documentationMapPath}: debe contener reglas documentales`);
+}
+for (const mapping of Array.isArray(documentationMap) ? documentationMap : []) {
+  try {
+    if (typeof mapping.paths !== "string" || !mapping.paths.startsWith("^")) {
+      throw new Error("la expresión no está anclada al inicio de la ruta");
+    }
+    new RegExp(mapping.paths);
+  } catch (error) {
+    fail(`${documentationMapPath}: paths inválido (${error.message})`);
+  }
+  if (!Array.isArray(mapping.documents) || mapping.documents.length === 0) {
+    fail(`${documentationMapPath}: cada regla necesita al menos un documento`);
+    continue;
+  }
+  for (const document of mapping.documents) requireFile(document);
 }
 
-// Cada agente registra los mismos eventos contra su propio adaptador.
-const requiredEvents = [
-  "SessionStart",
-  "SubagentStart",
-  "UserPromptSubmit",
-  "PreToolUse",
-  "PostToolUse",
-  "Stop",
-];
+const requiredEvents = ["UserPromptSubmit", "PreToolUse", "PostToolUse"];
 
 function validateHooks(path, hooks, adapterPath) {
   for (const event of requiredEvents) {
@@ -227,8 +229,15 @@ function validateHooks(path, hooks, adapterPath) {
       fail(`${path}: falta ${event}`);
       continue;
     }
+    if (event === "PostToolUse" && !groups.some(({ matcher }) => matcher?.includes("Bash"))) {
+      fail(`${path}: PostToolUse debe cubrir Bash para conciliar tras fusionar`);
+    }
     for (const group of groups) {
-      for (const hook of group.hooks || []) {
+      if (!Array.isArray(group.hooks) || group.hooks.length === 0) {
+        fail(`${path}: ${event} no tiene comandos configurados`);
+        continue;
+      }
+      for (const hook of group.hooks) {
         if (hook.type !== "command") {
           fail(`${path}: ${event} usa un tipo no ejecutable`);
         }
@@ -284,6 +293,16 @@ const codexConfig = existsSync(join(root, codexConfigPath))
   ? readFileSync(join(root, codexConfigPath), "utf8")
   : "";
 
+const shadcnVersion = readJson("package.json").devDependencies?.shadcn ?? "";
+const shadcnArgs = [`shadcn@${shadcnVersion}`, "mcp"];
+if (
+  !/^\d+\.\d+\.\d+$/.test(shadcnVersion) ||
+  claudeMcp.mcpServers?.shadcn?.command !== "npx" ||
+  JSON.stringify(claudeMcp.mcpServers?.shadcn?.args) !== JSON.stringify(shadcnArgs)
+) {
+  fail(`${claudeMcpPath}: shadcn debe usar la versión exacta de package.json`);
+}
+
 for (const name of sharedMcpServers) {
   const declared = claudeMcp.mcpServers?.[name];
   if (!declared?.command || !Array.isArray(declared.args)) {
@@ -308,108 +327,11 @@ for (const name of sharedMcpServers) {
 }
 
 // Los adaptadores solo declaran identidad; la lógica pertenece al núcleo.
-for (const adapter of [
-  codexAdapterPath,
-  claudeAdapterPath,
-  claudeReadOnlyAdapterPath,
-]) {
+for (const adapter of [codexAdapterPath, claudeAdapterPath]) {
   if (!existsSync(join(root, adapter))) continue;
   const source = readFileSync(join(root, adapter), "utf8");
   if (!source.includes("runHook") || !source.includes("project-guard.mjs")) {
     fail(`${adapter}: debe delegar en runHook del núcleo compartido`);
-  }
-}
-
-
-// Los subagentes son la única pieza asimétrica de la integración: Codex no los
-// consume y conserva la ruta lineal del skill de entrega. La decisión está en
-// ADR-0016. Se validan igual que el resto porque su definición es entregable.
-const subagentDirectory = ".claude/agents";
-const implementerAgents = ["worker-backend", "client-ui", "d1-schema"];
-const readOnlyAgents = ["revisor", "corredor"];
-
-for (const name of [...implementerAgents, ...readOnlyAgents]) {
-  const agentPath = `${subagentDirectory}/${name}.md`;
-  if (!existsSync(join(root, agentPath))) {
-    fail(`${agentPath}: subagente requerido ausente`);
-    continue;
-  }
-  const definition = readFileSync(join(root, agentPath), "utf8");
-  const frontmatter = definition.match(/^---\n([\s\S]*?)\n---/);
-  if (!frontmatter) {
-    fail(`${agentPath}: falta frontmatter YAML`);
-    continue;
-  }
-  const block = frontmatter[1];
-  if (!new RegExp(`^name:\\s*${name}$`, "m").test(block)) {
-    fail(`${agentPath}: name no coincide con el archivo`);
-  }
-  const description = block.match(/^description:\s*(.+)$/m)?.[1] || "";
-  if (description.length < 80) {
-    fail(`${agentPath}: description debe explicar alcance y disparadores`);
-  }
-  // Un agente que verifica o solo ejecuta comandos no puede escribir: sin esta
-  // línea dejaría de ser independiente de lo que juzga.
-  if (readOnlyAgents.includes(name)) {
-    const disallowed = block.match(/^disallowedTools:\s*(.+)$/m)?.[1] || "";
-    for (const tool of ["Edit", "Write"]) {
-      if (!disallowed.includes(tool)) {
-        fail(`${agentPath}: disallowedTools debe incluir ${tool}`);
-      }
-    }
-    if (/^tools:.*\b(Edit|Write)\b/m.test(block)) {
-      fail(`${agentPath}: tools no puede declarar herramientas de escritura`);
-    }
-  }
-}
-
-// El revisor es el único que corre comandos sobre el código que juzga, así que
-// su restricción tiene que estar en su propia definición.
-const reviewerDefinition = existsSync(join(root, `${subagentDirectory}/revisor.md`))
-  ? readFileSync(join(root, `${subagentDirectory}/revisor.md`), "utf8")
-  : "";
-if (!reviewerDefinition.includes(claudeReadOnlyAdapterPath)) {
-  fail(`${subagentDirectory}/revisor.md: debe registrar ${claudeReadOnlyAdapterPath} en PreToolUse`);
-}
-
-// El rol de solo lectura es una lista de comandos permitidos. Si queda vacía,
-// el agente no puede verificar nada; si desaparece, deja de estar restringido.
-for (const key of [
-  "allowedCommands",
-  "allowedGitSubcommands",
-  "allowedNpmScripts",
-  "blockedArgumentPatterns",
-  "blockedShellPatterns",
-]) {
-  if (!Array.isArray(policy.readOnlyRole?.[key]) || policy.readOnlyRole[key].length === 0) {
-    fail(`${policyPath}: readOnlyRole.${key} debe ser una lista no vacía`);
-  }
-}
-if (!policy.planArtifacts?.directory || !policy.planArtifacts?.specFileName) {
-  fail(`${policyPath}: planArtifacts debe declarar directory y specFileName`);
-}
-
-if (
-  process.env.GITHUB_EVENT_NAME?.startsWith("pull_request") &&
-  process.env.GITHUB_EVENT_PATH
-) {
-  try {
-    const event = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, "utf8"));
-    const body = event.pull_request?.body || "";
-    const headings = ["Documentación", "ADR", "Roadmap", "Validación"];
-    for (const [index, heading] of headings.entries()) {
-      const next = headings[index + 1];
-      const expression = new RegExp(
-        `^##\\s+${heading}\\s*$([\\s\\S]*?)${next ? `(?=^##\\s+${next}\\s*$)` : "(?![\\s\\S])"}`,
-        "im",
-      );
-      const content = body.match(expression)?.[1]
-        ?.replace(/<!--[\s\S]*?-->/g, "")
-        .trim();
-      if (!content) fail(`PR: la sección ${heading} falta o está vacía`);
-    }
-  } catch (error) {
-    fail(`PR: no se pudo validar el evento (${error.message})`);
   }
 }
 

@@ -1,12 +1,6 @@
 import assert from "node:assert/strict";
-import {
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
+import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 
@@ -53,25 +47,6 @@ function staged(status) {
     },
   };
 }
-
-test("SessionStart carga contexto breve y fuentes de verdad", () => {
-  const output = handleHook(
-    { hook_event_name: "SessionStart", source: "startup" },
-    policy,
-  );
-  assert.match(
-    output.hookSpecificOutput.additionalContext,
-    /AGENTS\.md.*roadmap/i,
-  );
-});
-
-test("SubagentStart hereda reglas críticas", () => {
-  const output = handleHook(
-    { hook_event_name: "SubagentStart", agent_type: "worker" },
-    policy,
-  );
-  assert.match(output.hookSpecificOutput.additionalContext, /migraciones/i);
-});
 
 test("un comando seguro no se altera", () => {
   assert.equal(preTool("npm run test"), null);
@@ -215,6 +190,8 @@ test("conserva la inspección remota y la creación de un PR", () => {
     "curl -sS 'https://api.github.com/repos/example/agents/pulls?state=open'",
     "npx wrangler secret list",
     "npx wrangler versions list",
+    ["npx", "wrangler", "deployments", "status", "--env", "staging"].join(" "),
+    ["npx", "wrangler", "deployments", "list", "--env", "staging"].join(" "),
   ];
   for (const command of commands) {
     assert.equal(preTool(command, {}, staged("")), null, command);
@@ -412,11 +389,62 @@ test("acepta justificaciones explícitas de ADR y roadmap", () => {
   assert.equal(output, null);
 });
 
+function postMerge(toolResponse, options = {}) {
+  const repo = options.repo || "LuisVR391/agent-cloudflare";
+  const approval = options.approved === false ? "" : "AGENT_MERGE_CONFIRMED=1 ";
+  const curl = ["curl", "--fail-with-body", "--silent", "--show-error"].join(" ");
+  const method = options.method || "PUT";
+  const command = `${approval}${curl} --request ${method} https://api.github.com/repos/${repo}/pulls/19/merge`;
+  return handleHook(
+    {
+      hook_event_name: "PostToolUse",
+      tool_name: "Bash",
+      tool_input: { command },
+      tool_response: toolResponse,
+    },
+    policy,
+  );
+}
+
+test("PostToolUse sugiere conciliar cuando GitHub confirma el merge", () => {
+  const receipt = { merged: true, sha: "1".repeat(40) };
+  const claudeResponse = { stdout: JSON.stringify(receipt), stderr: "", interrupted: false };
+  const codexResponse = `Wall time: 0.1754 seconds\nProcess exited with code 0\nFinal output:\n${JSON.stringify(receipt)}`;
+  for (const response of [claudeResponse, codexResponse]) {
+    assert.match(
+      postMerge(response).hookSpecificOutput.additionalContext,
+      /GitHub confirmó la fusión del PR #19.*pendientes-agent-cloudflare/i,
+    );
+  }
+});
+
+test("PostToolUse omite el recordatorio si el merge falla o es incierto", () => {
+  const receipt = JSON.stringify({ merged: true, sha: "1".repeat(40) });
+  for (const response of [
+    { merged: false, message: "Pull request is not mergeable" },
+    { merged: true, sha: "invalid" },
+    { stdout: receipt, interrupted: true },
+    { output: receipt, exit_code: 22 },
+    `Process exited with code 22\nOutput:\n${receipt}`,
+    "curl: (22) The requested URL returned error: 405",
+    undefined,
+  ]) {
+    assert.equal(postMerge(response), null);
+  }
+});
+
+test("PostToolUse exige un PUT autorizado al endpoint de merge del repositorio", () => {
+  const receipt = { merged: true, sha: "1".repeat(40) };
+  assert.equal(postMerge(receipt, { approved: false }), null);
+  assert.equal(postMerge(receipt, { method: "GET" }), null);
+  assert.equal(postMerge(receipt, { repo: "LuisVR391/dialow" }), null);
+});
+
 test("PostToolUse recuerda documentación una sola vez por turno", () => {
   const input = {
     hook_event_name: "PostToolUse",
     tool_name: "apply_patch",
-    session_id: `test-${Date.now()}`,
+    session_id: randomUUID(),
     turn_id: "docs",
     tool_input: {
       command:
@@ -433,7 +461,7 @@ test("PostToolUse resuelve rutas absolutas y deduplica por agente", () => {
   const input = {
     hook_event_name: "PostToolUse",
     tool_name: "Edit",
-    session_id: `test-${Date.now()}`,
+    session_id: randomUUID(),
     prompt_id: "claude-docs",
     cwd: repositoryRoot,
     tool_input: { file_path: join(repositoryRoot, "src/worker/index.ts") },
@@ -450,278 +478,51 @@ test("PostToolUse resuelve rutas absolutas y deduplica por agente", () => {
   );
 });
 
-test("SessionStart usa la invocación del skill propia de cada agente", () => {
-  const claude = handleHook(
-    { hook_event_name: "SessionStart", source: "startup" },
-    policy,
-    { skillCommand: "/deliver-agent-cloudflare-change" },
-  );
-  const codex = handleHook(
-    { hook_event_name: "SessionStart", source: "startup" },
-    policy,
-    { skillCommand: "$deliver-agent-cloudflare-change" },
-  );
-  assert.match(
-    claude.hookSpecificOutput.additionalContext,
-    /\/deliver-agent-cloudflare-change/,
-  );
-  assert.match(
-    codex.hookSpecificOutput.additionalContext,
-    /\$deliver-agent-cloudflare-change/,
-  );
-});
-
-test("Stop exige el cierre una vez y acepta las cuatro secciones", () => {
-  const missing = handleHook(
-    {
-      hook_event_name: "Stop",
-      stop_hook_active: false,
-      last_assistant_message: "Cambio terminado.",
-    },
-    policy,
-  );
-  assert.equal(missing.decision, "block");
-
-  const repeated = handleHook(
-    {
-      hook_event_name: "Stop",
-      stop_hook_active: true,
-      last_assistant_message: "Cambio terminado.",
-    },
-    policy,
-  );
-  assert.equal(repeated.continue, true);
-
-  const complete = handleHook(
-    {
-      hook_event_name: "Stop",
-      stop_hook_active: false,
-      last_assistant_message:
-        "### Documentación\nLista.\n### ADR\nNo aplica.\n### Roadmap\nListo.\n### Validación\nOK.",
-    },
-    policy,
-  );
-  assert.equal(complete.continue, true);
-});
-
-test("el rol de solo lectura rechaza cualquier escritura", () => {
-  const readOnly = { role: "readOnly" };
-
-  const edit = handleHook(
-    {
-      hook_event_name: "PreToolUse",
-      tool_name: "Edit",
-      cwd: repositoryRoot,
-      tool_input: { file_path: join(repositoryRoot, "src/worker/index.ts") },
-    },
-    policy,
-    readOnly,
-  );
-  assert.equal(denied(edit), true);
-  assert.match(
-    edit.hookSpecificOutput.permissionDecisionReason,
-    /verifica y no modifica/i,
-  );
-
-  const escrituras = [
-    "echo 'x' > src/worker/index.ts",
-    "sed -i 's/a/b/' src/worker/index.ts",
-    "rm -rf test",
-    "git commit -m 'fix'",
-    "npm run deploy:staging",
-    "cat README.md | tee copia.md",
-    "grep -r $(cat lista.txt) src",
-    "npx prettier --write src",
-  ];
-  for (const command of escrituras) {
-    assert.equal(denied(preTool(command, {}, readOnly)), true, command);
+test("las conversaciones y los turnos ya no activan el ciclo ni el cierre", () => {
+  for (const event of ["SessionStart", "SubagentStart", "Stop"]) {
+    assert.equal(handleHook({ hook_event_name: event }, policy), null, event);
   }
-});
-
-test("el rol de solo lectura permite inspeccionar y correr pruebas", () => {
-  const readOnly = { role: "readOnly" };
-  const lecturas = [
-    "cat src/worker/index.ts",
-    "sed -n '1,40p' AGENTS.md",
-    "grep -rn organizationId src/worker",
-    "git diff --name-status",
-    "git log --oneline -5",
-    "npm run test:client",
-    "npm run check:agents",
-    "find migrations -name '*.sql'",
-  ];
-  for (const command of lecturas) {
-    assert.equal(preTool(command, {}, readOnly), null, command);
-  }
-});
-
-test("sin el rol de solo lectura las reglas generales no cambian", () => {
-  assert.equal(preTool("sed -i 's/a/b/' src/worker/index.ts"), null);
-  assert.equal(preTool("cat README.md | tee copia.md"), null);
-});
-
-test("SessionStart recupera el plan activo de la rama", () => {
-  const workspace = mkdtempSync(join(tmpdir(), "agent-cloudflare-plan-"));
-  const planDirectory = join(workspace, ".plans", "issue-56-herramientas");
-  mkdirSync(planDirectory, { recursive: true });
-  writeFileSync(
-    join(planDirectory, "SPEC.md"),
-    [
-      "---",
-      "feature: Herramientas con autorización en backend",
-      "slug: issue-56-herramientas",
-      "issue: 56",
-      "rama: feat/issue-56-herramientas",
-      "estado: activo",
-      "---",
-      "",
-      "# Herramientas",
-    ].join("\n"),
-  );
-  const branchRunner = {
-    runGit(args) {
-      if (args.join(" ") === "rev-parse --abbrev-ref HEAD") {
-        return "feat/issue-56-herramientas";
-      }
-      return "";
-    },
-  };
-
-  const conPlan = handleHook(
-    { hook_event_name: "SessionStart", source: "startup", cwd: workspace },
-    policy,
-    branchRunner,
-  );
-  assert.match(
-    conPlan.hookSpecificOutput.additionalContext,
-    /plan activo: Herramientas con autorización en backend/,
-  );
-  assert.match(
-    conPlan.hookSpecificOutput.additionalContext,
-    /\.plans\/issue-56-herramientas\/SPEC\.md/,
-  );
-
-  const otraRama = handleHook(
-    { hook_event_name: "SessionStart", source: "startup", cwd: workspace },
-    policy,
-    {
-      runGit(args) {
-        if (args.join(" ") === "rev-parse --abbrev-ref HEAD") return "main";
-        return "";
-      },
-    },
-  );
-  assert.doesNotMatch(
-    otraRama.hookSpecificOutput.additionalContext,
-    /plan activo/,
-  );
-
-  rmSync(workspace, { recursive: true, force: true });
-});
-
-test("UserPromptSubmit recuerda el skill según la intención", () => {
-  // Un workspace vacío, como en los escenarios vecinos: este caso describe qué
-  // recuerda el hook cuando la rama NO tiene plan, y leer la raíz real lo hacía
-  // depender de si existe un `.plans/` en el disco de quien corre las pruebas.
-  // Con un corte en marcha, el hook encontraba ese SPEC y devolvía el
-  // recordatorio del ciclo, que es justo lo que comprueba el escenario
-  // siguiente. El caso con plan tiene su propio workspace; este necesita el suyo.
-  const workspace = mkdtempSync(join(tmpdir(), "agent-cloudflare-intent-"));
-
-  function prompt(text, runtime = {}) {
-    return handleHook(
-      { hook_event_name: "UserPromptSubmit", prompt: text, cwd: workspace },
+  assert.equal(
+    handleHook(
+      { hook_event_name: "UserPromptSubmit", prompt: "Planea un corte e impleméntalo." },
       policy,
-      { skillCommand: "/deliver-agent-cloudflare-change", ...runtime },
-    );
+    ),
+    null,
+  );
+});
+
+test("reconoce el wrapper de staging y conserva el dry-run del artefacto", () => {
+  const wrapper = ["node", "scripts/deploy-staging.mjs"].join(" ");
+  assert.equal(denied(preTool(wrapper)), true);
+  assert.equal(preTool("AGENT_DEPLOY_CONFIRMED=1 " + wrapper), null);
+
+  const dryRun = ["npx", "wrangler", "deploy", "--dry-run", "--config", "dist/agent_cloudflare/wrangler.json"].join(" ");
+  assert.equal(preTool(dryRun), null);
+});
+
+test("el guard bloquea cargar secretos en lote", () => {
+  const command = ["npx", "wrangler", "secret", "bulk", "secrets.json"].join(" ");
+  assert.equal(denied(preTool(command)), true);
+});
+
+test("una marca de despliegue no habilita cargar secretos junto con el artefacto", () => {
+  const uploadCommands = [["deploy"], ["versions", "upload"]];
+  const options = [
+    ["--secrets-file", "secrets.json"],
+    ["--secrets-file=secrets.json"],
+    ["--dry-run", "--secrets-file", "secrets.json"],
+  ];
+  for (const upload of uploadCommands) {
+    for (const option of options) {
+      const command = ["AGENT_DEPLOY_CONFIRMED=1", "npx", "wrangler", ...upload, ...option].join(" ");
+      const output = preTool(command, {}, { inlineApprovalTool: "AskUserQuestion" });
+      assert.equal(denied(output), true, command);
+      assert.match(output.hookSpecificOutput.permissionDecisionReason, /cargar secretos/);
+      assert.doesNotMatch(output.hookSpecificOutput.permissionDecisionReason, /AskUserQuestion/);
+    }
   }
-
-  const planear = prompt("Vamos a planear el corte de herramientas autorizadas");
-  assert.match(
-    planear.hookSpecificOutput.additionalContext,
-    /plan-agent-cloudflare-change/,
-  );
-
-  // Sin acentos y en minúsculas: el recordatorio debe seguir apareciendo.
-  const sinAcentos = prompt("planificacion del corte de conocimiento");
-  assert.match(
-    sinAcentos.hookSpecificOutput.additionalContext,
-    /plan-agent-cloudflare-change/,
-  );
-
-  const implementar = prompt("implementa el endpoint de herramientas");
-  assert.match(
-    implementar.hookSpecificOutput.additionalContext,
-    /no tiene plan/i,
-  );
-
-  // Una pregunta informativa no dispara ningún recordatorio.
-  assert.equal(prompt("¿dónde vive el catálogo de permisos?"), null);
-
-  // El prefijo del skill lo aporta cada agente.
-  const codex = prompt("planea el corte", {
-    skillCommand: "$deliver-agent-cloudflare-change",
-  });
-  assert.match(
-    codex.hookSpecificOutput.additionalContext,
-    /\$plan-agent-cloudflare-change/,
-  );
-
-  rmSync(workspace, { recursive: true, force: true });
-});
-
-test("con plan activo el recordatorio apunta al ciclo", () => {
-  const workspace = mkdtempSync(join(tmpdir(), "agent-cloudflare-routing-"));
-  const planDirectory = join(workspace, ".plans", "issue-56-herramientas");
-  mkdirSync(planDirectory, { recursive: true });
-  writeFileSync(
-    join(planDirectory, "SPEC.md"),
-    [
-      "---",
-      "feature: Herramientas con autorización en backend",
-      "slug: issue-56-herramientas",
-      "rama: feat/issue-56-herramientas",
-      "estado: activo",
-      "---",
-    ].join("\n"),
-  );
-
-  const output = handleHook(
-    {
-      hook_event_name: "UserPromptSubmit",
-      prompt: "retomamos la implementación",
-      cwd: workspace,
-    },
-    policy,
-    {
-      skillCommand: "/deliver-agent-cloudflare-change",
-      runGit(args) {
-        if (args.join(" ") === "rev-parse --abbrev-ref HEAD") {
-          return "feat/issue-56-herramientas";
-        }
-        return "";
-      },
-    },
-  );
-  assert.match(
-    output.hookSpecificOutput.additionalContext,
-    /run-agent-cloudflare-cycle/,
-  );
-
-  rmSync(workspace, { recursive: true, force: true });
-});
-
-test("el bloqueo de secretos tiene precedencia sobre el recordatorio", () => {
-  const secret = "sk-0123456789abcdef0123456789abcdef";
-  const output = handleHook(
-    {
-      hook_event_name: "UserPromptSubmit",
-      prompt: `implementa esto con ${secret}`,
-      cwd: repositoryRoot,
-    },
-    policy,
-    { skillCommand: "/deliver-agent-cloudflare-change" },
-  );
-  assert.equal(output.decision, "block");
-  assert.doesNotMatch(JSON.stringify(output), new RegExp(secret));
+  const localBinary = ["./node_modules/.bin/wrangler", "versions", "upload", "--secrets-file", "secrets.json"].join(" ");
+  assert.equal(denied(preTool(localBinary)), true);
+  const versionSecret = ["npx", "wrangler", "versions", "secret", "bulk", "secrets.json"].join(" ");
+  assert.equal(denied(preTool(versionSecret)), true);
 });

@@ -53,107 +53,88 @@ entre entornos.
 
 ## Validación local
 
-Ejecuta antes de cualquier operación remota:
-
 ```bash
 npm run check
-npm run check:staging
 git diff --check
 ```
 
-`check:staging` construye la aplicación con `CLOUDFLARE_ENV=staging` y ejecuta
-un dry-run sobre el archivo aplanado que genera el plugin de Cloudflare para
-Vite. Seleccionar `--env staging` después del build no cambia ese artefacto.
-El comando valida de forma determinista los nombres, secretos declarados y
-origen del artefacto antes del dry-run. No autentica contra Cloudflare ni crea
-recursos; su salida debe mostrar únicamente bindings de staging.
+`npm run check` ejecuta tipos, pruebas del Worker y del cliente, build y un
+dry-run de staging. Para revisar solamente ese artefacto usa `npm run
+check:staging`. El plugin de Cloudflare para Vite construye con
+`CLOUDFLARE_ENV=staging` y el dry-run carga explícitamente
+`dist/agent_cloudflare/wrangler.json`. La comprobación exige el origen público de
+staging, el UUID de su D1, su R2, ambas colas y sus DLQ, el Durable Object,
+Workers AI y el bundle sin rutas de simulación. El dry-run funciona sin
+autenticarse contra Cloudflare.
 
-## Bootstrap humano de staging
+## Despliegue en staging
 
-Los pasos 1 a 8 se completaron para la base de staging con D1
-`b3eaa1ce-1dbb-46dd-90b9-0aea49ee87f3`, R2
-`agent-cloudflare-staging-media`, Queues de entrada y salida y sus DLQ. La
-versión `4180d56e-4660-4504-a60d-01f1d13cc598` quedó desplegada el
-2026-08-11; `/api/health`, `/api/setup/status` y la SPA respondieron `200`.
-Las migraciones `0001` a `0006` están aplicadas. Una prueba humana anterior
-confirmó transporte, entrega y lectura en Zernio, pero la UI conservó
-`delivery_unknown`; la reconciliación independiente del orden ya está activa
-y requiere una prueba humana nueva.
+Haz una revisión técnica del diff del SHA a publicar, su compatibilidad con el
+entorno y sus pruebas. La revisión de despliegue se hace también si el PR ya
+pasó revisión de código. Se puede validar en staging antes de la fusión con
+autorización para ese SHA y ese entorno. CI verifica el PR y el build, sin
+publicar.
 
-Esta sección conserva el procedimiento reproducible y no autoriza producción.
-Usa una cuenta de Cloudflare correcta y no incluyas secretos en argumentos,
-archivos versionados, logs o capturas.
-
-1. Confirma la cuenta y el subdominio `workers.dev`:
-
-   ```bash
-   npx wrangler whoami
-   ```
-
-2. Crea únicamente los recursos de staging:
-
-   ```bash
-   npx wrangler d1 create agent-cloudflare-staging-db
-   npx wrangler r2 bucket create agent-cloudflare-staging-media
-   npx wrangler queues create agent-cloudflare-staging-inbound
-   npx wrangler queues create agent-cloudflare-staging-outbound
-   npx wrangler queues create agent-cloudflare-staging-inbound-dlq
-   npx wrangler queues create agent-cloudflare-staging-outbound-dlq
-   ```
-
-3. Sustituye `staging-not-provisioned` por el UUID devuelto por D1 y reemplaza
-   `https://staging.invalid` por el origen exacto:
-
-   ```text
-   https://agent-cloudflare-staging.<workers-subdomain>.workers.dev
-   ```
-
-   El UUID de D1 y el origen público no son secretos y deben quedar versionados
-   en la configuración. No cambies los marcadores de producción.
-
-4. Registra valores aleatorios y exclusivos para staging mediante los prompts
-   interactivos:
-
-   ```bash
-   npx wrangler secret put BETTER_AUTH_SECRET --env staging
-   npx wrangler secret put AUTH_SETUP_TOKEN --env staging
-   npx wrangler secret put ZERNIO_WEBHOOK_SECRET --env staging
-   npx wrangler secret put ZERNIO_API_KEY --env staging
-   npx wrangler secret list --env staging
-   ```
-
-5. Repite el dry-run y revisa bindings, nombre del Worker y origen:
+1. Con Wrangler autenticado en la cuenta de staging, lee el estado del
+   Worker. Registra el UUID de la versión que sirve el 100 % y el SHA completo
+   revisado. Usa ese UUID como punto de retorno.
 
    ```bash
    npm run check:staging
+   npx wrangler deployments status --name agent-cloudflare-staging --config dist/agent_cloudflare/wrangler.json --json
+   git rev-parse HEAD
+   git status --short
    ```
 
-6. Revisa y aplica las migraciones exclusivamente en la D1 de staging. Wrangler
-   crea un respaldo antes de aplicar y revierte la migración actual si falla:
+2. Si el cambio incluye esquema, revisa las migraciones y aplícalas como una
+   operación separada sobre la D1 de staging. Wrangler puede inicializar su
+   tabla de control al listar migraciones remotas. El preflight consulta el
+   inventario de D1 y deja la operación de esquema fuera del despliegue.
+
+3. Con el árbol limpio y autorización explícita para el SHA y la versión de
+   partida, sustituye `SHA_COMPLETO_APROBADO` y `UUID_ACTIVO_REVISADO` por
+   los valores revisados y ejecuta:
 
    ```bash
-   npx wrangler d1 migrations list agent-cloudflare-staging-db --remote --env staging
-   npx wrangler d1 migrations apply agent-cloudflare-staging-db --remote --env staging
+   AGENT_DEPLOY_CONFIRMED=1 npm run deploy:staging -- --sha SHA_COMPLETO_APROBADO --from-version UUID_ACTIVO_REVISADO
    ```
 
-7. Despliega después de revisar el diff y las validaciones. Un agente solo
-   puede hacerlo tras recibir autorización explícita para staging y el artefacto
-   actuales:
+   El comando ejecuta de nuevo `npm run check`, reutiliza el artefacto del
+   dry-run y coteja D1, R2, las colas y sus DLQ en la cuenta autenticada.
+   Las consultas y la publicación usan la misma configuración generada y
+   la misma sesión de Wrangler desde la raíz del proyecto. Vuelve a
+   comprobar el SHA, el árbol y la versión activa antes de publicar. Si
+   cambió la versión activa, revisa el destino y solicita su aprobación de
+   nuevo. Coordina una sola publicación de staging durante el cambio.
+
+4. Registra la versión desplegada y comprueba el estado básico y la SPA:
 
    ```bash
-   npm run deploy:staging
+   curl --fail --silent --show-error https://agent-cloudflare-staging.luisvr391.workers.dev/api/health
+   curl --fail --silent --show-error https://agent-cloudflare-staging.luisvr391.workers.dev/api/setup/status
+   curl --fail --silent --show-error --output /dev/null https://agent-cloudflare-staging.luisvr391.workers.dev/
    ```
 
-8. Registra el identificador de versión y verifica sin incluir tokens ni datos
-   personales:
+   Añade las pruebas funcionales que correspondan a lo publicado y registra
+   su evidencia sin tokens ni datos personales.
 
-   ```bash
-   curl --fail --silent --show-error https://agent-cloudflare-staging.<workers-subdomain>.workers.dev/api/health
-   curl --fail --silent --show-error https://agent-cloudflare-staging.<workers-subdomain>.workers.dev/api/setup/status
-   ```
+## Bootstrap humano de staging
 
-   Comprueba además que `/` entrega la SPA. La instalación mediante `/setup`
-   crea datos empresariales y requiere una autorización operativa separada.
+Usa este procedimiento solo para el aprovisionamiento inicial o la recuperación
+autorizada de recursos del entorno. El despliegue habitual de arriba presupone
+un Worker con una versión activa revisable.
+
+1. Verifica la cuenta y el subdominio con `npx wrangler whoami`. Provisiona la
+   D1, el bucket R2, las colas y sus DLQ de staging según el inventario.
+2. Versiona el UUID público de D1 y el origen HTTPS en `wrangler.jsonc` y
+   ajusta las comprobaciones del artefacto si cambian esos recursos.
+3. Crea el Worker de arranque `agent-cloudflare-staging` en el panel de
+   Cloudflare y carga ahí los secretos. Valida el artefacto y aplica el
+   esquema inicial de D1 con autorización separada.
+4. Realiza la primera publicación como operación humana con el artefacto ya
+   validado. Comprueba `/api/health`, `/api/setup/status` y la SPA. La
+   instalación mediante `/setup` crea datos empresariales y requiere
+   autorización operativa.
 
 ## Gate de producción
 

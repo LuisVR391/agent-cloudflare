@@ -1,7 +1,6 @@
 import { execFileSync } from "node:child_process";
 import {
   readFileSync,
-  readdirSync,
   mkdirSync,
   writeFileSync,
   existsSync,
@@ -262,17 +261,19 @@ function migrationViolationFromChanges(changes, policy) {
   return null;
 }
 
-function documentationReminder(paths, policy) {
+function documentationReminder(paths) {
+  const source = readFileSync(join(scriptDirectory, "documentation.json"), "utf8");
+  const rules = JSON.parse(source).map((rule) => ({
+    paths: new RegExp(rule.paths),
+    documents: rule.documents,
+  }));
   const suggestions = new Set();
   for (const path of paths) {
-    for (const mapping of policy.documentationMap) {
-      if (isUnder(path, [mapping.prefix])) {
-        mapping.documents.forEach((document) => suggestions.add(document));
-      }
-    }
+    const match = rules.find((rule) => rule.paths.test(path));
+    for (const document of match?.documents ?? []) suggestions.add(document);
   }
   if (suggestions.size === 0) return null;
-  return `Este cambio puede afectar documentación. Revisa: ${[...suggestions].join(", ")}. Declara Documentación, ADR, Roadmap y Validación al cerrar.`;
+  return `Actualiza antes del push la documentación técnica que corresponda. Consulta ${[...suggestions].join(", ")}.`;
 }
 
 function safeMarkerPart(value, fallback) {
@@ -304,173 +305,7 @@ function markOnce(input, kind, runtime = {}) {
   }
 }
 
-// El plan activo vive fuera de git, en `.plans/<slug>/SPEC.md`. Su frontmatter
-// declara la rama que lo implementa; la sesión solo recupera el que corresponde
-// a la rama actual y sigue vigente. Un frontmatter con marcadores `<...>` es una
-// plantilla sin rellenar y no cuenta como plan.
-function readFrontmatter(source) {
-  const match = source.match(/^---\n([\s\S]*?)\n---/);
-  if (!match) return null;
-  const fields = {};
-  for (const line of match[1].split("\n")) {
-    const pair = line.match(/^([A-Za-z_-]+):\s*(.*)$/);
-    if (!pair) continue;
-    const value = pair[2].trim().replace(/^["']|["']$/g, "");
-    if (!value || /^<.*>$/.test(value)) continue;
-    fields[pair[1]] = value;
-  }
-  return fields;
-}
-
-function activePlan(cwd, policy, gitRunner = runGit) {
-  const settings = policy.planArtifacts;
-  if (!settings) return null;
-  const branch = gitRunner(["rev-parse", "--abbrev-ref", "HEAD"], cwd);
-  if (!branch) return null;
-  const root = join(cwd, settings.directory);
-  let entries = [];
-  try {
-    entries = readdirSync(root, { withFileTypes: true });
-  } catch {
-    return null;
-  }
-  for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
-    const specPath = join(root, entry.name, settings.specFileName);
-    let fields;
-    try {
-      fields = readFrontmatter(readFileSync(specPath, "utf8"));
-    } catch {
-      continue;
-    }
-    if (!fields) continue;
-    const estado = (fields.estado || "activo").toLowerCase();
-    if (estado !== "activo") continue;
-    const matchesBranch =
-      fields.rama === branch ||
-      (fields.slug && branch.includes(fields.slug)) ||
-      entry.name === branch ||
-      branch.includes(entry.name);
-    if (!matchesBranch) continue;
-    return {
-      feature: fields.feature || entry.name,
-      path: `${settings.directory}/${entry.name}/${settings.specFileName}`,
-      issue: fields.issue || null,
-    };
-  }
-  return null;
-}
-
-// El rol de solo lectura evalúa una lista de comandos permitidos, no una de
-// prohibidos: cualquier binario que no esté declarado se rechaza. Es la única
-// forma de garantizar que un agente de verificación no modifique lo que juzga.
-function readOnlyCommandViolation(command, policy) {
-  const role = policy.readOnlyRole;
-  if (!role) return null;
-  const text = String(command || "").trim();
-  if (!text) return null;
-
-  for (const pattern of role.blockedShellPatterns || []) {
-    if (new RegExp(pattern).test(text)) {
-      return "usa redirección, sustitución de comandos o escritura de archivos";
-    }
-  }
-  for (const pattern of role.blockedArgumentPatterns || []) {
-    if (new RegExp(pattern).test(text)) {
-      return "incluye un argumento que escribe en disco";
-    }
-  }
-
-  for (const segment of text.split(/(?:&&|\|\||[;|])/)) {
-    const tokens = segment.trim().split(/\s+/).filter(Boolean);
-    // Las asignaciones previas al binario no lo convierten en otro comando.
-    while (tokens.length > 0 && /^[A-Za-z_][A-Za-z0-9_]*=/.test(tokens[0])) {
-      tokens.shift();
-    }
-    if (tokens.length === 0) continue;
-    const base = tokens[0].split("/").pop();
-    if (!(role.allowedCommands || []).includes(base)) {
-      return `ejecuta \`${base}\`, que no está en la lista de lectura`;
-    }
-    if (base === "git") {
-      const subcommand = tokens.find(
-        (token, index) => index > 0 && !token.startsWith("-"),
-      );
-      if (!(role.allowedGitSubcommands || []).includes(subcommand)) {
-        return `ejecuta \`git ${subcommand || ""}\`, que no es un subcomando de lectura`;
-      }
-    }
-    if (base === "npm") {
-      const script = tokens[1] === "run" ? tokens[2] : null;
-      if (!script || !(role.allowedNpmScripts || []).includes(script)) {
-        return "ejecuta un script de npm fuera de los permitidos para verificar";
-      }
-    }
-  }
-  return null;
-}
-
-// El prompt se compara sin acentos ni mayúsculas: quien escribe deprisa no
-// escribe «planificación» con tilde, y el recordatorio dejaría de aparecer justo
-// cuando más sirve.
-function normalizeIntent(value) {
-  return String(value || "")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
-}
-
-// Recordatorio, nunca bloqueo: el prompt sigue su camino y el agente decide.
-// Un corte que ya tiene plan se continúa por el ciclo; uno que no lo tiene se
-// planifica antes de escribir código.
-function skillReminder(input, policy, runtime = {}) {
-  const routing = policy.skillRouting;
-  if (!routing) return null;
-  const prompt = normalizeIntent(input.prompt);
-  if (!prompt) return null;
-  const wantsPlanning = matchesAny(prompt, routing.planningIntentPatterns);
-  const wantsImplementation = matchesAny(
-    prompt,
-    routing.implementationIntentPatterns,
-  );
-  if (!wantsPlanning && !wantsImplementation) return null;
-
-  const prefix = (runtime.skillCommand || "/")[0];
-  const plan = activePlan(
-    input.cwd || repositoryRoot,
-    policy,
-    runtime.runGit || runGit,
-  );
-  if (plan) {
-    return `Esta rama ya tiene un plan aprobado en ${plan.path}. Continúa por ${prefix}${routing.cycleSkill} en vez de volver a planificar; el SPEC es el contrato del corte.`;
-  }
-  if (wantsPlanning) {
-    return `Usa ${prefix}${routing.planningSkill} para investigar, clasificar las decisiones y escribir el SPEC antes de tocar código.`;
-  }
-  return `Este corte no tiene plan. Si no es un cambio trivial, pasa antes por ${prefix}${routing.planningSkill}: sin criterios de aceptación no hay forma de verificar que terminó.`;
-}
-
-function handleSessionStart(input, policy, runtime = {}) {
-  const sourceList = policy.sourcesOfTruth.join(", ");
-  const skill = runtime.skillCommand || "deliver-agent-cloudflare-change";
-  const plan = activePlan(input.cwd || repositoryRoot, policy, runtime.runGit || runGit);
-  const planLine = plan
-    ? ` Esta rama tiene un plan activo: ${plan.feature} en ${plan.path}${plan.issue ? ` (issue ${plan.issue})` : ""}; léelo antes de continuar.`
-    : "";
-  return addContext(
-    "SessionStart",
-    `Repositorio Agent Cloudflare: lee ${sourceList}. Confirma fase, dependencias, seguridad, pruebas y efecto en Documentación/ADR/Roadmap antes de entregar. Usa ${skill} para cambios del repositorio.${planLine}`,
-  );
-}
-
-function handleSubagentStart(input, policy) {
-  return addContext(
-    "SubagentStart",
-    `Antes de trabajar, lee AGENTS.md y la documentación relevante. Respeta la fase activa, fuentes de verdad, aislamiento, migraciones inmutables y entrega evidencia de pruebas y documentación. Fuentes base: ${policy.sourcesOfTruth.join(", ")}.`,
-  );
-}
-
-function handleUserPromptSubmit(input, policy, runtime = {}) {
+function handleUserPromptSubmit(input, policy) {
   const prompt = String(input.prompt || "");
   if (matchesAny(prompt, policy.highConfidenceSecretPatterns)) {
     return {
@@ -479,8 +314,7 @@ function handleUserPromptSubmit(input, policy, runtime = {}) {
         "El prompt parece contener un secreto de alta confianza. Retíralo, rótalo si fue real y vuelve a enviar una versión redactada.",
     };
   }
-  const reminder = skillReminder(input, policy, runtime);
-  return reminder ? addContext("UserPromptSubmit", reminder) : null;
+  return null;
 }
 
 function handlePreToolUse(input, policy, runtime = {}) {
@@ -488,22 +322,6 @@ function handlePreToolUse(input, policy, runtime = {}) {
   const toolName = input.tool_name || "";
   const command = String(input.tool_input?.command || "");
   const gitRunner = runtime.runGit || runGit;
-
-  // Un agente declarado de solo lectura no escribe por ninguna vía: ni con las
-  // herramientas de edición ni con un comando que redirija, borre o mueva.
-  if (runtime.role === "readOnly") {
-    if (isFileTool(toolName)) {
-      return denyPreToolUse(
-        "Bloqueado: este agente verifica y no modifica archivos. Reporta el hallazgo en vez de corregirlo.",
-      );
-    }
-    const violation = readOnlyCommandViolation(command, policy);
-    if (violation) {
-      return denyPreToolUse(
-        `Bloqueado: este agente verifica y no modifica el repositorio; el comando ${violation}. Usa una lectura equivalente y reporta el hallazgo.`,
-      );
-    }
-  }
 
   if (isFileTool(toolName)) {
     const migration = migrationViolationFromOperations(
@@ -601,54 +419,74 @@ function handlePreToolUse(input, policy, runtime = {}) {
   if (implementationChanged && !documentationChanged) {
     return addContext(
       "PreToolUse",
-      "La auditoría encontró implementación sin documentación en el diff. Revisa el impacto y declara `Documentación: no aplica — <motivo concreto>` si corresponde.",
+      "La auditoría encontró implementación sin documentación en el diff. Actualiza la documentación técnica que corresponda antes del push.",
     );
   }
 
   return null;
 }
 
-function handlePostToolUse(input, policy, runtime = {}) {
+function confirmedPullRequestNumber(input) {
+  if (input.tool_name !== "Bash") return null;
+  const command = String(input.tool_input?.command || "").replace(/\\\r?\n/g, " ");
+  const curl = command.match(
+    /(?:^|&&|[;\n])\s*(?:env\s+)?AGENT_MERGE_CONFIRMED=1\s+curl\s+([^\n;&|]+)/,
+  )?.[1];
+  if (!curl || !/(?:^|\s)(?:-X|--request)(?:\s+|=)PUT(?:$|\s)/.test(curl)) {
+    return null;
+  }
+  return curl.match(
+    /(?:^|[\s'"])https:\/\/api\.github\.com\/repos\/LuisVR391\/agent-cloudflare\/pulls\/(\d+)\/merge(?=$|[\s'"])/i,
+  )?.[1] || null;
+}
+
+function isSuccessfulMerge(response) {
+  if (response?.interrupted || (response?.exit_code ?? response?.exitCode ?? 0) !== 0) {
+    return false;
+  }
+
+  let result = response?.stdout ?? response?.output ?? response;
+  if (typeof result === "string") {
+    const exitCode = result.match(/^Process exited with code (\d+)\r?$/m)?.[1];
+    if (exitCode !== undefined && exitCode !== "0") return false;
+
+    // Claude expone stdout. Codex puede anteponer metadatos al resultado de Bash.
+    const body = result.replace(/^[\s\S]*?^(?:Final output|Output):\r?\n/m, "");
+    try {
+      result = JSON.parse(body);
+    } catch {
+      return false;
+    }
+  }
+
+  return result?.merged === true && /^[a-f0-9]{40}$/i.test(result.sha);
+}
+
+function handlePostToolUse(input, runtime = {}) {
+  const pullNumber = confirmedPullRequestNumber(input);
+  if (pullNumber && isSuccessfulMerge(input.tool_response)) {
+    return addContext(
+      "PostToolUse",
+      `GitHub confirmó la fusión del PR #${pullNumber}. Verifica su estado y concilia la tarjeta y los pendientes abiertos afectados con pendientes-agent-cloudflare.`,
+    );
+  }
+
   const cwd = input.cwd || repositoryRoot;
   const paths = toolOperations(input, cwd).map((operation) => operation.path);
-  const reminder = documentationReminder(paths, policy);
+  if (paths.length === 0) return null;
+  const reminder = documentationReminder(paths);
   if (!reminder || !markOnce(input, "docs", runtime)) return null;
   return addContext("PostToolUse", reminder);
 }
 
-function handleStop(input) {
-  if (input.stop_hook_active) return { continue: true };
-  const message = String(input.last_assistant_message || "");
-  const required = [
-    /(?:^|\n)#{1,6}\s+Documentaci[oó]n\b/im,
-    /(?:^|\n)#{1,6}\s+ADR\b/im,
-    /(?:^|\n)#{1,6}\s+Roadmap\b/im,
-    /(?:^|\n)#{1,6}\s+Validaci[oó]n\b/im,
-  ];
-  if (required.every((expression) => expression.test(message))) {
-    return { continue: true };
-  }
-  return {
-    decision: "block",
-    reason:
-      "Completa el cierre con las secciones Documentación, ADR, Roadmap y Validación. Si alguna no aplica, indica un motivo concreto. No repitas trabajo ya terminado.",
-  };
-}
-
 export function handleHook(input, policy = loadPolicy(), runtime = {}) {
   switch (input.hook_event_name) {
-    case "SessionStart":
-      return handleSessionStart(input, policy, runtime);
-    case "SubagentStart":
-      return handleSubagentStart(input, policy);
     case "UserPromptSubmit":
-      return handleUserPromptSubmit(input, policy, runtime);
+      return handleUserPromptSubmit(input, policy);
     case "PreToolUse":
       return handlePreToolUse(input, policy, runtime);
     case "PostToolUse":
-      return handlePostToolUse(input, policy, runtime);
-    case "Stop":
-      return handleStop(input);
+      return handlePostToolUse(input, runtime);
     default:
       return null;
   }

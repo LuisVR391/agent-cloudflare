@@ -1,0 +1,7 @@
+#!/bin/sh
+set -eu
+root=$(git rev-parse --show-toplevel)
+# Las ramas anteriores a este flujo no traen el validador.
+if test -f "$root/scripts/check-delivery.mjs"; then
+  exec node "$root/scripts/check-delivery.mjs" pre-push "$1"
+fi

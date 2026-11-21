@@ -3,7 +3,4 @@
 // pruebas. Este archivo solo declara cómo se identifica el agente.
 import { runHook } from "../../.agents/guard/project-guard.mjs";
 
-await runHook({
-  agent: "codex",
-  skillCommand: "$deliver-agent-cloudflare-change",
-});
+await runHook({ agent: "codex" });

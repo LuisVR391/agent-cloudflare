@@ -14,9 +14,9 @@
     "preview": "vite preview",
     "prebuild:staging": "wrangler types",
     "build:staging": "CLOUDFLARE_ENV=staging vite build && tsc --noEmit",
-    "check:staging:config": "node scripts/validate-staging-build.mjs && wrangler deploy --dry-run",
+    "check:staging:config": "node scripts/validate-staging-build.mjs && WRANGLER_CI_OVERRIDE_NAME=agent-cloudflare-staging wrangler deploy --dry-run --config dist/agent_cloudflare/wrangler.json",
     "check:staging": "npm run build:staging && npm run check:staging:config",
-    "deploy:staging": "npm run build:staging && wrangler deploy",
+    "deploy:staging": "node scripts/deploy-staging.mjs",
     "typecheck": "wrangler types && tsc --noEmit",
     "cf-typegen": "wrangler types",
     "db:migrate": "wrangler d1 migrations apply agent-cloudflare-db --local",
@@ -26,7 +26,9 @@
     "test:worker": "vitest run --config vitest.config.ts",
     "test:client": "vitest run --config vitest.client.config.ts",
     "check:agents": "node --check .agents/guard/project-guard.mjs && node --check .agents/guard/validate-agent-config.mjs && node --check .codex/hooks/project-guard.mjs && node --check .claude/hooks/project-guard.mjs && node .agents/guard/validate-agent-config.mjs && node .agents/guard/scenarios.mjs",
-    "check": "npm run check:agents && npm run typecheck && npm run test && npm run build && npm run check:staging"
+    "check": "npm run check:agents && npm run test:delivery && npm run typecheck && npm run test && npm run build && npm run check:staging",
+    "hooks:install": "node scripts/install-git-hooks.mjs",
+    "test:delivery": "node --test scripts/delivery.test.mjs scripts/deploy-staging.test.mjs"
   },
   "dependencies": {
     "@shadcn/react": "0.3.0",

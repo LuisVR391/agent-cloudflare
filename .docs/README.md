@@ -43,7 +43,7 @@ estructura y proceso de sustitución.
 | [README del repositorio](../README.md) | Vigente | 0 | Entrada al proyecto y estado real de implementación |
 | [Seguridad](../SECURITY.md) | Vigente | 0 | Reglas mínimas para secretos, webhooks, datos y procesamiento |
 | [Contribución](../CONTRIBUTING.md) | Vigente | 0 | Flujo local y convenciones actuales |
-| [Continuidad de agentes de codificación](./operations/agent-continuity.md) | Vigente | 0 | Skill, hooks, confianza, guardrails y validación repo-local para Codex y Claude Code |
+| [Entrega de cambios](./operations/entrega.md) | Vigente | 0 | Notion, CI, hook pre-push, revisión y validación previa al despliegue |
 | [Base de datos local](./operations/local-database.md) | Vigente | 0 | Binding, migraciones, inspección y pruebas de D1 en local |
 | [Operación de autenticación](./operations/authentication.md) | Vigente | 0 | Secretos, instalación inicial, acceso local y recuperación |
 | [Instrucciones para Claude Code](../CLAUDE.md) | Vigente | 0 | Punto de entrada que importa las reglas compartidas |
@@ -69,6 +69,7 @@ estructura y proceso de sustitución.
 | [ADR-0008: Zernio como adaptador de WhatsApp](./decisions/ADR-0008-zernio-whatsapp-adapter.md) | Vigente | Canal bidireccional externo sin delegar datos ni runtime empresarial |
 | [ADR-0009: Composición de la interfaz de cliente](./decisions/ADR-0009-client-ui-composition.md) | Vigente | Primitivas de shadcn/ui para el shell y el hilo, tokens en vez de color incrustado |
 | [ADR-0013: Operaciones de GitHub por API](./decisions/ADR-0013-github-operations-by-api.md) | Vigente | Bloqueo por efecto y no por método; crear y editar sin marca, fusionar y borrar no |
+| [ADR-0019: Flujo de entrega](./decisions/ADR-0019-delivery-workflow.md) | Vigente al fusionar | Revisión, tracking en Notion, documentación y validación por candidato |
 
 ### Fase 1 — WhatsApp funcional
 

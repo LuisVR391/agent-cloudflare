@@ -235,7 +235,8 @@ está en [base de datos local](./.docs/operations/local-database.md).
 | `npm run dev:inbound` | Envía un mensaje entrante firmado al servidor local para poblar el inbox |
 | `npm run check` | Ejecuta guardrails, tipos, pruebas, build y dry-run de staging |
 | `npm run check:staging` | Construye y valida `env.staging` sin publicar |
-| `npm run deploy:staging` | Construye y despliega únicamente a staging; requiere autorización explícita para el artefacto actual |
+| `npm run hooks:install` | Instala la comprobación documental antes del push en este clon |
+| `npm run deploy:staging` | Valida y publica un SHA autorizado en staging tras comprobar la versión activa |
 
 ## Recursos y secretos actuales
 
@@ -253,14 +254,9 @@ ruta pública ni script de despliegue.
 Los recursos futuros de Queues, Workflows y Vectorize se incorporarán con su
 fase correspondiente y no deben crearse anticipadamente en producción.
 
-Para desarrollo local, copia `.dev.vars.example` a `.dev.vars`. Cuando staging
-sea autorizado, registra únicamente los secretos usados por la autenticación
-actual mediante prompts interactivos y dirigidos al entorno:
-
-```bash
-npx wrangler secret put BETTER_AUTH_SECRET --env staging
-npx wrangler secret put AUTH_SETUP_TOKEN --env staging
-```
+Para desarrollo local, copia `.dev.vars.example` a `.dev.vars`. Una persona
+autorizada registra los secretos de autenticación en el panel del Worker de
+staging según el [runbook de entornos](./.docs/operations/environments.md).
 
 `ZERNIO_API_KEY` y `ZERNIO_WEBHOOK_SECRET` son consumidos por el adaptador de
 Zernio y están cargados como secretos exclusivos de staging. Las cuentas siguen conectándose manualmente desde Zernio; sus credenciales
@@ -272,12 +268,11 @@ falla de forma cerrada.
 
 ## Validación y despliegue
 
-1. Trabaja y valida localmente.
-2. Ejecuta `npm run check`.
-3. Ejecuta `npm run check:staging` y revisa los bindings mostrados.
-4. Sigue el runbook y despliega primero a staging solo con autorización.
-5. Publica en producción únicamente después de la validación y aprobación
-   correspondientes.
+El [flujo de entrega](./.docs/operations/entrega.md) reúne revisión de código,
+pruebas, documentación previa al push y conciliación de Notion. El
+[runbook de entornos](./.docs/operations/environments.md) describe la validación
+y publicación de un SHA autorizado en staging. El entorno de producción sigue
+sin aprovisionar.
 
 Consulta [CONTRIBUTING.md](./CONTRIBUTING.md) para las convenciones técnicas y
 [SECURITY.md](./SECURITY.md) antes de integrar credenciales o datos reales.

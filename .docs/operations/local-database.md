@@ -34,7 +34,7 @@ npm run db:migrations:list  # muestra cuáles faltan por aplicar
 
 Ambos scripts fijan `--local`. La ejecución remota de D1 desde un agente de
 codificación está bloqueada por los guardrails descritos en
-[continuidad de agentes](./agent-continuity.md).
+[flujo de entrega](./entrega.md).
 
 ## Inspeccionar
 
